@@ -1,0 +1,13 @@
+{
+  "version": "v1",
+  "generated_utc": "20251214_172643",
+  "counts": {
+    "suppliers": 2000,
+    "departments": 50,
+    "invoices": 300000,
+    "behavioural_features": 300000,
+    "labels": 300000,
+    "images": 45000
+  },
+  "format": "parquet"
+}

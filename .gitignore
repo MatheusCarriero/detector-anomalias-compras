@@ -1,0 +1,50 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+
+# Sistema
+.DS_Store
+Thumbs.db
+
+# Variáveis de ambiente
+.env
+.env.*
+
+# Datasets locais
+DataBase/*.zip
+DataBase/**/*.zip
+
+DataBase/*.parquet
+DataBase/**/*.parquet
+
+DataBase/*.csv
+DataBase/**/*.csv
+
+DataBase/processado/
+
+# Estrutura futura de dados
+data/raw/
+data/processed/
+data/auxiliary/
+
+# Modelos treinados
+*.joblib
+*.pkl
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Node
+node_modules/
+frontend/node_modules/
+frontend/dist/
+
+# Logs
+*.log
