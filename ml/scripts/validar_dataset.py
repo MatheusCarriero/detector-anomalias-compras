@@ -7,8 +7,8 @@ import pandas as pd
 # CAMINHOS
 # ============================================================
 
-pasta_projeto = Path(__file__).resolve().parent
-pasta_database = pasta_projeto / "DataBase"
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+RAW_DATA_DIR = PROJECT_ROOT / "data" / "raw"
 
 
 # ============================================================
@@ -16,15 +16,15 @@ pasta_database = pasta_projeto / "DataBase"
 # ============================================================
 
 labels = pd.read_parquet(
-    pasta_database / "labels.parquet"
+    RAW_DATA_DIR / "labels.parquet"
 )
 
 invoices = pd.read_parquet(
-    pasta_database / "invoices.parquet"
+    RAW_DATA_DIR / "invoices.parquet"
 )
 
 suppliers = pd.read_parquet(
-    pasta_database / "suppliers.parquet"
+    RAW_DATA_DIR / "suppliers.parquet"
 )
 
 

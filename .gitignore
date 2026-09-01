@@ -17,26 +17,23 @@ Thumbs.db
 .env
 .env.*
 
-# Datasets locais
-DataBase/*.zip
-DataBase/**/*.zip
+# Datasets
+data/raw/*
+!data/raw/.gitkeep
+!data/raw/manifest.json
 
-DataBase/*.parquet
-DataBase/**/*.parquet
+data/auxiliary/*
+!data/auxiliary/.gitkeep
 
-DataBase/*.csv
-DataBase/**/*.csv
+data/processed/*
+!data/processed/.gitkeep
 
-DataBase/processado/
+# ZIPs locais e estrutura legada
+*.zip
 
-# Estrutura futura de dados
-data/raw/
-data/processed/
-data/auxiliary/
-
-# Modelos treinados
-*.joblib
-*.pkl
+# Modelos
+ml/models/*.joblib
+ml/models/*.pkl
 
 # Jupyter
 .ipynb_checkpoints/

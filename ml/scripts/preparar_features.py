@@ -8,11 +8,10 @@ import pandas as pd
 # CAMINHOS
 # ============================================================
 
-pasta_projeto = Path(__file__).resolve().parent
-pasta_database = pasta_projeto / "DataBase"
-
-pasta_processado = pasta_database / "processado"
-pasta_processado.mkdir(exist_ok=True)
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+RAW_DATA_DIR = PROJECT_ROOT / "data" / "raw"
+PROCESSED_DATA_DIR = PROJECT_ROOT / "data" / "processed"
+PROCESSED_DATA_DIR.mkdir(parents=True, exist_ok=True)
 
 
 # ============================================================
@@ -24,19 +23,19 @@ print("PREPARAÇÃO DAS FEATURES")
 print("=" * 70)
 
 invoices = pd.read_parquet(
-    pasta_database / "invoices.parquet"
+    RAW_DATA_DIR / "invoices.parquet"
 )
 
 labels = pd.read_parquet(
-    pasta_database / "labels.parquet"
+    RAW_DATA_DIR / "labels.parquet"
 )
 
 suppliers = pd.read_parquet(
-    pasta_database / "suppliers.parquet"
+    RAW_DATA_DIR / "suppliers.parquet"
 )
 
 splits = pd.read_parquet(
-    pasta_database / "splits.parquet"
+    RAW_DATA_DIR / "splits.parquet"
 )
 
 
@@ -573,19 +572,19 @@ colunas_salvar = (
 
 
 train[colunas_salvar].to_parquet(
-    pasta_processado
+    PROCESSED_DATA_DIR
     / "train_features.parquet",
     index=False,
 )
 
 val[colunas_salvar].to_parquet(
-    pasta_processado
+    PROCESSED_DATA_DIR
     / "val_features.parquet",
     index=False,
 )
 
 test[colunas_salvar].to_parquet(
-    pasta_processado
+    PROCESSED_DATA_DIR
     / "test_features.parquet",
     index=False,
 )
@@ -597,17 +596,17 @@ print("ARQUIVOS CRIADOS")
 print("=" * 70)
 
 print(
-    pasta_processado
+    PROCESSED_DATA_DIR
     / "train_features.parquet"
 )
 
 print(
-    pasta_processado
+    PROCESSED_DATA_DIR
     / "val_features.parquet"
 )
 
 print(
-    pasta_processado
+    PROCESSED_DATA_DIR
     / "test_features.parquet"
 )
 

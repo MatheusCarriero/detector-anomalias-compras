@@ -8,10 +8,23 @@ import pandas as pd
 # CAMINHOS DO PROJETO
 # ============================================================
 
-pasta_projeto = Path(__file__).resolve().parent
-pasta_database = pasta_projeto / "DataBase"
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+RAW_DATA_DIR = PROJECT_ROOT / "data" / "raw"
+LEGACY_DATA_DIR = PROJECT_ROOT / "DataBase"
 
-arquivo_zip = pasta_database / "archive.zip"
+RAW_DATA_DIR.mkdir(parents=True, exist_ok=True)
+
+# O primeiro caminho é o recomendado. O segundo mantém compatibilidade
+# com o ZIP local da estrutura anterior, que não é versionado.
+candidatos_zip = (
+    RAW_DATA_DIR / "archive.zip",
+    LEGACY_DATA_DIR / "archive.zip",
+)
+
+arquivo_zip = next(
+    (caminho for caminho in candidatos_zip if caminho.exists()),
+    candidatos_zip[0],
+)
 
 
 # ============================================================
@@ -34,7 +47,9 @@ arquivos_interesse = [
 
 if not arquivo_zip.exists():
     print("ERRO: archive.zip não encontrado.")
-    print(f"Caminho esperado: {arquivo_zip}")
+    print("Caminhos aceitos:")
+    for caminho in candidatos_zip:
+        print(f"- {caminho}")
     exit()
 
 
@@ -67,9 +82,9 @@ with zipfile.ZipFile(arquivo_zip, "r") as zip_ref:
             print(f"[NÃO ENCONTRADO] {nome_desejado}")
             continue
 
-        destino = pasta_database / nome_desejado
+        destino = RAW_DATA_DIR / nome_desejado
 
-        # Copia apenas esse arquivo para DataBase
+        # Copia apenas esse arquivo para data/raw
         with zip_ref.open(arquivo_encontrado) as origem:
             with open(destino, "wb") as saida:
                 saida.write(origem.read())
@@ -101,7 +116,7 @@ print("=" * 70)
 
 for nome_arquivo in arquivos_parquet:
 
-    caminho = pasta_database / nome_arquivo
+    caminho = RAW_DATA_DIR / nome_arquivo
 
     print("\n")
     print("=" * 70)

@@ -6,11 +6,11 @@ import pandas as pd
 # CAMINHOS
 # ============================================================
 
-pasta_projeto = Path(__file__).resolve().parent
-pasta_database = pasta_projeto / "DataBase"
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+AUXILIARY_DATA_DIR = PROJECT_ROOT / "data" / "auxiliary"
 
 arquivo_csv = (
-    pasta_database
+    AUXILIARY_DATA_DIR
     / "dataset_auxiliar_kpi_compras.csv"
 )
 
