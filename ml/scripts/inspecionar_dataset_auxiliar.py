@@ -1,6 +1,7 @@
+import sys
 from pathlib import Path
-import pandas as pd
 
+import pandas as pd
 
 # ============================================================
 # CAMINHOS
@@ -26,7 +27,7 @@ print("=" * 70)
 if not arquivo_csv.exists():
     print("\nERRO: dataset auxiliar não encontrado.")
     print(f"Caminho esperado: {arquivo_csv}")
-    exit()
+    sys.exit()
 
 
 # ============================================================

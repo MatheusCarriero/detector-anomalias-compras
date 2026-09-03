@@ -1,8 +1,8 @@
+import sys
 import zipfile
 from pathlib import Path
 
 import pandas as pd
-
 
 # ============================================================
 # CAMINHOS DO PROJETO
@@ -50,7 +50,7 @@ if not arquivo_zip.exists():
     print("Caminhos aceitos:")
     for caminho in candidatos_zip:
         print(f"- {caminho}")
-    exit()
+    sys.exit()
 
 
 print("=" * 70)
@@ -85,9 +85,11 @@ with zipfile.ZipFile(arquivo_zip, "r") as zip_ref:
         destino = RAW_DATA_DIR / nome_desejado
 
         # Copia apenas esse arquivo para data/raw
-        with zip_ref.open(arquivo_encontrado) as origem:
-            with open(destino, "wb") as saida:
-                saida.write(origem.read())
+        with (
+            zip_ref.open(arquivo_encontrado) as origem,
+            open(destino, "wb") as saida,
+        ):
+            saida.write(origem.read())
 
         print(f"[OK] {nome_desejado}")
 

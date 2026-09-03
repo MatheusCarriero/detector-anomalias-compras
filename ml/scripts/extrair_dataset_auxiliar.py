@@ -1,6 +1,6 @@
+import sys
 import zipfile
 from pathlib import Path
-
 
 # Pastas do projeto
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -38,7 +38,7 @@ if not arquivo_zip.exists():
     print("Caminhos aceitos:")
     for caminho in candidatos_zip:
         print(f"- {caminho}")
-    exit()
+    sys.exit()
 
 
 with zipfile.ZipFile(arquivo_zip, "r") as zip_ref:
@@ -54,13 +54,12 @@ with zipfile.ZipFile(arquivo_zip, "r") as zip_ref:
 
     if arquivo_csv is None:
         print("\nERRO: nenhum arquivo CSV encontrado no ZIP.")
-        exit()
+        sys.exit()
 
     print(f"\nCSV encontrado: {arquivo_csv}")
 
-    with zip_ref.open(arquivo_csv) as origem:
-        with open(arquivo_saida, "wb") as destino:
-            destino.write(origem.read())
+    with zip_ref.open(arquivo_csv) as origem, open(arquivo_saida, "wb") as destino:
+        destino.write(origem.read())
 
 
 print("\n[OK] Dataset auxiliar extraído.")

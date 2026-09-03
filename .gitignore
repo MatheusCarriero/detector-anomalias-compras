@@ -25,8 +25,22 @@ data/raw/*
 data/auxiliary/*
 !data/auxiliary/.gitkeep
 
+data/external/*
+!data/external/purchase_orders/
+!data/external/supplier_risk/
+
+data/external/purchase_orders/*
+!data/external/purchase_orders/.gitkeep
+
+data/external/supplier_risk/*
+!data/external/supplier_risk/.gitkeep
+
 data/processed/*
 !data/processed/.gitkeep
+!data/processed/supplier_risk/
+data/processed/supplier_risk/*
+!data/processed/supplier_risk/.gitkeep
+!data/processed/supplier_risk/supplier_features_metadata.json
 
 # ZIPs locais e estrutura legada
 *.zip
@@ -34,6 +48,10 @@ data/processed/*
 # Modelos
 ml/models/*.joblib
 ml/models/*.pkl
+ml/supplier_risk/models/*.joblib
+ml/supplier_risk/models/*.pkl
+ml/purchase_risk/models/*.joblib
+ml/purchase_risk/models/*.pkl
 
 # Jupyter
 .ipynb_checkpoints/

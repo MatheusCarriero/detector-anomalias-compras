@@ -1,0 +1,48 @@
+{
+  "nome_modelo": "Supplier Risk Model",
+  "dataset_origem": "data/external/supplier_risk/supplier_risk_dataset.csv",
+  "hash_dataset_origem_sha256": "2A772A6AABB65CCA3785CDBC61335D4AD42AFACE2A61F523691ECCC0641D00D2",
+  "data_geracao": "2026-09-03T10:50:08-03:00",
+  "quantidade_final_fornecedores": 24112,
+  "quantidade_final_features": 10,
+  "features": [
+    "financial_stability_score",
+    "on_time_delivery_rate",
+    "defect_rate",
+    "geopolitical_risk_index",
+    "lead_time_days",
+    "alternative_suppliers_available",
+    "contract_length_months",
+    "environmental_compliance",
+    "previous_disruptions",
+    "supplier_record_count"
+  ],
+  "coluna_rastreabilidade": "supplier_id",
+  "colunas_excluidas": [
+    "Risk_Level",
+    "Risk_Category",
+    "Supplier_ID",
+    "Delivery_Quality_Index",
+    "Supplier_Dependency_Score",
+    "Country",
+    "Region",
+    "Industry",
+    "Supplier_Tier"
+  ],
+  "tratamentos_aplicados": [
+    "remoção de linhas totalmente duplicadas",
+    "consolidação por Supplier_ID com mediana",
+    "cálculo de supplier_record_count após a remoção de duplicatas exatas",
+    "conversão das features aprovadas para valores numéricos",
+    "substituição de valores infinitos por valores nulos",
+    "imputação de valores nulos pela mediana",
+    "preservação de outliers como possíveis sinais de risco",
+    "normalização dos nomes das features para snake_case"
+  ],
+  "observacoes_data_leakage": [
+    "Risk_Level e Risk_Category não integram o dataset de features por representarem possíveis labels.",
+    "supplier_id é preservado apenas para rastreabilidade e não deve ser fornecido ao modelo.",
+    "Delivery_Quality_Index e Supplier_Dependency_Score foram excluídos por serem derivados de features já aprovadas.",
+    "Em experimentos futuros, os parâmetros de imputação devem ser aprendidos exclusivamente no conjunto de treino e apenas aplicados à validação e ao teste."
+  ]
+}

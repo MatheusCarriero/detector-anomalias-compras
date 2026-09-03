@@ -1,0 +1,30 @@
+{
+  "model_name": "Detector Inteligente de Anomalias em Compras",
+  "algorithm": "IsolationForest",
+  "n_estimators": 200,
+  "contamination": 0.22,
+  "random_state": 42,
+  "feature_count": 19,
+  "features": [
+    "invoice_amount",
+    "log_invoice_amount",
+    "supplier_age_days",
+    "supplier_frequency",
+    "country_frequency",
+    "amount_vs_supplier_mean",
+    "supplier_amount_zscore",
+    "department_frequency",
+    "amount_vs_department_mean",
+    "supplier_department_frequency",
+    "payment_terms_days",
+    "invoice_type_encoded",
+    "submission_hour_sin",
+    "submission_hour_cos",
+    "day_of_week_sin",
+    "day_of_week_cos",
+    "month_sin",
+    "month_cos",
+    "is_weekend"
+  ],
+  "training_date": "2026-09-01T17:07:55-03:00"
+}
