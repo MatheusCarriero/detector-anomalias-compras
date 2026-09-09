@@ -1,0 +1,203 @@
+{
+  "pipeline_version": "1.0.0",
+  "data_geracao": "2026-09-09T13:00:08+00:00",
+  "nome_modelo_futuro": "Supplier Risk Model",
+  "status": "ML-Ready validado; nenhum modelo preditivo treinado",
+  "features_utilizadas": [
+    "financial_stability_score",
+    "on_time_delivery_rate",
+    "defect_rate",
+    "geopolitical_risk_index",
+    "lead_time_days",
+    "alternative_suppliers_available",
+    "contract_length_months",
+    "environmental_compliance",
+    "previous_disruptions",
+    "supplier_record_count"
+  ],
+  "quantidade_features": 10,
+  "features_removidas_da_matriz_X": [
+    "supplier_id",
+    "risk_level",
+    "split"
+  ],
+  "campos_proibidos_como_features": [
+    "supplier_id",
+    "Supplier_ID",
+    "risk_level",
+    "Risk_Level",
+    "Risk_Category",
+    "split"
+  ],
+  "metodo_imputacao": "SimpleImputer(strategy='median')",
+  "imputador_ajustado_somente_no_treino": true,
+  "operacoes": {
+    "train": "fit_transform",
+    "validation": "transform",
+    "test": "transform"
+  },
+  "medianas_aprendidas_no_train": {
+    "financial_stability_score": 56.576753,
+    "on_time_delivery_rate": 77.703554,
+    "defect_rate": 4.562763,
+    "geopolitical_risk_index": 31.0,
+    "lead_time_days": 25.0,
+    "alternative_suppliers_available": 3.0,
+    "contract_length_months": 19.0,
+    "environmental_compliance": 71.4,
+    "previous_disruptions": 1.0,
+    "supplier_record_count": 1.0
+  },
+  "politica_coluna_totalmente_nula_no_train": "interromper; não descartar nem imputar com holdout",
+  "quantidade_registros_por_split": {
+    "train": 16894,
+    "validation": 3539,
+    "test": 3679
+  },
+  "reconciliacao_ids": {
+    "fornecedores_entrada": 24112,
+    "fornecedores_apos_merge": 24112,
+    "ids_perdidos": 0,
+    "ids_inesperados": 0,
+    "ids_duplicados": 0,
+    "conjuntos_ids_identicos": true,
+    "overlap": {
+      "train_validation": 0,
+      "train_test": 0,
+      "validation_test": 0
+    }
+  },
+  "split_reutilizado_sem_recalculo": true,
+  "target_utilizado_para_decidir_split_ou_imputacao": false,
+  "ordenacao_linhas_X_y": "supplier_id textual em ordem crescente dentro de cada split",
+  "rastreabilidade": "Filtrar supplier_split_assignments.parquet pelo split e ordenar supplier_id. A posição nessa lista corresponde à linha de X e y, ambos com RangeIndex. Verificar o hash de entrada e o fingerprint da ordenação antes da associação.",
+  "hash_ordenacao_ids_sha256": {
+    "train": "FECF630FEC4E26768AA0E0BC908D7B28FA856F0E8FBF5DF959D7EE5FF00394FA",
+    "validation": "B521D32A15881D7F2B30AA90A5909E5155D0D68113F1BC65B28392DEA952093C",
+    "test": "5E8431165127A49C67C4D33EBFD997CF808622B550E98717966D11243E9E7A8E"
+  },
+  "formato_hash_ordenacao": "SHA-256 de JSON da lista de IDs, ensure_ascii=False, separators=(',', ':'), UTF-8",
+  "schema_X": {
+    "financial_stability_score": "float64",
+    "on_time_delivery_rate": "float64",
+    "defect_rate": "float64",
+    "geopolitical_risk_index": "float64",
+    "lead_time_days": "float64",
+    "alternative_suppliers_available": "float64",
+    "contract_length_months": "float64",
+    "environmental_compliance": "float64",
+    "previous_disruptions": "float64",
+    "supplier_record_count": "float64"
+  },
+  "schema_y": {
+    "risk_level": "int8"
+  },
+  "nulos_antes_por_split": {
+    "train": {
+      "financial_stability_score": 201,
+      "on_time_delivery_rate": 105,
+      "defect_rate": 157,
+      "geopolitical_risk_index": 0,
+      "lead_time_days": 128,
+      "alternative_suppliers_available": 143,
+      "contract_length_months": 0,
+      "environmental_compliance": 179,
+      "previous_disruptions": 109,
+      "supplier_record_count": 0
+    },
+    "validation": {
+      "financial_stability_score": 54,
+      "on_time_delivery_rate": 23,
+      "defect_rate": 44,
+      "geopolitical_risk_index": 0,
+      "lead_time_days": 26,
+      "alternative_suppliers_available": 20,
+      "contract_length_months": 0,
+      "environmental_compliance": 46,
+      "previous_disruptions": 18,
+      "supplier_record_count": 0
+    },
+    "test": {
+      "financial_stability_score": 31,
+      "on_time_delivery_rate": 32,
+      "defect_rate": 39,
+      "geopolitical_risk_index": 0,
+      "lead_time_days": 22,
+      "alternative_suppliers_available": 33,
+      "contract_length_months": 0,
+      "environmental_compliance": 45,
+      "previous_disruptions": 31,
+      "supplier_record_count": 0
+    }
+  },
+  "nulos_apos_por_split": {
+    "train": {
+      "financial_stability_score": 0,
+      "on_time_delivery_rate": 0,
+      "defect_rate": 0,
+      "geopolitical_risk_index": 0,
+      "lead_time_days": 0,
+      "alternative_suppliers_available": 0,
+      "contract_length_months": 0,
+      "environmental_compliance": 0,
+      "previous_disruptions": 0,
+      "supplier_record_count": 0
+    },
+    "validation": {
+      "financial_stability_score": 0,
+      "on_time_delivery_rate": 0,
+      "defect_rate": 0,
+      "geopolitical_risk_index": 0,
+      "lead_time_days": 0,
+      "alternative_suppliers_available": 0,
+      "contract_length_months": 0,
+      "environmental_compliance": 0,
+      "previous_disruptions": 0,
+      "supplier_record_count": 0
+    },
+    "test": {
+      "financial_stability_score": 0,
+      "on_time_delivery_rate": 0,
+      "defect_rate": 0,
+      "geopolitical_risk_index": 0,
+      "lead_time_days": 0,
+      "alternative_suppliers_available": 0,
+      "contract_length_months": 0,
+      "environmental_compliance": 0,
+      "previous_disruptions": 0,
+      "supplier_record_count": 0
+    }
+  },
+  "infinitos_apos_por_split": {
+    "train": 0,
+    "validation": 0,
+    "test": 0
+  },
+  "valores_presentes_preservados": true,
+  "scaling": false,
+  "encoding": false,
+  "selecao_estatistica_de_features": false,
+  "reducao_dimensionalidade": false,
+  "modelo_preditivo_treinado": false,
+  "versoes_bibliotecas": {
+    "python": "3.14.3",
+    "pandas": "2.2.2",
+    "numpy": "2.5.2",
+    "pyarrow": "25.0.1",
+    "scikit-learn": "1.9.0"
+  },
+  "hashes_entradas_sha256": {
+    "data/processed/supplier_risk/supplier_features_base.parquet": "5FEBC2B6843B9C0C0ED50EF3786AC74E9E82F5E47C8F8C73E2B6277EDCBADEA6",
+    "data/processed/supplier_risk/supplier_targets.parquet": "480ED2F33BD9352ABB79ADC2A1A375982B87DAA29E28F8AA1CDD3EDE0044F29A",
+    "data/processed/supplier_risk/supplier_split_assignments.parquet": "13E8795F34B8B4A7E051B666AAE945BEFE18D1B012AA16044414F975334FFA7E"
+  },
+  "hash_script_sha256": "0E35B3094E5E9ACC2D1AD4CA3E1BCF32AD590C5962F1C092FF79F93EFFF1BAB7",
+  "hashes_saidas_sha256": {
+    "data/processed/supplier_risk/ml_ready/X_train.parquet": "21D7BAA5B62F4D0F42754DFE3BF36236C7EC9CFF610A5C8C5B3C1B651D1812B2",
+    "data/processed/supplier_risk/ml_ready/y_train.parquet": "DECF5DCD969624BF89C69635EEB2E3C1C99F2589A9D7BE71E4E069C885587F43",
+    "data/processed/supplier_risk/ml_ready/X_validation.parquet": "9C3C1E428A85FEA5F3E4D381956F553BC7518263145C800006E6731480EA0DE0",
+    "data/processed/supplier_risk/ml_ready/y_validation.parquet": "1BD1B619C50E2B124679AE7C0ED9A9D14E00691132552EBBB95677303F319134",
+    "data/processed/supplier_risk/ml_ready/X_test.parquet": "C80EE0E47BE00196296432CFEE101C0280B799AE1B0093CC12109D0492B0606C",
+    "data/processed/supplier_risk/ml_ready/y_test.parquet": "95E99B69547A45C37343077402A2A253F4070A99304B608E31701FFBDE696FC8"
+  }
+}

@@ -4,6 +4,7 @@ __pycache__/
 .venv/
 venv/
 env/
+.pytest_cache/
 
 # IDE
 .vscode/
@@ -40,7 +41,12 @@ data/processed/*
 !data/processed/supplier_risk/
 data/processed/supplier_risk/*
 !data/processed/supplier_risk/.gitkeep
-!data/processed/supplier_risk/supplier_features_metadata.json
+!data/processed/supplier_risk/supplier_features_base_metadata.json
+!data/processed/supplier_risk/supplier_target_audit.json
+!data/processed/supplier_risk/supplier_split_metadata.json
+!data/processed/supplier_risk/ml_ready/
+data/processed/supplier_risk/ml_ready/*
+!data/processed/supplier_risk/ml_ready/preprocessing_metadata.json
 
 # ZIPs locais e estrutura legada
 *.zip

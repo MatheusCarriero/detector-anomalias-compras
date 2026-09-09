@@ -1,0 +1,12 @@
+-r requirements.txt
+
+# Ferramentas de desenvolvimento/testes.
+pytest==9.1.1
+ruff==0.16.5
+
+# Dependências transitivas do pytest verificadas no ambiente de testes.
+colorama==0.4.6; sys_platform == "win32"
+iniconfig==2.3.0
+packaging==26.0
+pluggy==1.6.0
+pygments==2.20.0

@@ -2,9 +2,18 @@
 
 ## 1. Visão geral
 
-O projeto **Detector Inteligente de Anomalias em Compras** utiliza dados de faturas, pedidos de compra e risco de fornecedores para estudar comportamentos incomuns em processos de aquisição. A estratégia de dados foi organizada para permitir uma evolução gradual: primeiro, estabelecer uma linha de base confiável com o dataset principal; depois, avaliar fontes externas como contexto operacional e como suporte a análises complementares.
+O projeto **Detector Inteligente de Anomalias em Compras** utiliza fontes distintas para anomalias em faturas, classificação supervisionada de risco de fornecedores e risco de pedidos. A hipótese inicial de enriquecer as features de Invoice com fontes externas foi substituída pela arquitetura de três modelos especializados. Este documento preserva o histórico sem apresentar essa hipótese como plano de implementação vigente.
 
-Atualmente, o modelo utiliza exclusivamente o **Procurement Invoice Fraud Dataset**. Os datasets externos estão organizados e disponíveis para exploração, mas ainda não participam do treinamento, da geração das 19 features atuais nem da avaliação do modelo.
+Atualmente, o Invoice Anomaly Model utiliza exclusivamente o **Procurement Invoice Fraud Dataset**. A decisão arquitetural vigente é **3 domínios principais → 3 modelos especializados**. Supplier Risk e Purchase Risk possuem fontes e responsabilidades próprias; não são fontes de treinamento do Invoice nesta fase. O Procurement KPI permanece apenas auxiliar.
+
+| Domínio / fonte | Local | Responsabilidade | Situação atual |
+|---|---|---|---|
+| Invoice Dataset | `data/raw/` | Fonte principal do Invoice Anomaly Model: anomalias em faturas/transações | Modelo existente, metodologia preservada nesta revisão |
+| Supplier Risk Dataset | `data/external/supplier_risk/` | Fonte principal do Supplier Risk Model: classificação supervisionada de `Risk_Level` | Base, auditoria do target, split e ML-Ready concluídos; EDA/modelagem/avaliação pendentes |
+| Purchase Orders Dataset | `data/external/purchase_orders/` | Fonte principal do Purchase Risk Model: risco operacional/financeiro de pedidos | Preparação futura; domínio não modificado nesta revisão |
+| Procurement KPI Dataset | `data/auxiliary/` | Referência complementar, exploração futura de KPIs, análises futuras e possível apoio ao dashboard | Auxiliar; não participa do treinamento dos três modelos principais |
+
+A independência dos três modelos é a estratégia atual. As fontes representam populações diferentes e não possuem chaves reais comuns para integração; identificadores semelhantes não comprovam identidade. Não será realizado merge direto das features desses datasets. Uma eventual camada futura de integração de **scores** exigirá contexto comum verificável, justificativa e avaliação próprias; não está implementada.
 
 Os princípios que orientam a estratégia são:
 
@@ -41,10 +50,22 @@ Features operacionais futuras
 
 Supplier Risk Dataset
             ↓
-Features de risco futuras
+Validação, deduplicação e consolidação por fornecedor
+            ↓
+supplier_features_base.parquet (nulos preservados)
+            ↓
+Auditoria de Risk_Level e split determinístico por supplier_id (concluídos)
+            ↓
+Imputação mediana train-only e arquivos ML-Ready (concluídos)
+            ↓
+EDA em TRAIN e classificação supervisionada (futuras)
+
+Procurement KPI Dataset
+            ↓
+Apoio complementar / KPIs / dashboard (sem treinamento nesta fase)
 ```
 
-Atualmente, somente o Procurement Invoice Fraud Dataset participa do treinamento do Isolation Forest. Os datasets externos não alimentam o modelo atual: eles permanecem em fase de análise, validação de qualidade e definição metodológica das futuras features.
+Somente o Procurement Invoice Fraud Dataset participou do treinamento do Isolation Forest existente. Os externos não alimentam esse modelo: Supplier Risk já possui preparação ML-Ready independente; Purchase Risk possui auditoria e estratégia, mas ainda não possui feature engineering ou modelagem.
 
 ## 2. Papel dos datasets
 
@@ -52,7 +73,7 @@ Atualmente, somente o Procurement Invoice Fraud Dataset participa do treinamento
 
 **Local:** `data/raw/`
 
-O Procurement Invoice Fraud Dataset é a fonte principal do projeto e contém 300.000 registros relacionados a faturas, fornecedores, departamentos, valores, condições de pagamento e tipos conhecidos de fraude.
+O Procurement Invoice Fraud Dataset é a fonte principal do Invoice Anomaly Model e contém 300.000 registros relacionados a faturas, fornecedores, departamentos, valores, condições de pagamento e tipos conhecidos de fraude.
 
 Seu papel é sustentar a primeira versão do sistema de detecção de anomalias. Ele oferece volume suficiente para separar os dados em treino, validação e teste e permite comparar os padrões encontrados pelo modelo com informações de fraude conhecidas.
 
@@ -88,6 +109,20 @@ As estatísticas relacionadas a fornecedores, países, departamentos e relaçõe
 
 O dataset principal reúne atributos transacionais e contexto suficiente para construir uma baseline de Machine Learning não supervisionado. O algoritmo atual é o **Isolation Forest**, escolhido por sua capacidade de identificar observações que apresentam combinações pouco frequentes de valores sem utilizar labels durante o treinamento.
 
+#### Preservação dos arquivos tabulares e situação das imagens
+
+O projeto utiliza dados tabulares. A pasta `data/raw/images/` não participa dos pipelines atuais. Sua remoção só é permitida quando um ZIP original íntegro em `DataBase/` comprovar o backup completo e todos os arquivos tabulares necessários estiverem preservados.
+
+Verificação do ambiente em 2026-09-07:
+
+- `data/raw/images/` não existe; nenhuma imagem foi removida nesta revisão;
+- `DataBase/` não existe e não foi possível comprovar um ZIP original íntegro nesse local; `data/raw/archive.zip` também não foi encontrado;
+- presentes e preservados: `invoices.parquet`, `labels.parquet`, `suppliers.parquet`, `splits.parquet`, `images_metadata.parquet` e `manifest.json`;
+- `departments.parquet` e `behavioural_features.parquet` não estavam presentes; não foram removidos nem reconstruídos nesta tarefa;
+- os oito arquivos tabulares citados devem ser preservados quando disponíveis. A ausência de dois arquivos não foi interpretada como autorização para remover outros dados.
+
+Não há comprovação de backup completo neste checkout. Qualquer futura remoção de imagens exigirá nova verificação do ZIP e da integridade dos dados tabulares. O `images_metadata.parquet` permanece preservado independentemente da situação das imagens.
+
 ### 2.2. Dataset externo — Purchase Orders & Supplier Performance Dataset
 
 **Local:** `data/external/purchase_orders/`  
@@ -97,7 +132,9 @@ O dataset possui 5.200 registros e 57 colunas. Ele reúne informações de pedid
 
 #### Papel no projeto
 
-Sua principal contribuição potencial é adicionar contexto anterior e posterior à emissão de uma fatura. Enquanto o dataset principal descreve a transação faturada, os pedidos de compra podem representar a intenção de compra, os limites orçamentários, as condições negociadas e o desempenho da entrega.
+Essa fonte permite estudar intenção de compra, limites orçamentários, condições negociadas e desempenho da entrega na sua própria população. A ideia anterior de adicionar esse contexto às faturas do outro dataset é apenas histórica: não existem chaves reais comuns que sustentem essa associação.
+
+Na arquitetura vigente, essa fonte pertence ao **Purchase Risk Model independente**, mantendo a decisão pré-aprovação e as exclusões já definidas. Nenhuma junção direta de features entre domínios está planejada.
 
 Esse contexto pode ajudar a identificar situações como:
 
@@ -119,6 +156,8 @@ Esse contexto pode ajudar a identificar situações como:
 
 Essas features são hipóteses de pesquisa. Suas fórmulas, janelas históricas e métodos de normalização deverão ser definidos e documentados antes de qualquer uso no modelo.
 
+Hipóteses que dependem de entrega ou status pós-evento não integram a decisão pré-aprovação definida em [Purchase Risk Model](purchase_risk_model.md). Essa restrição existente continua válida; o pipeline e a metodologia desse domínio não são alterados nesta revisão.
+
 ### 2.3. Dataset externo — Supplier Risk Assessment Dataset
 
 **Local:** `data/external/supplier_risk/`
@@ -132,11 +171,17 @@ O pacote contém 28.098 registros. A versão enriquecida possui 17 colunas e adi
 
 #### Papel no projeto
 
-Esse dataset pode sustentar uma camada independente de análise de risco de fornecedores. Em vez de observar somente uma transação, essa camada representaria características estruturais e históricas do fornecedor, incluindo estabilidade financeira, qualidade, entregas, compliance, risco geopolítico e dependência operacional.
+Esse dataset é a fonte principal do **Supplier Risk Model independente**, definido como classificação supervisionada de `Risk_Level` a partir do perfil operacional, financeiro e de qualidade. A convenção adotada no projeto é `0 = menor risco`, `1 = maior risco`, sem comprovação da origem ou da regra de construção da label. Não existe dimensão temporal adequada para prever acontecimentos futuros.
 
-Uma pontuação de fornecedor pode ser utilizada futuramente como contexto para investigação, segmentação de alertas ou priorização de casos. Entretanto, qualquer indicador que tenha sido calculado a partir de fraude conhecida, eventos futuros ou informações indisponíveis no momento da transação deve ser excluído do treinamento para evitar data leakage.
+A fonte operacional é `supplier_risk_dataset.csv`; `raw_supplier_risk_dataset_1.csv` permanece apenas como referência. O pipeline versão 2.0.0 produz `data/processed/supplier_risk/supplier_features_base.parquet`, com uma linha por fornecedor e nulos preservados. Não aplica imputação, normalização, padronização ou encoding. A matriz numérica contém dez features candidatas e `supplier_id` separado para rastreabilidade. O contrato detalhado está em [Features do Supplier Risk](supplier_risk_features.md).
 
-#### Features planejadas
+`supplier_record_count` conta registros distintos da fonte após duplicatas exatas, sem significar profundidade histórica. O índice geopolítico da fonte enriquecida é mantido provisoriamente, com origem ainda não validada. Cobertura e alertas de domínio são armazenados em artefato próprio, fora da matriz. O split já precede a imputação: `prepare_target_and_split.py` estabelece partições de 16.894 / 3.539 / 3.679 fornecedores; `build_ml_dataset.py` ajusta `SimpleImputer(strategy="median")` somente em TRAIN e transforma validation/test. Os seis Parquets ML-Ready têm dez features em X e targets separados, sem alterar a base com nulos.
+
+A saída futura será a classe prevista e, para modelos compatíveis, a probabilidade estimada de pertencimento à classe 1. Não é probabilidade real de falha, previsão de fraude ou de rupturas. Não se afirma que esses fornecedores correspondam aos fornecedores dos datasets de Invoice/Purchase. As conclusões deverão se limitar à capacidade de reproduzir padrões associados à classificação fornecida pelo dataset.
+
+#### Hipóteses históricas de features, fora do contrato atual
+
+As ideias abaixo não substituem as dez features atuais nem são implementadas nesta fase:
 
 - `financial_risk_score`: síntese de estabilidade financeira e demais indicadores financeiros disponíveis;
 - `delivery_risk_score`: combinação de pontualidade, lead time e histórico de interrupções;
@@ -148,37 +193,39 @@ Os scores planejados não devem ser tratados como equivalentes a labels de fraud
 
 #### Controle sobre features de risco
 
-Campos que representam o resultado final ou uma classificação consolidada de risco, como `Risk_Level`, `Risk_Category` e outras classificações derivadas, não devem ser utilizados diretamente como features no treinamento do Isolation Forest.
+`Risk_Level` é o target da classificação supervisionada do Supplier Risk, nunca uma feature. `Risk_Category` e classificações equivalentes também permanecem fora de X. A definição antiga de Supplier Risk como simples detecção de anomalias foi substituída; Isolation Forest permanece no domínio Invoice.
 
 Esses campos devem ser reservados para:
 
 - análise exploratória;
 - avaliação;
 - comparação de resultados;
-- possíveis modelos supervisionados futuros.
+- target para treinamento supervisionado futuro, no caso de `Risk_Level`, com as limitações de origem documentadas.
 
 Essa separação evita que o modelo receba uma representação direta ou indireta do resultado que se pretende analisar, reduzindo o risco de data leakage e preservando a validade dos experimentos.
 
-## 3. Estratégias possíveis de integração
+### 2.4. Fonte auxiliar — Procurement KPI Analysis Dataset
 
-### 3.1. Integração transacional
+O dataset identificado no projeto como **Procurement KPI Analysis Dataset** permanece em `data/auxiliary/dataset_auxiliar_kpi_compras.csv`, conforme os scripts de extração e inspeção existentes. O nome `data/auxiliary/Procurement KPI Analysis Dataset.csv` citado na decisão não corresponde a um arquivo presente neste checkout; o arquivo local não foi renomeado nem removido.
 
-Uma integração direta poderia relacionar faturas e pedidos de compra por identificadores como número do pedido, fornecedor, item ou contrato. Essa abordagem somente será válida se houver chaves compatíveis, cobertura suficiente e correspondência semântica entre as fontes.
+Sua finalidade é referência complementar, exploração futura de KPIs, possíveis análises futuras e possível apoio ao dashboard. Ele **não participa do treinamento de Invoice Anomaly, Supplier Risk ou Purchase Risk nesta fase**. Nenhuma EDA ou integração do KPI é implementada nesta revisão.
 
-Não se deve assumir que identificadores de datasets externos representam as mesmas entidades do dataset principal. Caso não exista correspondência verificável, os dados devem permanecer separados.
+## 3. Integração de scores e histórico das hipóteses
 
-### 3.2. Integração por fornecedor
+### 3.1. Hipótese histórica de integração transacional — não adotada
 
-Se for possível criar um mapeamento confiável de fornecedores, atributos agregados de desempenho e risco poderão enriquecer as transações. Exemplos incluem médias históricas de atraso, frequência de defeitos, estabilidade financeira e dependência do fornecedor.
+A proposta inicial cogitava relacionar faturas e pedidos por número do pedido, fornecedor, item ou contrato. Ela foi substituída: as fontes atuais não possuem chaves reais comuns e pertencem a populações diferentes. Não se realizará essa junção, nem será inferida identidade a partir de IDs semelhantes.
 
-Todo agregado temporal deverá utilizar apenas informações disponíveis até a data da observação. Para treino, validação e teste, as estatísticas deverão ser ajustadas exclusivamente no conjunto de treino ou calculadas por janelas temporais que respeitem a ordem dos eventos.
+### 3.2. Hipótese histórica de enriquecimento por fornecedor — não adotada
+
+A ideia de enriquecer as faturas deste dataset com atributos dos fornecedores do dataset externo é mantida somente como registro histórico, não como experimento planejado. Na arquitetura atual, cada domínio prepara suas próprias features. A única possibilidade conceitual de integração preservada é uma camada de scores independentes, sujeita a contexto verificável e avaliação própria; nem mesmo scores devem ser associados a uma mesma entidade sem evidência dessa identidade.
 
 ### 3.3. Experimentos independentes
 
-Na ausência de chaves compatíveis, os datasets externos ainda podem ser utilizados em experimentos independentes:
+Os domínios externos seguem pipelines e modelos independentes por decisão arquitetural. Futuramente, poderão sustentar:
 
 - detecção de anomalias em pedidos de compra;
-- identificação de fornecedores com perfil de risco incomum;
+- classificação supervisionada da classe de risco fornecida pelo dataset de fornecedores;
 - demonstrações adicionais do sistema;
 - comparação de diferentes conjuntos de features;
 - desenvolvimento de regras de negócio e visualizações complementares.
@@ -201,12 +248,12 @@ Essa organização permitiria manter os dados originais, registrar transformaç�
 
 ## 4. Estratégia de evolução do modelo
 
-A evolução recomendada deve ocorrer em etapas controladas.
+A evolução ocorre por domínio, sem fusão das features das três fontes. Os cenários antigos V2/V3 foram substituídos, conforme a seção de versionamento. Nesta consolidação foram acrescentados testes sintéticos persistidos e controles de ambiente/documentação; não há EDA, treinamento, recálculo dos dados reais ou mudança de arquitetura Invoice/Purchase.
 
 ### Etapa 1 — Baseline atual
 
 - manter as 19 features do dataset principal;
-- treinar o Isolation Forest somente com o conjunto de treino;
+- preservar o Isolation Forest já treinado somente com o conjunto de treino;
 - definir métricas e protocolo de avaliação com validação e teste;
 - registrar parâmetros, features e artefatos do experimento.
 
@@ -221,16 +268,16 @@ A evolução recomendada deve ocorrer em etapas controladas.
 ### Etapa 3 — Experimentos com dados externos
 
 - validar qualidade, duplicidades, valores nulos e escalas;
-- definir chaves ou declarar formalmente a impossibilidade de integração direta;
+- manter a decisão de não realizar integração direta das fontes atuais;
 - testar datasets externos primeiro em pipelines independentes;
 - criar features agregadas utilizando somente informações permitidas;
-- comparar cada experimento com a baseline, sem substituir automaticamente o modelo atual.
+- comparar cada experimento com a baseline do próprio domínio, sem comparar diretamente métricas de populações e objetivos distintos.
 
-### Etapa 4 — Modelo enriquecido
+### Etapa 4 — Evolução independente de cada modelo
 
-- integrar somente features externas que apresentem justificativa metodológica e ganho mensurável;
-- reavaliar contaminação, hiperparâmetros e threshold;
-- verificar drift, estabilidade temporal e sensibilidade a categorias não vistas;
+- comparar somente features justificadas da fonte do próprio domínio, sem merge entre os datasets atuais;
+- reavaliar hiperparâmetros e threshold em validação; contaminação é uma questão do Invoice, não do classificador Supplier Risk;
+- verificar estabilidade e sensibilidade a categorias não vistas, sem alegar estabilidade temporal no Supplier sem sequência temporal adequada;
 - versionar metadados, transformações e modelos de maneira reproduzível.
 
 ### Etapa 5 — Camadas especializadas
@@ -267,11 +314,11 @@ As métricas e análises possíveis incluem:
 - análise de falsos positivos;
 - análise de falsos negativos.
 
-Como o Isolation Forest é treinado de forma não supervisionada, os labels conhecidos devem ser utilizados somente após o treinamento, para avaliação. A escolha de threshold e o ajuste de hiperparâmetros devem ocorrer no conjunto de validação; o conjunto de teste deve permanecer reservado para a estimativa final de desempenho.
+No Invoice, treinado de forma não supervisionada, os labels conhecidos são usados após o treinamento para avaliação. No Supplier Risk, `Risk_Level` será usado como target supervisionado somente no treino, nunca como feature. Os critérios por categoria de fraude acima são específicos de Invoice, não do Supplier. Em ambos, escolhas de modelo/threshold usam validação e o teste fica reservado à avaliação final. O Supplier seguirá EDA em TRAIN → baseline majoritária e Logistic Regression → Random Forest/Gradient Boosting candidatos → validation → escolha → avaliação final única em test. Accuracy isolada não basta para a proporção aproximada 30/70; confusion matrix, precision, recall, F1-score, ROC-AUC e PR-AUC quando aplicável estão planejados, não executados.
 
 ## Arquitetura futura de modelos especializados
 
-A evolução prevista considera camadas independentes, cada uma responsável por um tipo de sinal. Essa separação facilita a auditoria, a comparação de desempenho e a identificação da origem de cada alerta.
+A separação em camadas independentes já é a decisão arquitetural vigente; sua implementação evolui por domínio. Essa separação facilita a auditoria, a comparação de desempenho e a identificação da origem de cada alerta.
 
 ### Modelo 1 — Detecção de anomalias transacionais
 
@@ -293,9 +340,10 @@ Esse modelo representa a baseline atual e busca identificar faturas com comporta
 
 **Saída:**
 
-- `supplier_risk_score`.
+- classe prevista (`0 = menor risco`, `1 = maior risco`);
+- para modelos compatíveis, probabilidade estimada de pertencimento à classe 1 (eventual `supplier_risk_score`, sem significado de probabilidade real de falha).
 
-Essa camada deverá sintetizar indicadores permitidos de estabilidade financeira, qualidade, entrega, compliance e dependência, sem utilizar classificações finais de risco como features.
+Essa camada será uma classificação supervisionada de `Risk_Level`, não detecção genérica de anomalias nem previsão de eventos futuros. A label permanece fora das features e sua procedência não está comprovada.
 
 ### Modelo 3 — Análise de performance operacional
 
@@ -315,6 +363,8 @@ Os três scores devem permanecer separados, versionados e auditáveis antes de q
 
 Os experimentos serão organizados em versões evolutivas para permitir comparação objetiva e reprodução dos resultados.
 
+O versionamento dos três modelos especializados é independente. Métricas entre populações e objetivos diferentes não são diretamente comparáveis. A nomenclatura V1/V2/V3 abaixo registra uma decisão antiga substituída; não constitui sequência de implementação ou autorização para juntar fontes.
+
 ### Modelo V1 — Baseline
 
 **Características:**
@@ -323,23 +373,13 @@ Os experimentos serão organizados em versões evolutivas para permitir compara�
 - 19 features atuais;
 - Isolation Forest inicial.
 
-### Modelo V2 — Modelo enriquecido operacional
+### Hipótese histórica V2 — substituída
 
-**Características:**
+O desenho antigo combinava Invoice e Purchase Orders. Não será implementado com esses datasets, que não possuem chaves reais comuns. O Purchase evolui como domínio independente; não se prevê comparação direta de suas métricas com a V1 do Invoice.
 
-- features do dataset principal;
-- features derivadas de Purchase Orders;
-- comparação direta contra a V1.
+### Hipótese histórica V3 — substituída
 
-### Modelo V3 — Modelo completo de risco
-
-**Características:**
-
-- features de invoices;
-- features de pedidos;
-- features permitidas de risco de fornecedores.
-
-A implementação das versões V2 e V3 depende da validação de compatibilidade, qualidade, temporalidade e ausência de data leakage nas fontes externas. Caso não seja possível realizar uma integração confiável, os modelos especializados deverão permanecer como experimentos independentes.
+O desenho antigo combinava features de Invoice, Purchase e Supplier. Foi substituído por três modelos especializados, com fontes separadas. Somente uma eventual camada conceitual de integração de **scores**, com contexto comum verificável, poderá ser estudada no futuro. Não é junção direta das features desses datasets.
 
 Cada versão deve possuir:
 
@@ -354,13 +394,14 @@ Além do artefato do modelo, o registro do experimento deve identificar os datas
 
 As principais limitações identificadas são:
 
-- os datasets externos ainda não foram integrados ao pipeline de Machine Learning;
-- não há confirmação de que os identificadores de fornecedores ou transações sejam compatíveis entre as três fontes;
+- Supplier Risk já possui pipeline ML-Ready; Purchase ainda não possui preparação de features ou modelagem;
+- os identificadores das três fontes não possuem correspondência real comum que permita integração direta;
 - as fontes podem representar populações, períodos, moedas e processos de negócio diferentes;
-- o dataset de risco de fornecedores contém valores nulos e linhas duplicadas que precisarão de tratamento metodológico;
+- Supplier Risk preserva nulos na base e já possui split e imputação train-only nos derivados; EDA, classificação supervisionada e avaliação permanecem futuras;
+- a origem e a regra de `Risk_Level` não foram comprovadas; consistência por ID não comprova validade operacional e o objetivo é reproduzir a classificação do dataset, não prever risco real;
 - os scores externos podem ter regras de construção desconhecidas e precisam ser auditados antes de virar features;
 - datas e eventos devem ser alinhados para impedir o uso de informações futuras;
-- diferenças de escala e distribuição exigirão transformações ajustadas somente no treino;
+- eventuais transformações de escala serão avaliadas posteriormente e ajustadas somente no treino; nenhuma foi aplicada nesta fase;
 - a baseline atual cobre faturas, mas ainda não representa todo o ciclo de compras;
 - os labels conhecidos do dataset principal podem conter inconsistências e são reservados para avaliação;
 - o uso de uma taxa fixa de contaminação no Isolation Forest é uma hipótese inicial que ainda precisa ser validada;
@@ -382,8 +423,10 @@ Para preservar a qualidade acadêmica do projeto, cada nova etapa deverá regist
 
 Os datasets devem permanecer fora do versionamento Git. O repositório deve armazenar apenas scripts, documentação, configurações, metadados permitidos e arquivos necessários para reproduzir a estrutura do projeto.
 
+A suíte pytest persistida em `tests/supplier_risk/` usa apenas dados sintéticos e diretórios temporários. As versões instaladas foram fixadas em `requirements.txt` e `requirements-dev.txt`, com Python 3.14.3 em `.python-version`, sem upgrades. A resolução limpa por wheels não foi possível para pandas 2.2.2/Python 3.14; instalação integral nova e CI ainda não foram validadas. O [README](../README.md) descreve essa limitação, sem confundir funcionamento local com reprodução em ambiente novo.
+
 ## 7. Conclusão
 
-A estratégia atual prioriza uma baseline simples, verificável e livre de vazamento de dados. O Procurement Invoice Fraud Dataset permanece como fonte principal do modelo, enquanto os datasets de pedidos de compra e risco de fornecedores ampliam as possibilidades de pesquisa.
+A estratégia atual define três domínios e três modelos especializados, com prevenção de vazamento e rastreabilidade como requisitos metodológicos. O Procurement Invoice Fraud Dataset permanece como fonte principal do Invoice Anomaly; Supplier Risk e Purchase Orders são fontes principais dos respectivos modelos. O Procurement KPI permanece exclusivamente auxiliar nesta fase.
 
-A incorporação dessas fontes deverá ocorrer somente após validação de compatibilidade, qualidade e temporalidade. Essa abordagem permite expandir o sistema sem comprometer a rastreabilidade dos experimentos nem a validade dos resultados.
+As fontes permanecem independentes. A evolução se dará por experimentos dentro de cada domínio; uma integração de scores não implica identidade entre registros nem comprovação de risco operacional. As conclusões do Supplier ficam limitadas à classificação de risco fornecida pelo dataset.

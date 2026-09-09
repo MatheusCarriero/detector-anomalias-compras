@@ -1,0 +1,121 @@
+{
+  "protocol_version": "1.0.0",
+  "pipeline_version": "1.0.0",
+  "data_geracao": "2026-09-09T11:17:39+00:00",
+  "nome_modelo": "Supplier Risk Model",
+  "status": "validado; sem imputação ou treinamento",
+  "metodo_split": "hash determinístico exclusivamente de supplier_id",
+  "algoritmo_hash": "SHA-256",
+  "representacao_id": "texto exato, UTF-8, sem strip/casefold/salt/normalização",
+  "conversao_hash": "digest completo de 256 bits como inteiro sem sinal, big-endian",
+  "regra_particao": "h < floor(2**256 * 70/100): train; senão h < floor(2**256 * 85/100): validation; senão test",
+  "limiares_inteiros_decimais": {
+    "train_exclusivo": "81054462466121336796499689506081535497288989265948394827620308805539190747955",
+    "validation_exclusivo": "98423275851718766110035337257384721675279486965794479433538946406726160193945"
+  },
+  "proporcoes_planejadas": {
+    "train": 0.7,
+    "validation": 0.15,
+    "test": 0.15
+  },
+  "quantidade_total_fornecedores": 24112,
+  "reconciliacao_ids": {
+    "ids_esperados": 24112,
+    "ids_obtidos": 24112,
+    "ids_perdidos": 0,
+    "ids_inesperados": 0,
+    "conjuntos_identicos": true
+  },
+  "overlap": {
+    "train_validation": 0,
+    "train_test": 0,
+    "validation_test": 0
+  },
+  "ausencia_de_overlap": true,
+  "quantidade_fornecedores_por_split": {
+    "train": 16894,
+    "validation": 3539,
+    "test": 3679
+  },
+  "proporcoes_obtidas": {
+    "train": 0.7006469807564698,
+    "validation": 0.14677339084273391,
+    "test": 0.15257962840079628
+  },
+  "reconciliacao_targets_base": {
+    "ids_esperados": 24112,
+    "ids_obtidos": 24112,
+    "ids_perdidos": 0,
+    "ids_inesperados": 0,
+    "conjuntos_identicos": true
+  },
+  "risk_level_utilizado_para_construir_split": false,
+  "estratificacao": false,
+  "rebalanceamento_apos_observacao": false,
+  "distribuicao_risk_level_apos_split": {
+    "train": {
+      "total": 16894,
+      "quantidade_0": 5008,
+      "quantidade_1": 11886,
+      "percentual_0": 29.6436604711732,
+      "percentual_1": 70.35633952882681
+    },
+    "validation": {
+      "total": 3539,
+      "quantidade_0": 1110,
+      "quantidade_1": 2429,
+      "percentual_0": 31.364792314213055,
+      "percentual_1": 68.63520768578695
+    },
+    "test": {
+      "total": 3679,
+      "quantidade_0": 1115,
+      "quantidade_1": 2564,
+      "percentual_0": 30.307148681706984,
+      "percentual_1": 69.69285131829301
+    }
+  },
+  "hashes_entradas_sha256": {
+    "data/external/supplier_risk/supplier_risk_dataset.csv": "2A772A6AABB65CCA3785CDBC61335D4AD42AFACE2A61F523691ECCC0641D00D2",
+    "data/processed/supplier_risk/supplier_features_base.parquet": "5FEBC2B6843B9C0C0ED50EF3786AC74E9E82F5E47C8F8C73E2B6277EDCBADEA6"
+  },
+  "auditoria_target": "data/processed/supplier_risk/supplier_target_audit.json",
+  "quantidade_conflitos_target": 0,
+  "consolidacao_target": "pares id/target distintos somente após comprovar unicidade",
+  "schema_targets": {
+    "supplier_id": "string",
+    "risk_level": "int8"
+  },
+  "schema_split": {
+    "supplier_id": "string",
+    "split": "string"
+  },
+  "risk_level_e_supplier_id_sao_features": false,
+  "nulos_features_preservados": {
+    "financial_stability_score": 286,
+    "on_time_delivery_rate": 160,
+    "defect_rate": 240,
+    "geopolitical_risk_index": 0,
+    "lead_time_days": 176,
+    "alternative_suppliers_available": 196,
+    "contract_length_months": 0,
+    "environmental_compliance": 270,
+    "previous_disruptions": 158,
+    "supplier_record_count": 0
+  },
+  "imputacao": false,
+  "medianas_de_imputacao_calculadas": false,
+  "scaling": false,
+  "encoding": false,
+  "treinamento": false,
+  "supplier_record_count": {
+    "status": "feature candidata; experimento futuro com e sem a feature",
+    "definicao": "Quantidade de registros distintos da fonte associados ao fornecedor após a remoção de duplicatas exatas.",
+    "historico_temporal_comprovado": false
+  },
+  "hashes_saidas_sha256": {
+    "data/processed/supplier_risk/supplier_targets.parquet": "480ED2F33BD9352ABB79ADC2A1A375982B87DAA29E28F8AA1CDD3EDE0044F29A",
+    "data/processed/supplier_risk/supplier_split_assignments.parquet": "13E8795F34B8B4A7E051B666AAE945BEFE18D1B012AA16044414F975334FFA7E"
+  },
+  "hash_auditoria_sha256": "F890DE66BDC642AABC06C3F45092C2B874F1533DEB0399F31D2217F4A79285CE"
+}
