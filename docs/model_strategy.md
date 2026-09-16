@@ -12,7 +12,7 @@ A fase inicial criou a estrutura dos domínios externos. O Supplier Risk agora p
 | --- | --- | --- | --- | --- | --- |
 | Invoice Anomaly Model | Fatura | Procurement Invoice Fraud Dataset | Após preparação da fatura | `invoice_anomaly_score` | Existente; não alterado nesta etapa |
 | Supplier Risk Model | Fornecedor | Supplier Risk Assessment Dataset | Classificação do perfil representado no dataset, sem previsão temporal | Classe 0/1 e, quando compatível, probabilidade estimada da classe 1 | Base, targets, split e ML-Ready concluídos; EDA/treinamento/avaliação pendentes |
-| Purchase Risk Model | Pedido de compra | Purchase Orders & Supplier Performance Dataset | Antes da aprovação | `purchase_risk_score` | Estrutura preparada; modelo não criado |
+| Purchase Risk Model | Linha de pedido na fonte; agregação por pedido não comprovada | Purchase Orders & Supplier Performance Dataset | Antes da aprovação | Significado pendente: anomalia ou desfecho específico; `purchase_risk_score` é nome histórico | Somente auditoria/documentação; features/modelo não criados |
 
 Os scores devem permanecer separados, versionados e auditáveis. Uma eventual composição em um score geral deverá ocorrer somente depois da validação individual dos modelos e deverá preservar a contribuição de cada componente.
 
@@ -44,6 +44,8 @@ Arquivos binários de modelo nos formatos `.joblib` e `.pkl` permanecem fora do 
 
 O modelo existente continua responsável pela detecção de anomalias transacionais em faturas. Sua metodologia, suas 19 features e seus artefatos não fazem parte desta refatoração.
 
+**IMPLEMENTADO:** Isolation Forest com `contamination=0.22` como configuração inicial. **PLANEJADO:** avaliação consolidada e por `fraud_type`, com escolha de threshold somente em validação. **LIMITAÇÕES:** as estatísticas usam todo o TRAIN, sem reconstrução ponto-a-ponto do histórico; o experimento atual avalia principalmente novas faturas de fornecedores já conhecidos. Não comprova generalização para fornecedores inéditos. Nenhum ajuste no código, retraining ou uso de TEST para selecionar threshold foi realizado neste fechamento.
+
 ### 4.2. Supplier Risk Model
 
 O Supplier Risk será tratado como **classificação supervisionada de `Risk_Level`** na unidade fornecedor, com características de perfil operacional, financeiro e de qualidade. `Risk_Level` será o target de treino e avaliação, nunca uma feature. A convenção adotada é `0 = menor risco`, `1 = maior risco`; modelos compatíveis poderão produzir a probabilidade estimada de pertencimento à classe 1.
@@ -54,7 +56,7 @@ Anomalia é perfil estatisticamente incomum, que pode ser excepcionalmente bom o
 
 ### 4.3. Purchase Risk Model
 
-O modelo de pedidos deverá analisar cada **pedido de compra** antes da aprovação. Consequentemente, informações produzidas após aprovação, entrega, faturamento ou pagamento não poderão participar do score prospectivo.
+O domínio mantém a fronteira **pré-aprovação**, mas precisa escolher entre detecção de anomalias e previsão de um desfecho específico. Anomalia não equivale automaticamente a risco. O dicionário confirma linhas de pedido (`PO_Number`), lead time efetivo pós-entrega, ESG simulado e moedas locais sem câmbio. A agregação em pedido completo requer chave real e regra justificadas; nenhum pipeline Purchase foi iniciado. O [contrato Purchase](purchase_risk_model.md) consolida essas evidências e pendências.
 
 ## 5. Contrato dos futuros pipelines
 
@@ -120,8 +122,16 @@ As ideias antigas “V2 = Invoice + Purchase” e “V3 = Invoice + Purchase + S
 
 ## 9. Próxima fase do Supplier Risk
 
-O fluxo futuro será: EDA somente em TRAIN → baseline ingênua majoritária e Logistic Regression → Random Forest / Gradient Boosting candidatos → avaliação em validation → escolha → avaliação final única em test. XGBoost somente se sua dependência externa for necessária e justificada; não foi adicionado ao ambiente nesta tarefa.
+**PLANEJADO — protocolo 1.0 de 2026-09-14:** EDA em TRAIN → baseline 0 majoritária → baseline 1 Logistic Regression → RandomForestClassifier como primeiro candidato não linear → comparação em VALIDATION → congelamento → avaliação final única em TEST. Gradient Boosting fica para fase posterior; XGBoost exige justificativa futura e não foi adicionado. O [protocolo detalhado do Supplier](supplier_risk_model.md#13-protocolo-experimental-pré-definido--planejado) é a referência experimental, evitando regras divergentes entre documentos.
 
-Accuracy isolada não é suficiente diante de aproximadamente 30% classe 0 e 70% classe 1. Estão planejadas confusion matrix, precision, recall, F1-score, ROC-AUC e PR-AUC quando aplicável, com comparação explícita contra predizer sempre a classe majoritária. Nenhuma métrica de modelo ou experimento foi executado nesta consolidação.
+As ablações pré-definidas são A (10 features), B (sem `geopolitical_risk_index`), C (sem `supplier_record_count`) e D (sem ambas). Comparar todas em VALIDATION, não em TEST. O conjunto mais completo não é presumido superior: índice provisório e contagem potencialmente associada à coleta exigem teste de dependência.
 
-As dependências foram fixadas conforme o ambiente instalado, sem upgrades, e a suíte pytest foi persistida. A instalação limpa de pandas 2.2.2 em Python 3.14 por wheels não pôde ser resolvida; não há CI criada ou alegação de reprodução completa em um ambiente novo. Ver [README](../README.md) e [Supplier Risk Model](supplier_risk_model.md).
+Métrica principal: **F1-macro**. Secundárias: precision/recall/F1 das classes 0 e 1, balanced accuracy, ROC-AUC, PR-AUC reportada como Average Precision e confusion matrix; accuracy é complementar. Utilidade mínima exige ganho claro sobre a classe majoritária de TRAIN em F1-macro e balanced accuracy, com identificação de ambas as classes. O protocolo detalha análise de incerteza e desempate; não impõe um F1 absoluto arbitrário. Nenhuma métrica de classificador foi calculada neste fechamento.
+
+Logistic Regression terá `SimpleImputer → StandardScaler → LogisticRegression` dentro de Pipeline, aprendido somente no TRAIN. Na CV interna futura, cada fold aprende seus próprios transformadores a partir da base com nulos e dos IDs de TRAIN; não usar diretamente o X_train já imputado sobre todo o TRAIN. O ML-Ready atual continua válido para experimentos simples train/validation, sem alteração de artefatos.
+
+TRAIN explora/ajusta/treina; VALIDATION seleciona features, modelos, hiperparâmetros e threshold; TEST somente avalia ao final. Não usar TEST para EDA, tuning ou calibração. `predict_proba()` não garante probabilidades confiáveis: calibration curve, Brier score e possível CalibratedClassifierCV serão avaliados futuramente com dados de desenvolvimento. A saída significa somente pertencimento à classe 1, não falha real ou futura.
+
+`.python-version` permanece em **3.14.3**, após restauração da exclusão local no fechamento anterior; a causa da exclusão não foi comprovada. As sondagens antigas com pandas 2.2.2 não resolveram wheels em Python 3.14.3/3.13.14. Em **2026-09-16**, foi comprovada uma instalação nova e isolada em Windows x64 / Python 3.14.3 com **pandas 2.3.3**; somente esse pin mudou. `pip check`, Ruff e os 113 testes sintéticos passaram. A `.venv` antiga foi preservada e não deve ser confundida com esse ambiente validado.
+
+**IMPLEMENTADO:** correção controlada dos requisitos e CI configurada com instalação isolada e testes sintéticos. **PENDENTE:** primeira execução no GitHub e validação em outras plataformas. Isso não comprova equivalência de resultados de modelos entre ambientes; modelos, dados e metadados existentes não foram alterados. EDA e treinamento continuam planejados. O [README](../README.md#instalação) registra o procedimento e os limites da comprovação.

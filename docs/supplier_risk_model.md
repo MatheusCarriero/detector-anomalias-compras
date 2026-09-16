@@ -36,7 +36,7 @@ Arquivos disponíveis:
 
 A versão enriquecida possui 28.098 registros, 17 colunas e 24.112 fornecedores únicos. A auditoria identificou 2.057 células nulas e 3.447 linhas totalmente duplicadas.
 
-As duas versões compartilham 11 colunas, mas `Geopolitical_Risk_Index` diverge em 26.520 de 28.098 registros. A fonte principal é `supplier_risk_dataset.csv`; o arquivo bruto permanece referência. O valor enriquecido é mantido temporariamente como **feature provisória sujeita à validação da origem**. Fonte do índice, fórmula, data de referência, periodicidade e método de mapeamento por país não estão comprovados.
+As duas versões compartilham 11 colunas, mas `Geopolitical_Risk_Index` diverge em 26.520 de 28.098 registros (aproximadamente 94,38%). A fonte principal é `supplier_risk_dataset.csv`; o arquivo bruto permanece referência. O valor enriquecido é mantido temporariamente como **feature provisória sujeita à validação da origem**. Fonte do índice, fórmula, data de referência, periodicidade e método de mapeamento por país não estão comprovados. A auditoria anterior encontrou cardinalidade 98 na referência bruta e 17 na enriquecida, com um valor observado por país nesta última: há possível associação forte com `Country`, não evidência de uma metodologia validada de risco geopolítico.
 
 ## 4. Features candidatas
 
@@ -55,7 +55,7 @@ O conjunto inicial de variáveis candidatas é:
 
 Essas dez features compõem a base candidata numérica, com nomes de saída em `snake_case`. Sua inclusão não comprova utilidade preditiva. Tipos, escalas, disponibilidade temporal e significado de negócio continuam sujeitos às decisões documentadas.
 
-`supplier_record_count` significa: "Quantidade de registros distintos da fonte associados ao fornecedor após a remoção das duplicatas exatas." Não representa profundidade histórica. Os 532 fornecedores repetidos não apresentam variações conhecidas nas nove variáveis numéricas quando preenchidas; as diferenças parecem relacionadas principalmente a preenchimento/incompletude. Sua utilidade será avaliada em experimento COM e SEM a feature.
+`supplier_record_count` significa: "Quantidade de registros distintos da fonte associados ao fornecedor após a remoção das duplicatas exatas." Não representa profundidade histórica. Os 532 fornecedores repetidos não apresentam variações conhecidas nas nove variáveis numéricas quando preenchidas; as diferenças parecem relacionadas principalmente a preenchimento/incompletude. Pode refletir características do processo de coleta, não características de risco. Sua utilidade será avaliada nos experimentos COM e SEM a feature da seção 13, sem alterar a base atual.
 
 ## 5. Campos de contexto
 
@@ -76,7 +76,7 @@ Esses campos permanecem fora da baseline atual, sem encoding. Um experimento fut
 
 Esse campo fornece a classificação a ser reproduzida. É consistente por `Supplier_ID`, mas sua origem e regra de construção não foram comprovadas. Não sabemos se representa avaliação humana, regra sintética ou outro processo; sua consistência não comprova validade operacional. Os nomes “menor/maior risco” são a convenção de interpretação adotada nesta decisão, não evidência adicional sobre sua procedência. A label poderá ser usada para:
 
-- análise exploratória;
+- análise exploratória somente no TRAIN;
 - treinamento supervisionado futuro, apenas como y em TRAIN;
 - avaliação da classificação produzida, segundo o protocolo de validation/test;
 - comparação entre grupos;
@@ -251,7 +251,7 @@ As saídas possuem schemas esperados, mesma quantidade de linhas entre X/y, zero
 
 O único ajuste executado nesta etapa foi o do transformador de imputação; nenhum modelo preditivo foi treinado, nenhuma EDA foi criada e nenhum commit foi realizado. A preparação numérica não resolve as pendências de procedência do índice geopolítico, domínio de compliance/lead time ou validade operacional de `Risk_Level`.
 
-Futuras comparações entre modelos devem reutilizar este split, manter qualquer aprendizado de transformações restrito ao treino e reservar teste para avaliação final. Scaling, alternativas de imputação, categorias e comparação COM/SEM `supplier_record_count` serão experimentos posteriores, sem usar resultados do teste para escolher a configuração.
+Futuras comparações entre modelos devem reutilizar este split, manter qualquer aprendizado de transformações restrito ao treino e reservar teste para avaliação final. A seção 13 define antecipadamente o scaling da Logistic Regression e as ablações; nada disso altera os Parquets atuais. Alternativas de imputação e categorias ficam para fases posteriores, sem usar resultados do teste para escolher a configuração.
 
 ## 12. Anomalia, risco e limites de interpretação
 
@@ -263,45 +263,143 @@ O modelo atual não pretende:
 - prever fraude;
 - detectar automaticamente eventos futuros de ruptura;
 - medir uma probabilidade real de falha;
+- validar risco empresarial real;
 - substituir avaliação humana de fornecedores.
 
 O dataset não possui sequência temporal adequada para previsão futura. Essa limitação não é resolvida pelo split por fornecedor, nem pela imputação. Nenhum cenário de previsão de acontecimentos futuros será implementado nesta fase. Também permanecem as incertezas de origem do índice geopolítico, escala de compliance e significado de lead time zero. `supplier_record_count` continua representando somente registros distintos após deduplicação, não histórico temporal.
 
-## 13. Protocolo dos experimentos futuros
+## 13. Protocolo experimental pré-definido — PLANEJADO
+
+**Protocolo 1.0, registrado em 2026-09-14, antes de EDA ou resultados de classificadores.** Esta seção é a referência experimental do Supplier Risk. Não contém resultados de modelos, não autoriza mudanças nas fontes e não modifica os artefatos existentes. Qualquer revisão deverá ser registrada antes de observar os resultados afetados, com motivo e versão; nunca será justificada por desempenho no TEST.
+
+### 13.1. Papéis dos conjuntos e sequência
+
+| Conjunto existente | Uso permitido no experimento futuro | Restrições |
+|---|---|---|
+| TRAIN — 16.894 fornecedores | EDA, ajuste dos transformadores e treinamento; CV interna opcional | Não usar outros conjuntos para aprender imputação/scaling/encoding |
+| VALIDATION — 3.539 fornecedores | Comparar modelos e features, selecionar hiperparâmetros e threshold se necessário | Não incorporar suas linhas ao ajuste do classificador no protocolo inicial |
+| TEST — 3.679 fornecedores | Avaliação final única da configuração congelada e comparação com a baseline congelada | Proibido usar em EDA, seleção de features/modelo, tuning, threshold ou calibração |
+
+As atribuições SHA-256 por `supplier_id` permanecem congeladas, independentes de `Risk_Level`. Nenhum split será recalculado para favorecer métricas. A auditoria estrutural e de hashes já realizada não é seleção de modelo; estatísticas previamente documentadas do TEST não deverão orientar escolhas futuras.
 
 ```text
 EDA somente no TRAIN
   ↓
-Baseline ingênua: predizer a classe majoritária de TRAIN
-e baseline inicial: Logistic Regression
+Baseline 0: classe majoritária de TRAIN
   ↓
-Modelos candidatos: Random Forest / Gradient Boosting
+Baseline 1: Logistic Regression — conjuntos A/B/C/D
   ↓
-Avaliação em validation
+Primeiro candidato não linear: RandomForestClassifier — conjuntos A/B/C/D
   ↓
-Escolha do modelo, hiperparâmetros e threshold
+Comparação em VALIDATION por F1-macro e critérios mínimos de utilidade
   ↓
-Avaliação final única em test
+Congelar features, transformadores, modelo, hiperparâmetros e threshold
+  ↓
+Uma avaliação final em TEST, sem realimentar a seleção
 ```
 
-Nenhuma etapa desse fluxo foi executada nesta consolidação. XGBoost só será considerado se a dependência externa for necessária e justificada; não foi adicionado aos requirements. A imputação mediana e o split existentes não foram alterados. Eventual scaling para modelos candidatos deverá ser uma decisão posterior, sempre ajustada somente no treino.
+O protocolo inicial não prevê refit em TRAIN + VALIDATION. Se o resultado final for insatisfatório, relatá-lo como tal; não repetir escolhas com base no mesmo TEST. Uma nova rodada exigiria revisão explícita do protocolo e uma estratégia de avaliação independente.
 
-A distribuição observada é aproximadamente **30% classe 0 e 70% classe 1**. Accuracy isolada não será suficiente, pois predizer sempre a classe majoritária já pode produzir acurácia próxima de 70% nessa população. A baseline ingênua identificará a maioria apenas em TRAIN, sem consultar holdout para escolher a classe.
+### 13.2. Ablações obrigatórias
 
-Métricas planejadas:
+O conjunto A corresponde à lista ordenada das dez features da seção 11. B, C e D removem somente as colunas indicadas, preservando a ordem relativa das demais. Nenhuma coluna será removida dos Parquets nesta tarefa.
 
-- confusion matrix;
-- precision e recall por classe;
-- F1-score por classe, com visão agregada quando útil;
-- ROC-AUC para modelos com scores adequados;
-- PR-AUC quando aplicável, explicitando a classe positiva e a convenção de cálculo.
+| Experimento | Features | Exclusões em relação a A | Pergunta experimental |
+|---|---:|---|---|
+| A — base completa | 10 | Nenhuma | Qual é a referência usando o contrato atual? |
+| B — sem índice geopolítico | 9 | `geopolitical_risk_index` | Quanto o desempenho depende da feature de procedência não comprovada? |
+| C — sem contagem | 9 | `supplier_record_count` | A contagem de registros agrega informação útil? |
+| D — sem as duas | 8 | `geopolitical_risk_index`, `supplier_record_count` | Como se comporta a alternativa mais conservadora? |
 
-A classe positiva convencionada será 1. As métricas de ranking usam scores/probabilidades, não apenas a classe prevista. Os resultados deverão ser comparados com a baseline ingênua, avaliados em validation para seleção e medidos uma única vez no test após a escolha final. Não se utilizarão resultados do teste para ajustar features, transformadores, modelos ou thresholds.
+Comparar A/B/C/D dentro de cada família de classificador, com os mesmos fornecedores, tratamento de nulos, protocolo de avaliação e orçamento de tuning. A baseline majoritária é comum às ablações, pois não depende de features. Seleção exclusivamente em VALIDATION; não executar as quatro alternativas em TEST para escolher a melhor. Não trocar a versão da fonte geopolítica no meio de uma comparação.
+
+### 13.3. Baselines e primeiro candidato
+
+**Baseline 0 — classe majoritária:** aprender a classe mais frequente exclusivamente em `y_train` e predizê-la para todos os fornecedores avaliados. Essa classe deve ser calculada, não fixada a partir de validation/test. A referência não demonstra risco real; serve para medir ganho sobre uma estratégia trivial.
+
+**Baseline 1 — Logistic Regression:** primeiro classificador real, com o fluxo conceitual obrigatório abaixo dentro de um `sklearn.pipeline.Pipeline`:
+
+```text
+SimpleImputer(strategy="median") → StandardScaler → LogisticRegression
+```
+
+Imputador e scaler serão ajustados somente em TRAIN. Na CV, serão ajustados somente no subtreino de cada fold. O scaling é PLANEJADO para esse classificador; o ML-Ready atual continua sem scaling e não será sobrescrito. Para executar o pipeline completo, preferir a base com nulos filtrada pelos IDs de TRAIN.
+
+**Primeiro modelo não linear — RandomForestClassifier:** candidato para relações não lineares em dados tabulares, já disponível no scikit-learn, sem dependência externa. Usará imputação mediana train-only dentro de Pipeline; StandardScaler não é exigido para esse candidato. Importâncias podem apoiar a análise, mas não comprovam causalidade e precisam ser interpretadas com cautela diante de cardinalidade, correlações e proxies.
+
+Gradient Boosting permanece hipótese posterior, não primeiro candidato desta rodada. XGBoost não será incluído; somente uma justificativa experimental futura poderá motivar essa dependência. Hiperparâmetros iniciais, seeds, grades, número de tentativas e critérios de parada deverão ser registrados antes de executar os classificadores. Não são escolhidos nesta tarefa nem há busca aberta guiada por TEST.
+
+### 13.4. ML-Ready e cross-validation
+
+**IMPLEMENTADO:** o ML-Ready tem imputação ajustada no TRAIN completo e aplicada a validation/test. Continua válido para experimentos simples com essa separação fixa e sem novo aprendizado em holdout.
+
+**PLANEJADO, se houver CV interna:** partir de `supplier_features_base.parquet`, selecionar somente `split == train` por `supplier_id`, associar os targets e passar os valores ainda nulos a um Pipeline contendo imputador e estimador; incluir StandardScaler no caso da Logistic Regression. Cada fold aprende seus próprios parâmetros exclusivamente em seu subtreino. Registrar previamente o particionamento interno e garantir ambas as classes e IDs disjuntos entre os lados de cada fold.
+
+Não usar `X_train` previamente imputado como entrada direta dessa CV: as medianas do TRAIN completo já viram os folds que seriam validação interna. Nenhum fold de CV pode incorporar VALIDATION ou TEST oficiais. O mesmo princípio vale para seleção de features, scaling e encoding futuros. Ao terminar a seleção interna, ajustar o pipeline escolhido no TRAIN completo e avaliar em VALIDATION.
+
+### 13.5. Métricas pré-definidas
+
+**Métrica principal: F1-macro**, média não ponderada dos F1 das classes 0 e 1. A distribuição aproximada 30%/70% motiva dar peso equivalente às duas classes. Accuracy pode ser reportada, mas não decide a seleção.
+
+Métricas secundárias obrigatórias:
+
+- precision, recall e F1 da classe 0;
+- precision, recall e F1 da classe 1;
+- balanced accuracy;
+- ROC-AUC;
+- PR-AUC, com convenção explícita;
+- confusion matrix com linhas = classe real e colunas = classe prevista, ordem `[0, 1]`, além do suporte de cada classe.
+
+Convenções: classe positiva = 1; cálculo binário das métricas de ranking com score contínuo da classe 1, nunca somente com rótulos previstos. Para tornar PR-AUC inequívoca, esta rodada reportará **Average Precision (AP, `average_precision_score`)**, identificada como tal, sem confundi-la com integração trapezoidal da curva precision-recall. Precision/F1 indefinidos por falta de previsões de uma classe serão reportados como zero (`zero_division=0`) e acompanhados da matriz, sem ocultar o problema. F1-macro sempre inclui explicitamente as duas classes. Um conjunto de avaliação com somente uma classe invalida comparações que dependem de ambas; não atribuir um ROC-AUC fictício.
+
+### 13.6. Critério mínimo de utilidade e seleção
+
+Um candidato somente poderá ser considerado útil **no experimento** se, comparado à baseline majoritária nos mesmos fornecedores de VALIDATION:
+
+1. tiver F1-macro superior;
+2. tiver balanced accuracy superior;
+3. demonstrar identificação de ambas as classes, sem recall/F1 nulo em qualquer uma;
+4. não obtiver aparente vantagem apenas prevendo majoritariamente classe 1;
+5. apresentar ganho claro, não somente uma diferença nominal possivelmente explicada por variação amostral.
+
+Não é imposto um alvo arbitrário, como F1 de 90%. Para quantificar a clareza do ganho, planeja-se bootstrap pareado por fornecedor em VALIDATION, comparando predições já produzidas pelo candidato e pela baseline: 2.000 reamostragens, seed 42, IC percentil de 95% para as diferenças de F1-macro e balanced accuracy. Se o intervalo incluir zero em qualquer uma, o ganho será tratado como inconclusivo. Reamostragens sem ambas as classes não terão métricas inventadas; sua frequência deverá ser registrada. Essa análise não refaz treinamento e não corrige o viés de uma busca excessiva no mesmo validation; o orçamento de experimentos precisa ser limitado e documentado.
+
+Entre candidatos elegíveis, selecionar pelo maior F1-macro em VALIDATION. Em empate exato, considerar balanced accuracy, depois a alternativa mais conservadora na ordem D/B/C/A e, por fim, Logistic Regression antes de Random Forest. Se nenhum satisfizer os critérios, registrar ausência de evidência de utilidade e não declarar um vencedor útil por obrigação. Threshold inicial será 0,5 para a probabilidade da classe 1; qualquer otimização posterior de threshold exige grade/regra registrada antes da comparação, usa somente VALIDATION e respeita os mesmos critérios.
+
+Esses critérios demonstram ganho contra a classificação trivial, não validade empresarial ou um patamar operacional de precisão/recall. Esse último dependeria de custos e consequências dos erros, ainda não definidos. A avaliação final usa a configuração congelada, a mesma definição de métricas e a baseline determinada por TRAIN; não serve para escolher outro candidato.
+
+### 13.7. Probabilidades e calibração — PLANEJADO
+
+`predict_proba()` não será automaticamente interpretado como probabilidade confiável. A única semântica permitida é **probabilidade estimada de pertencimento à classe 1**, não probabilidade real de falha, fraude, ruptura ou outro problema futuro.
+
+Antes de exibir percentuais como "82% de pertencimento à classe de risco", avaliar calibration curve e Brier score; considerar `CalibratedClassifierCV` quando justificado. Brier score isolado não mede apenas calibração. Caso haja ajuste de calibração, registrar o protocolo antes da execução e utilizar somente dados de desenvolvimento: preferencialmente CV dentro de TRAIN com o Pipeline completo, para não calibrar sobre as mesmas predições usadas para treinar o classificador. VALIDATION compara a solução; TEST nunca ajusta calibrador nem escolhe seu método. Nenhuma calibração foi implementada nesta tarefa.
+
+### 13.8. Próxima etapa: EDA somente no TRAIN
+
+Investigar distribuição de `Risk_Level`, estatísticas e distribuições das features, outliers, diferenças entre classes, correlações, possíveis proxies e comportamento do índice geopolítico e da contagem. Analisar ausência e valores de domínio suspeito sem excluí-los automaticamente. Utilizar a base com nulos e apenas os IDs de TRAIN; qualquer associação a campos de contexto deve continuar restrita a esses IDs. Country/Region/Industry/Supplier_Tier não entram automaticamente nas features.
+
+Não observar TEST na EDA. Nenhuma EDA, ablação, calibração ou estimativa de desempenho foi executada neste fechamento. O protocolo é planejamento; os dez campos, targets, splits e seis Parquets ML-Ready permanecem intactos.
+
+### 13.9. Referências técnicas do protocolo
+
+- [Prevenção de leakage e Pipeline — scikit-learn](https://scikit-learn.org/stable/common_pitfalls.html): transformadores aprendidos somente no treino, inclusive dentro da CV.
+- [Average Precision — scikit-learn](https://scikit-learn.org/stable/modules/generated/sklearn.metrics.average_precision_score.html): convenção de AP, distinta da integração trapezoidal da curva PR.
+- [Calibração de probabilidades — scikit-learn](https://scikit-learn.org/stable/modules/calibration.html): limites de predict_proba, curvas de calibração e avaliação probabilística.
 
 ## 14. Qualidade e reprodução do ambiente
 
 `pytest -q` executa os testes sintéticos sem Kaggle e sem treinamento de classificadores. Os testes não dependem da instalação de XGBoost ou matplotlib. Os scripts de produção não precisaram de refatoração; seus resultados e regras foram preservados. A execução local da suíte aprovou 113 testes em aproximadamente 5 segundos, e `ruff check .` aprovou todas as verificações.
 
-Python suportado nesta validação: **3.14.3**, registrado em `.python-version`. Dependências de execução e transitivas foram fixadas em `requirements.txt`; pytest, Ruff e transitivas de testes ficam em `requirements-dev.txt`. As versões foram confirmadas no ambiente instalado, não inventadas ou atualizadas automaticamente.
+Python suportado nesta validação: **3.14.3**, registrado em `.python-version`. Dependências de execução e transitivas são fixadas em `requirements.txt`; pytest, Ruff e transitivas de testes ficam em `requirements-dev.txt`. A correção controlada de 2026-09-16 alterou somente pandas de 2.2.2 para 2.3.3 após instalação e testes em ambiente isolado; não houve atualização automática das demais dependências.
 
-Existe uma limitação explícita: a resolução limpa por wheels não encontra pandas 2.2.2 para Python 3.14. A `.venv` usada nos testes reutiliza os pacotes funcionais existentes (`--system-site-packages`); não é comprovação de instalação integral nova. Não foi criada CI enquanto a combinação não puder ser reproduzida de forma confiável. Ver [instalação e limitações no README](../README.md).
+No fechamento de 14–15/09/2026, os mesmos 113 testes sintéticos passaram em 3,74 segundos; Ruff e `git diff --check` passaram. Foi utilizado diretório temporário novo via `PYTEST_ADDOPTS/--basetemp`, sem cache pytest no repositório, devido ao erro de permissão observado anteriormente no diretório temporário padrão do Windows. Não houve alteração de testes ou scripts; apenas o imputador dos casos sintéticos é ajustado pelos testes, nunca um classificador.
+
+Em 2026-09-14, `.python-version` estava versionado, não ignorado e ausente somente no diretório de trabalho; foi restaurado ao conteúdo do HEAD, `3.14.3`. A causa da exclusão local não foi comprovada. Não houve mudança da versão suportada.
+
+**Histórico:** a `.venv` antiga reutiliza pacotes externos (`--system-site-packages`). As sondagens de 14–15/09/2026 com Python 3.14.3 e 3.13.14 falharam ao resolver pandas 2.2.2 por wheels; naquele momento a reprodução limpa não estava comprovada e a CI não havia sido configurada.
+
+**IMPLEMENTADO em 2026-09-16:** instalação completa por wheels em venv temporária nova, Windows x64 / Python 3.14.3, `include-system-site-packages=false`, pandas 2.3.3 e os outros 21 pins preservados. Pacotes pertencentes à venv, user-site desabilitado e `pip check` sem conflitos foram verificados. **113 testes sintéticos passaram em 4,09 segundos**, Ruff aprovado, sem alterações nos scripts ou testes. A `.venv` principal continua intacta com pandas 2.2.2; o novo ambiente não a substituiu automaticamente.
+
+**CI configurada:** `.github/workflows/quality.yml` cria ambiente isolado e executa instalação, `pip check`, Ruff e pytest, sem datasets Kaggle ou treinamento. **PENDENTE:** primeira execução remota após um futuro envio ao GitHub. Python 3.13.14/3.14.4, Linux, macOS e compilação a partir da fonte continuam sem validação do projeto com os requisitos atuais.
+
+**LIMITAÇÃO:** a comprovação cobre instalação e suíte sintética, não reprodução integral ou equivalência bit a bit de modelos/datasets reais. A base, targets, splits, ML-Ready e seus metadados históricos não foram alterados. EDA somente em TRAIN permanece a próxima etapa analítica; nenhum classificador foi treinado. Ver [registro de ambiente no README](../README.md#instalação).

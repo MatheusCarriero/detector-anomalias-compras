@@ -1,0 +1,63 @@
+name: Quality
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: Windows / Python 3.14.3
+    runs-on: windows-2025
+    timeout-minutes: 15
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version-file: .python-version
+          architecture: x64
+
+      - name: Create isolated environment
+        run: python -I -m venv .venv
+
+      - name: Verify Python and isolation
+        run: >-
+          .\.venv\Scripts\python.exe -I -c
+          "import site, sys; from pathlib import Path;
+          assert sys.version.split()[0] == Path('.python-version').read_text().strip();
+          assert sys.prefix != sys.base_prefix;
+          assert not site.ENABLE_USER_SITE;
+          assert 'include-system-site-packages = false' in (Path(sys.prefix) / 'pyvenv.cfg').read_text();
+          print(sys.version)"
+
+      - name: Install pinned dependencies from wheels
+        run: >-
+          .\.venv\Scripts\python.exe -I -m pip --isolated install
+          --only-binary=:all: --index-url https://pypi.org/simple
+          --no-cache-dir --disable-pip-version-check -r requirements-dev.txt
+
+      - name: Check dependency consistency
+        run: .\.venv\Scripts\python.exe -I -m pip check
+
+      - name: Ruff
+        run: .\.venv\Scripts\python.exe -I -m ruff check . --no-cache
+
+      - name: Synthetic tests (no external datasets)
+        run: >-
+          .\.venv\Scripts\python.exe -I -B -m pytest -q -p no:cacheprovider
+          --basetemp "${{ runner.temp }}/supplier-pytest-${{ github.run_id }}-${{ github.run_attempt }}"

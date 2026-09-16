@@ -10,7 +10,7 @@ Atualmente, o Invoice Anomaly Model utiliza exclusivamente o **Procurement Invoi
 |---|---|---|---|
 | Invoice Dataset | `data/raw/` | Fonte principal do Invoice Anomaly Model: anomalias em faturas/transações | Modelo existente, metodologia preservada nesta revisão |
 | Supplier Risk Dataset | `data/external/supplier_risk/` | Fonte principal do Supplier Risk Model: classificação supervisionada de `Risk_Level` | Base, auditoria do target, split e ML-Ready concluídos; EDA/modelagem/avaliação pendentes |
-| Purchase Orders Dataset | `data/external/purchase_orders/` | Fonte principal do Purchase Risk Model: risco operacional/financeiro de pedidos | Preparação futura; domínio não modificado nesta revisão |
+| Purchase Orders Dataset | `data/external/purchase_orders/` | Fonte principal do Purchase: linhas de pedido; escolha entre anomalia e desfecho específico pendente | Somente auditoria/documentação; sem feature engineering/modelagem |
 | Procurement KPI Dataset | `data/auxiliary/` | Referência complementar, exploração futura de KPIs, análises futuras e possível apoio ao dashboard | Auxiliar; não participa do treinamento dos três modelos principais |
 
 A independência dos três modelos é a estratégia atual. As fontes representam populações diferentes e não possuem chaves reais comuns para integração; identificadores semelhantes não comprovam identidade. Não será realizado merge direto das features desses datasets. Uma eventual camada futura de integração de **scores** exigirá contexto comum verificável, justificativa e avaliação próprias; não está implementada.
@@ -29,7 +29,7 @@ Os princípios que orientam a estratégia são:
 
 A arquitetura atual separa o fluxo que já participa do treinamento das fontes que ainda estão em análise e preparação.
 
-### Fluxo principal em operação
+### Fluxo Invoice com modelo existente
 
 ```text
 Procurement Invoice Fraud Dataset
@@ -38,7 +38,7 @@ Procurement Invoice Fraud Dataset
                  ↓
           Isolation Forest
                  ↓
-       Invoice Anomaly Score
+Invoice Anomaly Score (consumo/avaliação planejados)
 ```
 
 ### Fontes externas em preparação
@@ -105,6 +105,10 @@ O pipeline atual gera 19 features:
 
 As estatísticas relacionadas a fornecedores, países, departamentos e relações entre fornecedor e departamento são calculadas somente com o conjunto de treino. Essa restrição deve ser mantida em todas as evoluções do pipeline.
 
+**LIMITAÇÃO:** usar apenas TRAIN não significa construir estatísticas ponto-a-ponto temporais. O código atual agrega todo o período de TRAIN, inclusive observações posteriores à fatura dentro desse período e a própria fatura. O experimento existente avalia principalmente novas faturas de fornecedores já conhecidos; não comprova desempenho com fornecedores inéditos. A auditoria registrou os mesmos 2.000 fornecedores em treino e nos conjuntos posteriores. Essas observações não são uma afirmação de uso de TEST no ajuste, nem uma mudança metodológica nesta tarefa.
+
+**IMPLEMENTADO:** Isolation Forest com `contamination=0.22` como configuração inicial. **PLANEJADO:** avaliação consolidada, avaliação por `fraud_type` e análise de threshold exclusivamente em validação. `contamination` não mede precisão nem probabilidade de fraude; TEST nunca será usado para escolher threshold. O modelo, scripts, features e artefatos Invoice permanecem inalterados.
+
 #### Justificativa de utilização
 
 O dataset principal reúne atributos transacionais e contexto suficiente para construir uma baseline de Machine Learning não supervisionado. O algoritmo atual é o **Isolation Forest**, escolhido por sua capacidade de identificar observações que apresentam combinações pouco frequentes de valores sem utilizar labels durante o treinamento.
@@ -128,13 +132,15 @@ Não há comprovação de backup completo neste checkout. Qualquer futura remoç
 **Local:** `data/external/purchase_orders/`  
 **Arquivo:** `Dataset_Procurement.xlsx`
 
-O dataset possui 5.200 registros e 57 colunas. Ele reúne informações de pedidos de compra, fornecedores, preços, orçamento, descontos, tributos, entregas, compliance, contratos, status e desempenho operacional.
+O dataset possui 5.200 linhas de pedido, 57 colunas e 15 fornecedores. Ele reúne preços, orçamento, descontos, tributos, entregas, contratos, status e indicadores operacionais. Não há comprovação de uma medida real de compliance; ESG é simulado.
+
+**EVIDÊNCIAS CONFIRMADAS no Vocabulary & Notes:** `PO_Number` identifica linha de pedido; `Lead_Time_Days` depende da entrega efetiva e é pós-evento; `Supplier_ESG_Score` é simulado; valores monetários estão em moedas locais (GBP/EUR/USD/JPY/AUD), sem conversão cambial. A aba Data usa nomes com espaços, enquanto o dicionário usa underscores. Esses fatos são documentais, não novas transformações dos dados.
 
 #### Papel no projeto
 
 Essa fonte permite estudar intenção de compra, limites orçamentários, condições negociadas e desempenho da entrega na sua própria população. A ideia anterior de adicionar esse contexto às faturas do outro dataset é apenas histórica: não existem chaves reais comuns que sustentem essa associação.
 
-Na arquitetura vigente, essa fonte pertence ao **Purchase Risk Model independente**, mantendo a decisão pré-aprovação e as exclusões já definidas. Nenhuma junção direta de features entre domínios está planejada.
+Na arquitetura vigente, essa fonte pertence ao **Purchase Risk Model independente**, mantendo a fronteira pré-aprovação e as exclusões já definidas. Ainda falta escolher entre (A) detecção de anomalias ou (B) previsão de um desfecho específico, com target/horizonte e avaliação próprios. Anomalia não será chamada automaticamente de risco. A intenção histórica de modelar pedido completo exigiria uma chave de cabeçalho e agregação justificadas; a fonte confirma apenas linhas. Nenhuma junção direta de features entre domínios está planejada.
 
 Esse contexto pode ajudar a identificar situações como:
 
@@ -145,7 +151,7 @@ Esse contexto pode ajudar a identificar situações como:
 - concentração de pedidos em fornecedores de baixo desempenho;
 - divergências entre condições contratadas e resultados observados.
 
-#### Features planejadas
+#### Hipóteses de features — não implementadas
 
 - `budget_deviation`: diferença absoluta ou relativa entre o valor realizado e o orçamento correspondente;
 - `price_variation`: desvio do preço unitário em relação ao histórico do item, categoria ou fornecedor;
@@ -156,7 +162,7 @@ Esse contexto pode ajudar a identificar situações como:
 
 Essas features são hipóteses de pesquisa. Suas fórmulas, janelas históricas e métodos de normalização deverão ser definidos e documentados antes de qualquer uso no modelo.
 
-Hipóteses que dependem de entrega ou status pós-evento não integram a decisão pré-aprovação definida em [Purchase Risk Model](purchase_risk_model.md). Essa restrição existente continua válida; o pipeline e a metodologia desse domínio não são alterados nesta revisão.
+Hipóteses que dependem de entrega ou status pós-evento não integram as entradas pré-aprovação definidas em [Purchase Risk Model](purchase_risk_model.md). `delivery_delay_score` ou lead time realizado da própria linha não podem ser features nesse instante; seriam no máximo análises pós-evento ou possíveis desfechos futuros, mediante definição específica. Indicadores históricos exigiriam datas e eventos disponíveis antes da decisão. A documentação é corrigida neste fechamento; nenhum pipeline Purchase foi criado ou alterado.
 
 ### 2.3. Dataset externo — Supplier Risk Assessment Dataset
 
@@ -176,6 +182,10 @@ Esse dataset é a fonte principal do **Supplier Risk Model independente**, defin
 A fonte operacional é `supplier_risk_dataset.csv`; `raw_supplier_risk_dataset_1.csv` permanece apenas como referência. O pipeline versão 2.0.0 produz `data/processed/supplier_risk/supplier_features_base.parquet`, com uma linha por fornecedor e nulos preservados. Não aplica imputação, normalização, padronização ou encoding. A matriz numérica contém dez features candidatas e `supplier_id` separado para rastreabilidade. O contrato detalhado está em [Features do Supplier Risk](supplier_risk_features.md).
 
 `supplier_record_count` conta registros distintos da fonte após duplicatas exatas, sem significar profundidade histórica. O índice geopolítico da fonte enriquecida é mantido provisoriamente, com origem ainda não validada. Cobertura e alertas de domínio são armazenados em artefato próprio, fora da matriz. O split já precede a imputação: `prepare_target_and_split.py` estabelece partições de 16.894 / 3.539 / 3.679 fornecedores; `build_ml_dataset.py` ajusta `SimpleImputer(strategy="median")` somente em TRAIN e transforma validation/test. Os seis Parquets ML-Ready têm dez features em X e targets separados, sem alterar a base com nulos.
+
+**LIMITAÇÕES preservadas:** o índice geopolítico diverge em cerca de 94,38% dos registros entre fontes e tem forte associação observada com Country; origem, fórmula e data de referência não estão comprovadas. A contagem pode refletir o processo de coleta, não histórico temporal. Os 1.386 fornecedores com `environmental_compliance > 100` e os 1.134 com `lead_time_days = 0` permanecem sem clipping ou remoção automática: escala/origem de compliance e significado de zero ainda não estão confirmados.
+
+**PLANEJADO:** o protocolo experimental da seção 13 de [Supplier Risk Model](supplier_risk_model.md#13-protocolo-experimental-pré-definido--planejado) compara A (10 features), B (sem índice geopolítico), C (sem contagem) e D (sem ambas), exclusivamente em VALIDATION para seleção. A documentação dessas ablações não altera os arquivos de features.
 
 A saída futura será a classe prevista e, para modelos compatíveis, a probabilidade estimada de pertencimento à classe 1. Não é probabilidade real de falha, previsão de fraude ou de rupturas. Não se afirma que esses fornecedores correspondam aos fornecedores dos datasets de Invoice/Purchase. As conclusões deverão se limitar à capacidade de reproduzir padrões associados à classificação fornecida pelo dataset.
 
@@ -197,7 +207,7 @@ Os scores planejados não devem ser tratados como equivalentes a labels de fraud
 
 Esses campos devem ser reservados para:
 
-- análise exploratória;
+- análise exploratória somente no TRAIN;
 - avaliação;
 - comparação de resultados;
 - target para treinamento supervisionado futuro, no caso de `Risk_Level`, com as limitações de origem documentadas.
@@ -209,6 +219,17 @@ Essa separação evita que o modelo receba uma representação direta ou indiret
 O dataset identificado no projeto como **Procurement KPI Analysis Dataset** permanece em `data/auxiliary/dataset_auxiliar_kpi_compras.csv`, conforme os scripts de extração e inspeção existentes. O nome `data/auxiliary/Procurement KPI Analysis Dataset.csv` citado na decisão não corresponde a um arquivo presente neste checkout; o arquivo local não foi renomeado nem removido.
 
 Sua finalidade é referência complementar, exploração futura de KPIs, possíveis análises futuras e possível apoio ao dashboard. Ele **não participa do treinamento de Invoice Anomaly, Supplier Risk ou Purchase Risk nesta fase**. Nenhuma EDA ou integração do KPI é implementada nesta revisão.
+
+### 2.5. Procedência conhecida e não comprovada — fechamento de 2026-09-14
+
+| Fonte | Evidência disponível no projeto | Limites de procedência |
+|---|---|---|
+| Invoice | Parquets locais, `manifest.json` com versão/contagens, split oficial e modelo existente | Regra de construção/validação dos labels e representatividade operacional não comprovadas; backup completo não comprovado |
+| Supplier | CSV principal e CSV de referência, hashes, auditoria de consistência de target e de consolidação | Origem/regra de Risk_Level, construção do índice geopolítico, janelas/denominadores dos indicadores e validade empresarial não comprovados |
+| Purchase | Workbook e Vocabulary & Notes: linha, lead time efetivo, ESG simulado e moedas sem câmbio | Simulação ESG não prova que toda a fonte seja sintética; regras das demais classificações e disponibilidade pré-aprovação ainda precisam de evidência |
+| Procurement KPI | CSV auxiliar identificado pelos scripts existentes | Finalidade restrita a apoio; não é fonte de treinamento nem evidência de validação dos três modelos |
+
+Autoria, URL da publicação original, versão/data de obtenção e condições de uso de cada fonte ainda precisam ser consolidadas a partir de evidência verificável; não foram inventadas neste fechamento. Nome de arquivo, quantidade de linhas e hash comprovam identidade/integridade de uma cópia, não autenticidade dos fatos ou validade do target. Os hashes já registrados permanecem preservados; nenhum dataset ou resultado é regenerado nesta tarefa.
 
 ## 3. Integração de scores e histórico das hipóteses
 
@@ -314,7 +335,13 @@ As métricas e análises possíveis incluem:
 - análise de falsos positivos;
 - análise de falsos negativos.
 
-No Invoice, treinado de forma não supervisionada, os labels conhecidos são usados após o treinamento para avaliação. No Supplier Risk, `Risk_Level` será usado como target supervisionado somente no treino, nunca como feature. Os critérios por categoria de fraude acima são específicos de Invoice, não do Supplier. Em ambos, escolhas de modelo/threshold usam validação e o teste fica reservado à avaliação final. O Supplier seguirá EDA em TRAIN → baseline majoritária e Logistic Regression → Random Forest/Gradient Boosting candidatos → validation → escolha → avaliação final única em test. Accuracy isolada não basta para a proporção aproximada 30/70; confusion matrix, precision, recall, F1-score, ROC-AUC e PR-AUC quando aplicável estão planejados, não executados.
+No Invoice, treinado de forma não supervisionada, os labels conhecidos são usados após o treinamento para avaliação. No Supplier Risk, `Risk_Level` será usado como target supervisionado somente no treino, nunca como feature. Os critérios por categoria de fraude acima são específicos de Invoice, não do Supplier. Em ambos, escolhas de modelo/threshold usam validação e o teste fica reservado à avaliação final.
+
+**Supplier — PLANEJADO, definido antes dos resultados:** baseline 0 majoritária de TRAIN; baseline 1 `SimpleImputer → StandardScaler → LogisticRegression` em Pipeline; primeiro não linear `RandomForestClassifier`. Métrica principal **F1-macro**; secundárias precision/recall/F1 por classe, balanced accuracy, ROC-AUC, PR-AUC reportada como Average Precision e confusion matrix. Accuracy é complementar. Utilidade mínima requer ganho claro de F1-macro e balanced accuracy sobre a baseline trivial e identificação de ambas as classes; não há alvo arbitrário de F1 absoluto. A regra de incerteza/desempate está no protocolo Supplier, referência autoritativa, não em resultados observados.
+
+TRAIN explora/ajusta/treina; VALIDATION compara ablações A/B/C/D, modelos, hiperparâmetros e threshold; TEST apenas avalia a configuração congelada ao final, sem EDA, tuning ou calibração. CV futura parte da base com nulos e dos IDs de TRAIN, ajustando Pipeline dentro de cada fold; não usa diretamente X_train já imputado. O ML-Ready atual continua válido para a separação simples train/validation. Não foi aplicado scaling nem executada qualquer dessas comparações nesta tarefa.
+
+`predict_proba()` não garante confiabilidade probabilística. Antes de exibir percentuais de pertencimento à classe 1, planejar calibration curve, Brier score e eventual CalibratedClassifierCV, sempre sem ajuste em TEST. Essa probabilidade não significa ocorrência real de falha. EDA futura restrita a TRAIN investigará classes, distribuições, estatísticas, outliers, diferenças entre classes, correlações e possíveis proxies, inclusive features provisórias.
 
 ## Arquitetura futura de modelos especializados
 
@@ -355,7 +382,7 @@ Essa camada será uma classificação supervisionada de `Risk_Level`, não detec
 
 - `purchase_risk_score`.
 
-Essa camada deverá representar desvios de preço, orçamento, prazo, status e desempenho observados nos pedidos de compra.
+Esse é um nome histórico: o significado da saída ainda depende de escolher anomalia ou um desfecho específico. As entradas pré-aprovação não podem conter prazo realizado, status pós-evento ou resultados da própria entrega. A granularidade disponível é linha de pedido; não se presume risco real a partir de um perfil incomum.
 
 Os três scores devem permanecer separados, versionados e auditáveis antes de qualquer combinação em um score geral. Uma futura composição deverá possuir regra explícita, justificativa metodológica, pesos documentados e avaliação própria, sem ocultar as saídas individuais dos modelos especializados.
 
@@ -401,7 +428,7 @@ As principais limitações identificadas são:
 - a origem e a regra de `Risk_Level` não foram comprovadas; consistência por ID não comprova validade operacional e o objetivo é reproduzir a classificação do dataset, não prever risco real;
 - os scores externos podem ter regras de construção desconhecidas e precisam ser auditados antes de virar features;
 - datas e eventos devem ser alinhados para impedir o uso de informações futuras;
-- eventuais transformações de escala serão avaliadas posteriormente e ajustadas somente no treino; nenhuma foi aplicada nesta fase;
+- StandardScaler está planejado para a Logistic Regression do Supplier, ajustado somente no treino (ou subtreino de cada fold); nenhuma transformação de escala foi aplicada aos artefatos atuais;
 - a baseline atual cobre faturas, mas ainda não representa todo o ciclo de compras;
 - os labels conhecidos do dataset principal podem conter inconsistências e são reservados para avaliação;
 - o uso de uma taxa fixa de contaminação no Isolation Forest é uma hipótese inicial que ainda precisa ser validada;
@@ -423,7 +450,11 @@ Para preservar a qualidade acadêmica do projeto, cada nova etapa deverá regist
 
 Os datasets devem permanecer fora do versionamento Git. O repositório deve armazenar apenas scripts, documentação, configurações, metadados permitidos e arquivos necessários para reproduzir a estrutura do projeto.
 
-A suíte pytest persistida em `tests/supplier_risk/` usa apenas dados sintéticos e diretórios temporários. As versões instaladas foram fixadas em `requirements.txt` e `requirements-dev.txt`, com Python 3.14.3 em `.python-version`, sem upgrades. A resolução limpa por wheels não foi possível para pandas 2.2.2/Python 3.14; instalação integral nova e CI ainda não foram validadas. O [README](../README.md) descreve essa limitação, sem confundir funcionamento local com reprodução em ambiente novo.
+A suíte pytest persistida em `tests/supplier_risk/` usa apenas dados sintéticos e diretórios temporários. As dependências permanecem fixadas em `requirements.txt` e `requirements-dev.txt`. Em 2026-09-14, `.python-version` foi restaurado ao conteúdo versionado 3.14.3 após confirmar exclusão apenas local, não causada por regra de ignore; não há evidência de qual processo o excluiu. Naquele fechamento, os requirements e a `.venv` principal não foram modificados.
+
+As sondagens anteriores de venvs isoladas em Python 3.14.3 e 3.13.14 não resolveram pandas 2.2.2 por wheels. Em **2026-09-16**, uma instalação completa em Windows x64 / Python 3.14.3 foi comprovada ao substituir somente pandas por **2.3.3**, preservando os outros 21 pins. Isolamento, `pip check`, Ruff e 113 testes sintéticos foram aprovados. A `.venv` principal antiga permanece intacta; nenhuma fonte, Parquet, target, split, metadata de dados ou modelo foi reprocessado.
+
+**IMPLEMENTADO:** requisitos corrigidos e CI configurada para instalação limpa e testes sem datasets. **PENDENTE:** primeira execução remota da CI, outras plataformas/versões e reprodução dos resultados reais; não são comprovadas pela suíte sintética. Metadados dos artefatos mantêm suas versões históricas. O [registro de ambiente no README](../README.md#instalação) concentra os comandos, versões e limites da validação.
 
 ## 7. Conclusão
 

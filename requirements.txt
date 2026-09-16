@@ -1,5 +1,6 @@
-# Dependências diretas, nas versões do ambiente atualmente funcional.
-pandas==2.2.2
+# Dependências diretas: instalação limpa validada em Windows x64 / Python 3.14.3.
+# pandas 2.3.3 substitui 2.2.2 por oferecer wheels para Python 3.14.
+pandas==2.3.3
 numpy==2.5.2
 pyarrow==25.0.1
 scikit-learn==1.9.0
