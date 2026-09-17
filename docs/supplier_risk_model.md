@@ -374,11 +374,11 @@ Esses critérios demonstram ganho contra a classificação trivial, não validad
 
 Antes de exibir percentuais como "82% de pertencimento à classe de risco", avaliar calibration curve e Brier score; considerar `CalibratedClassifierCV` quando justificado. Brier score isolado não mede apenas calibração. Caso haja ajuste de calibração, registrar o protocolo antes da execução e utilizar somente dados de desenvolvimento: preferencialmente CV dentro de TRAIN com o Pipeline completo, para não calibrar sobre as mesmas predições usadas para treinar o classificador. VALIDATION compara a solução; TEST nunca ajusta calibrador nem escolhe seu método. Nenhuma calibração foi implementada nesta tarefa.
 
-### 13.8. Próxima etapa: EDA somente no TRAIN
+### 13.8. EDA somente no TRAIN — protocolo e execução
 
 Investigar distribuição de `Risk_Level`, estatísticas e distribuições das features, outliers, diferenças entre classes, correlações, possíveis proxies e comportamento do índice geopolítico e da contagem. Analisar ausência e valores de domínio suspeito sem excluí-los automaticamente. Utilizar a base com nulos e apenas os IDs de TRAIN; qualquer associação a campos de contexto deve continuar restrita a esses IDs. Country/Region/Industry/Supplier_Tier não entram automaticamente nas features.
 
-Não observar TEST na EDA. Nenhuma EDA, ablação, calibração ou estimativa de desempenho foi executada neste fechamento. O protocolo é planejamento; os dez campos, targets, splits e seis Parquets ML-Ready permanecem intactos.
+Não observar TEST na EDA. No fechamento original do protocolo não havia sido executada EDA, ablação, calibração ou estimativa de desempenho. **Em 16/09/2026, a primeira EDA foi executada somente nos 16.894 fornecedores TRAIN**, sobre a base pré-imputação. [Relatório e limitações](supplier_risk_eda.md); [notebook executado](../ml/supplier_risk/notebooks/01_supplier_risk_eda.ipynb). A/B/C/D não foram alterados; os dez campos, targets, splits e seis Parquets ML-Ready permanecem intactos. Nenhum classificador foi treinado e nenhuma decisão final de modelo foi tomada.
 
 ### 13.9. Referências técnicas do protocolo
 
@@ -402,4 +402,4 @@ Em 2026-09-14, `.python-version` estava versionado, não ignorado e ausente some
 
 **CI configurada:** `.github/workflows/quality.yml` cria ambiente isolado e executa instalação, `pip check`, Ruff e pytest, sem datasets Kaggle ou treinamento. **PENDENTE:** primeira execução remota após um futuro envio ao GitHub. Python 3.13.14/3.14.4, Linux, macOS e compilação a partir da fonte continuam sem validação do projeto com os requisitos atuais.
 
-**LIMITAÇÃO:** a comprovação cobre instalação e suíte sintética, não reprodução integral ou equivalência bit a bit de modelos/datasets reais. A base, targets, splits, ML-Ready e seus metadados históricos não foram alterados. EDA somente em TRAIN permanece a próxima etapa analítica; nenhum classificador foi treinado. Ver [registro de ambiente no README](../README.md#instalação).
+**LIMITAÇÃO:** a comprovação do ambiente cobre instalação e suíte sintética, não reprodução integral ou equivalência bit a bit de modelos/datasets reais. A base, targets, splits, ML-Ready e seus metadados históricos não foram alterados. A EDA TRAIN foi concluída posteriormente nesta mesma data, conforme seção 13.8; baselines e ablações continuam futuras, sem classificador treinado. As ferramentas opcionais de notebook foram instaladas apenas no ambiente isolado. Ver [registro de ambiente no README](../README.md#instalação).
