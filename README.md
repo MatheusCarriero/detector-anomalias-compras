@@ -1,6 +1,6 @@
 # Detector Inteligente de Anomalias em Compras
 
-Projeto acadêmico de Machine Learning com três domínios independentes: anomalias em faturas, classificação de risco de fornecedores e risco de pedidos de compra. O Invoice possui um Isolation Forest treinado; o Supplier Risk possui dados ML-Ready e primeira EDA exclusivamente no TRAIN, mas ainda não possui classificador treinado ou avaliação preditiva. Backend e frontend ainda não estão implementados.
+Projeto acadêmico de Machine Learning com três domínios independentes: anomalias em faturas, classificação de risco de fornecedores e risco de pedidos de compra. O Invoice possui um Isolation Forest treinado; o Supplier Risk possui dados ML-Ready, EDA exclusivamente no TRAIN e primeira rodada experimental de classificadores comparados em VALIDATION, sem modelo definitivo e sem usar TEST. Backend e frontend ainda não estão implementados.
 
 ## Objetivo
 
@@ -13,10 +13,10 @@ As fontes representam populações diferentes, sem chaves reais comuns para inte
 | Domínio | Concluído | Pendente |
 |---|---|---|
 | Invoice Anomaly | Inspeção, validação, 19 features, split oficial, Isolation Forest treinado e salvo | Revisão metodológica da avaliação, seleção de threshold/hiperparâmetros e avaliação final |
-| Supplier Risk | Base por fornecedor, qualidade, auditoria do target, split determinístico, ML-Ready com imputação train-only, suíte pytest sintética, protocolo experimental e EDA pré-imputação somente em TRAIN | Baselines, ablações e avaliação; nenhum classificador treinado |
+| Supplier Risk | Base por fornecedor, qualidade, auditoria do target, split determinístico, ML-Ready train-only, suíte pytest sintética, protocolo, EDA TRAIN e baselines/ablações A/B/C/D comparadas em VALIDATION | Validar procedência, revisar evidência experimental e congelar configuração antes da avaliação final; TEST não utilizado |
 | Purchase Risk | Dataset analisado, granularidade da fonte em linha de pedido e fronteira pré-aprovação documentadas | Escolher anomalia ou desfecho específico; feature engineering, modelagem e avaliação |
 
-A consolidação anterior de qualidade não executou treinamento, EDA nem reprocessamento dos dados reais. Em 16/09/2026 foi concluída a [primeira EDA Supplier, somente TRAIN](docs/supplier_risk_eda.md), sem alterar datasets ou treinar modelos. O artefato Invoice existente não foi modificado.
+A consolidação anterior de qualidade não executou treinamento, EDA nem reprocessamento dos dados reais. Em 16/09/2026 foi concluída a [primeira EDA Supplier, somente TRAIN](docs/supplier_risk_eda.md), sem alterar datasets ou treinar modelos. Posteriormente, a [primeira rodada de baselines](docs/supplier_risk_baseline_models.md) ajustou classificadores experimentais em TRAIN e comparou VALIDATION, sem exportar modelos ou ler TEST. O artefato Invoice existente não foi modificado.
 
 ## Tecnologias
 
@@ -230,9 +230,11 @@ Os caminhos são resolvidos a partir da localização dos próprios scripts, por
 
 ## Próxima fase do Supplier Risk
 
-**EDA concluída:** 16.894 fornecedores TRAIN, 10 features, base pré-imputação e holdouts cegos. Consulte o [relatório](docs/supplier_risk_eda.md) e o [notebook executado](ml/supplier_risk/notebooks/01_supplier_risk_eda.ipynb). Os indícios de associação com a label não comprovam sua origem nem autorizam alterar antecipadamente A/B/C/D. A próxima etapa planejada é executar as baselines segundo o protocolo; nenhum treinamento foi realizado nesta EDA.
+**EDA concluída:** 16.894 fornecedores TRAIN, 10 features, base pré-imputação e holdouts cegos durante a EDA. Consulte o [relatório](docs/supplier_risk_eda.md) e o [notebook executado](ml/supplier_risk/notebooks/01_supplier_risk_eda.ipynb). Nenhum treinamento foi realizado nessa EDA; os indícios de associação não comprovam a origem da label.
 
-**PLANEJADO — protocolo 1.0, registrado antes de EDA/treinamento:** EDA somente no TRAIN → baseline 0 majoritária → baseline 1 Logistic Regression → primeiro candidato não linear RandomForestClassifier → comparação em VALIDATION → congelamento → avaliação final única em TEST.
+**Primeira rodada experimental concluída:** baseline majoritária, Logistic Regression e Random Forest; A/B/C/D nas duas famílias, nove fits somente em TRAIN e comparação nos 3.539 fornecedores de VALIDATION. Com dez features, F1-macro: **0,40700 / 0,92955 / 0,91538**, respectivamente. A retirada do índice geopolítico reduz substancialmente o desempenho; a contagem não demonstrou ganho claro nesta rodada. Ver [resultados, incerteza e limitações](docs/supplier_risk_baseline_models.md) e [notebook 02 executado](ml/supplier_risk/notebooks/02_supplier_risk_baseline_models.ipynb). TEST permanece congelado; não houve tuning, calibração, escolha de threshold ou modelo definitivo. A próxima decisão é revisar a evidência e as pendências de procedência antes de ampliar os experimentos.
+
+**Protocolo 1.0, registrado antes de EDA/treinamento:** EDA somente no TRAIN → baseline 0 majoritária → baseline 1 Logistic Regression → primeiro candidato não linear RandomForestClassifier → comparação em VALIDATION → congelamento → avaliação final única em TEST. Implementado até a primeira comparação; congelamento definitivo e avaliação TEST continuam planejados.
 
 O [protocolo experimental do Supplier](docs/supplier_risk_model.md#13-protocolo-experimental-pré-definido--planejado) é a referência para as decisões abaixo:
 

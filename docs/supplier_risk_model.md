@@ -9,11 +9,11 @@ O target é `Risk_Level`, armazenado como `risk_level`, com a convenção adotad
 - classe `0`: menor risco;
 - classe `1`: maior risco.
 
-A saída futura será a classe prevista e, para modelos compatíveis, a **probabilidade estimada de pertencimento à classe de risco**, especificamente à classe 1. Um eventual campo `supplier_risk_score` deverá preservar esse significado e não será chamado de “probabilidade real de ocorrer um problema”. Nenhum modelo ou saída predita foi criado nesta tarefa.
+A saída é a classe prevista e, para modelos compatíveis, a **probabilidade estimada de pertencimento à classe de risco**, especificamente à classe 1. Um eventual campo `supplier_risk_score` deverá preservar esse significado e não será chamado de “probabilidade real de ocorrer um problema”. A primeira rodada produziu predições apenas para comparação experimental em VALIDATION; não há modelo definitivo ou saída de produção.
 
 Essa definição substitui a hipótese anterior de tratar Supplier Risk simplesmente como identificação de perfis incomuns. Invoice Anomaly e Purchase Risk conservam seus próprios objetivos e arquiteturas; não há merge direto das features dessas populações distintas.
 
-Esta documentação define o contrato arquitetural do domínio. O pipeline de preparação versão 2.0.0 produz uma base pré-modelagem com nulos preservados. O pipeline ML-Ready versão 1.0.0, descrito na seção 11, deriva conjuntos de treino, validação e teste com imputação aprendida somente no treino, sem alterar essa base. Nenhum modelo preditivo, treinamento de modelo ou EDA foi executado. O contrato detalhado da base está em [Features do Supplier Risk](supplier_risk_features.md).
+Esta documentação define o contrato arquitetural do domínio. O pipeline de preparação versão 2.0.0 produz uma base pré-modelagem com nulos preservados. O pipeline ML-Ready versão 1.0.0, descrito na seção 11, deriva conjuntos de treino, validação e teste com imputação aprendida somente no treino, sem alterar essa base. Essas etapas de preparação não treinaram classificadores. Posteriormente foram concluídas a EDA TRAIN e a primeira rodada experimental TRAIN/VALIDATION, descritas nas seções 13.8 e 15. O contrato detalhado da base está em [Features do Supplier Risk](supplier_risk_features.md).
 
 ## 2. Unidade de análise
 
@@ -402,4 +402,16 @@ Em 2026-09-14, `.python-version` estava versionado, não ignorado e ausente some
 
 **CI configurada:** `.github/workflows/quality.yml` cria ambiente isolado e executa instalação, `pip check`, Ruff e pytest, sem datasets Kaggle ou treinamento. **PENDENTE:** primeira execução remota após um futuro envio ao GitHub. Python 3.13.14/3.14.4, Linux, macOS e compilação a partir da fonte continuam sem validação do projeto com os requisitos atuais.
 
-**LIMITAÇÃO:** a comprovação do ambiente cobre instalação e suíte sintética, não reprodução integral ou equivalência bit a bit de modelos/datasets reais. A base, targets, splits, ML-Ready e seus metadados históricos não foram alterados. A EDA TRAIN foi concluída posteriormente nesta mesma data, conforme seção 13.8; baselines e ablações continuam futuras, sem classificador treinado. As ferramentas opcionais de notebook foram instaladas apenas no ambiente isolado. Ver [registro de ambiente no README](../README.md#instalação).
+**LIMITAÇÃO:** a comprovação do ambiente cobre instalação e suíte sintética, não reprodução integral ou equivalência bit a bit de modelos/datasets reais. A base, targets, splits, ML-Ready e seus metadados históricos não foram alterados. A EDA TRAIN foi concluída posteriormente nesta mesma data, conforme seção 13.8; a primeira rodada de baselines/ablações foi executada depois, conforme seção 15, sem avaliar TEST ou criar modelo definitivo. As ferramentas opcionais de notebook foram instaladas apenas no ambiente isolado. Ver [registro de ambiente no README](../README.md#instalação).
+
+## 15. Primeira rodada experimental — IMPLEMENTADO
+
+O [notebook 02](../ml/supplier_risk/notebooks/02_supplier_risk_baseline_models.ipynb) executou nove fits: baseline majoritária, Logistic Regression A/B/C/D e Random Forest A/B/C/D. Usou somente os quatro Parquets ML-Ready de TRAIN/VALIDATION; TEST permaneceu fechado. Configurações fixas, sem tuning, seleção de threshold, calibração ou serialização de modelos. A seção 13 conserva o protocolo registrado antes dos resultados; esta seção registra a execução, sem reescrever retrospectivamente seus critérios.
+
+**RESULTADO OBSERVADO:** na configuração A, F1-macro de 0,40700 para a baseline, 0,92955 para LR e 0,91538 para RF. As oito configurações superaram a referência trivial em F1-macro e balanced accuracy e reconheceram ambas as classes. Os intervalos bootstrap pareados dos ganhos contra a baseline ficaram acima de zero. RF A não superou LR A nesta rodada.
+
+**INTERPRETAÇÃO/LIMITAÇÃO:** remover o índice geopolítico reduz o F1-macro em aproximadamente 14,30 pontos percentuais na LR e 13,57 na RF; sua procedência segue não comprovada. A contagem não mostrou ganho claro. Estabilidade financeira e índice geopolítico dominam coeficientes/importâncias, compatíveis com as associações da EDA, sem provar causalidade ou a construção da label. Não há vencedor definitivo, validação empresarial ou probabilidade calibrada.
+
+O ML-Ready já estava imputado a partir de TRAIN. O SimpleImputer de cada Pipeline foi fitado apenas em TRAIN, com transformação neutra nesses dados sem nulos; o scaler da LR foi aprendido apenas em TRAIN. Não houve CV, e o protocolo para CV futura da seção 13.4 permanece obrigatório.
+
+O [relatório completo](supplier_risk_baseline_models.md) contém dados, parâmetros, métricas por classe, ablações, incerteza, limitações e próximos experimentos. A próxima etapa exige revisão da evidência e das pendências de origem; esta rodada não autoriza a abertura de TEST nem a seleção automática de uma versão final.
