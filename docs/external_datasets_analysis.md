@@ -43,7 +43,7 @@ A comparação mostra que `Geopolitical_Risk_Index` não é equivalente entre as
 
 | Coluna | Tipo | Categoria | Nulos | % nulos | Únicos | Orientação inicial |
 | --- | --- | --- | --- | --- | --- | --- |
-| `Supplier_ID` | object | identificação | 0 | 0.00% | 24.112 | Não usar diretamente; manter apenas para junção, agrupamento e rastreabilidade. |
+| `Supplier_ID` | str | identificação | 0 | 0.00% | 24.112 | Não usar diretamente; manter apenas para junção, agrupamento e rastreabilidade. |
 | `Financial_Stability_Score` | float64 | financeiras | 404 | 1.44% | 23.776 | Candidato inicial, sujeito à validação e ao pré-processamento. |
 | `On_Time_Delivery_Rate` | float64 | entrega | 230 | 0.82% | 23.142 | Candidato inicial, sujeito à validação e ao pré-processamento. |
 | `Defect_Rate` | float64 | qualidade | 328 | 1.17% | 21.510 | Candidato inicial, sujeito à validação e ao pré-processamento. |
@@ -76,10 +76,10 @@ A comparação mostra que `Geopolitical_Risk_Index` não é equivalente entre as
 
 | Coluna | Tipo | Categoria | Nulos | % nulos | Únicos | Orientação inicial |
 | --- | --- | --- | --- | --- | --- | --- |
-| `Supplier_ID` | object | identificação | 0 | 0.00% | 24.112 | Não usar diretamente; manter apenas para junção, agrupamento e rastreabilidade. |
-| `Country` | object | localização | 0 | 0.00% | 69 | Candidato inicial, sujeito à validação e ao pré-processamento. |
-| `Region` | object | localização | 0 | 0.00% | 6 | Candidato inicial, sujeito à validação e ao pré-processamento. |
-| `Industry` | object | risco | 0 | 0.00% | 5 | Candidato inicial, sujeito à validação e ao pré-processamento. |
+| `Supplier_ID` | str | identificação | 0 | 0.00% | 24.112 | Não usar diretamente; manter apenas para junção, agrupamento e rastreabilidade. |
+| `Country` | str | localização | 0 | 0.00% | 69 | Candidato inicial, sujeito à validação e ao pré-processamento. |
+| `Region` | str | localização | 0 | 0.00% | 6 | Candidato inicial, sujeito à validação e ao pré-processamento. |
+| `Industry` | str | risco | 0 | 0.00% | 5 | Candidato inicial, sujeito à validação e ao pré-processamento. |
 | `Supplier_Tier` | int64 | risco | 0 | 0.00% | 3 | Candidato inicial, sujeito à validação e ao pré-processamento. |
 | `Financial_Stability_Score` | float64 | financeiras | 404 | 1.44% | 23.776 | Candidato inicial, sujeito à validação e ao pré-processamento. |
 | `On_Time_Delivery_Rate` | float64 | entrega | 230 | 0.82% | 23.142 | Candidato inicial, sujeito à validação e ao pré-processamento. |
@@ -175,28 +175,28 @@ Foram identificados 5.200 registros, 57 colunas e 15 fornecedores.
 
 | Coluna | Tipo | Categoria | Nulos | % nulos | Únicos | Orientação inicial |
 | --- | --- | --- | --- | --- | --- | --- |
-| `PO Number` | object | identificação | 0 | 0.00% | 5.200 | Não usar diretamente; manter para rastreabilidade, junções ou agregações. |
-| `PO Date` | object | operação | 0 | 0.00% | 1.086 | Não usar como texto bruto; considerar somente transformações temporais definidas no futuro. |
+| `PO Number` | str | identificação | 0 | 0.00% | 5.200 | Não usar diretamente; manter para rastreabilidade, junções ou agregações. |
+| `PO Date` | str | operação | 0 | 0.00% | 1.086 | Não usar como texto bruto; considerar somente transformações temporais definidas no futuro. |
 | `PO Year` | int64 | operação | 0 | 0.00% | 3 | Candidato inicial, sujeito à validação e ao pré-processamento. |
-| `PO Quarter` | object | operação | 0 | 0.00% | 4 | Candidato inicial, sujeito à validação e ao pré-processamento. |
-| `PO Month` | object | operação | 0 | 0.00% | 12 | Candidato inicial, sujeito à validação e ao pré-processamento. |
-| `PO Type` | object | operação | 0 | 0.00% | 4 | Candidato inicial, sujeito à validação e ao pré-processamento. |
-| `PO Status` | object | possíveis labels | 0 | 0.00% | 4 | Possível classificação ou resultado; excluir inicialmente e reservar para avaliação. |
-| `Supplier ID` | object | identificação | 0 | 0.00% | 15 | Não usar diretamente; manter para rastreabilidade, junções ou agregações. |
-| `Supplier Name` | object | identificação | 0 | 0.00% | 15 | Não usar diretamente; manter para rastreabilidade, junções ou agregações. |
-| `Supplier Country` | object | fornecedor | 0 | 0.00% | 14 | Candidato inicial, sujeito à validação e ao pré-processamento. |
-| `Supplier Region` | object | fornecedor | 0 | 0.00% | 4 | Candidato inicial, sujeito à validação e ao pré-processamento. |
+| `PO Quarter` | str | operação | 0 | 0.00% | 4 | Candidato inicial, sujeito à validação e ao pré-processamento. |
+| `PO Month` | str | operação | 0 | 0.00% | 12 | Candidato inicial, sujeito à validação e ao pré-processamento. |
+| `PO Type` | str | operação | 0 | 0.00% | 4 | Candidato inicial, sujeito à validação e ao pré-processamento. |
+| `PO Status` | str | possíveis labels | 0 | 0.00% | 4 | Possível classificação ou resultado; excluir inicialmente e reservar para avaliação. |
+| `Supplier ID` | str | identificação | 0 | 0.00% | 15 | Não usar diretamente; manter para rastreabilidade, junções ou agregações. |
+| `Supplier Name` | str | identificação | 0 | 0.00% | 15 | Não usar diretamente; manter para rastreabilidade, junções ou agregações. |
+| `Supplier Country` | str | fornecedor | 0 | 0.00% | 14 | Candidato inicial, sujeito à validação e ao pré-processamento. |
+| `Supplier Region` | str | fornecedor | 0 | 0.00% | 4 | Candidato inicial, sujeito à validação e ao pré-processamento. |
 | `Supplier Tier` | int64 | fornecedor | 0 | 0.00% | 3 | Candidato inicial, sujeito à validação e ao pré-processamento. |
-| `Supplier Status` | object | possíveis labels | 0 | 0.00% | 3 | Possível classificação ou resultado; excluir inicialmente e reservar para avaliação. |
-| `Supplier Risk` | object | possíveis labels | 0 | 0.00% | 3 | Possível classificação ou resultado; excluir inicialmente e reservar para avaliação. |
+| `Supplier Status` | str | possíveis labels | 0 | 0.00% | 3 | Possível classificação ou resultado; excluir inicialmente e reservar para avaliação. |
+| `Supplier Risk` | str | possíveis labels | 0 | 0.00% | 3 | Possível classificação ou resultado; excluir inicialmente e reservar para avaliação. |
 | `Supplier Latitude` | float64 | fornecedor | 0 | 0.00% | 14 | Candidato inicial, sujeito à validação e ao pré-processamento. |
 | `Supplier Longitude` | float64 | fornecedor | 0 | 0.00% | 14 | Candidato inicial, sujeito à validação e ao pré-processamento. |
-| `Payment Terms` | object | financeira | 0 | 0.00% | 3 | Candidato inicial, sujeito à validação e ao pré-processamento. |
-| `Item Code` | object | identificação | 0 | 0.00% | 51 | Não usar diretamente; manter para rastreabilidade, junções ou agregações. |
-| `Item Description` | object | identificação | 0 | 0.00% | 51 | Não usar diretamente; manter para rastreabilidade, junções ou agregações. |
-| `Category` | object | operação | 0 | 0.00% | 10 | Candidato inicial, sujeito à validação e ao pré-processamento. |
-| `Sub Category` | object | operação | 0 | 0.00% | 51 | Candidato inicial, sujeito à validação e ao pré-processamento. |
-| `Unit of Measure` | object | operação | 0 | 0.00% | 10 | Candidato inicial, sujeito à validação e ao pré-processamento. |
+| `Payment Terms` | str | financeira | 0 | 0.00% | 3 | Candidato inicial, sujeito à validação e ao pré-processamento. |
+| `Item Code` | str | identificação | 0 | 0.00% | 51 | Não usar diretamente; manter para rastreabilidade, junções ou agregações. |
+| `Item Description` | str | identificação | 0 | 0.00% | 51 | Não usar diretamente; manter para rastreabilidade, junções ou agregações. |
+| `Category` | str | operação | 0 | 0.00% | 10 | Candidato inicial, sujeito à validação e ao pré-processamento. |
+| `Sub Category` | str | operação | 0 | 0.00% | 51 | Candidato inicial, sujeito à validação e ao pré-processamento. |
+| `Unit of Measure` | str | operação | 0 | 0.00% | 10 | Candidato inicial, sujeito à validação e ao pré-processamento. |
 | `Unit Price` | float64 | financeira | 0 | 0.00% | 4.944 | Candidato inicial, sujeito à validação e ao pré-processamento. |
 | `Quantity` | int64 | operação | 0 | 0.00% | 200 | Candidato inicial, sujeito à validação e ao pré-processamento. |
 | `Discount Pct` | int64 | financeira | 0 | 0.00% | 4 | Candidato inicial, sujeito à validação e ao pré-processamento. |
@@ -206,31 +206,31 @@ Foram identificados 5.200 registros, 57 colunas e 15 fornecedores.
 | `Line Total Gross` | float64 | financeira | 0 | 0.00% | 5.186 | Indicador calculado ou redundante; auditar fórmula e colinearidade antes do uso. |
 | `Line Net` | float64 | financeira | 0 | 0.00% | 5.190 | Indicador calculado ou redundante; auditar fórmula e colinearidade antes do uso. |
 | `Line Total Inc Tax` | float64 | financeira | 0 | 0.00% | 5.189 | Indicador calculado ou redundante; auditar fórmula e colinearidade antes do uso. |
-| `Currency` | object | financeira | 0 | 0.00% | 5 | Candidato inicial, sujeito à validação e ao pré-processamento. |
+| `Currency` | str | financeira | 0 | 0.00% | 5 | Candidato inicial, sujeito à validação e ao pré-processamento. |
 | `Budget Unit Price` | float64 | financeira | 0 | 0.00% | 4.973 | Candidato inicial, sujeito à validação e ao pré-processamento. |
 | `Budget Total` | float64 | financeira | 0 | 0.00% | 5.192 | Indicador calculado ou redundante; auditar fórmula e colinearidade antes do uso. |
 | `Savings Amount` | float64 | financeira | 0 | 0.00% | 5.147 | Indicador calculado ou redundante; auditar fórmula e colinearidade antes do uso. |
 | `Savings Pct` | float64 | financeira | 0 | 0.00% | 601 | Indicador calculado ou redundante; auditar fórmula e colinearidade antes do uso. |
-| `Requested Delivery` | object | operação | 0 | 0.00% | 1.122 | Não usar como texto bruto; considerar somente transformações temporais definidas no futuro. |
-| `Actual Delivery` | object | possíveis labels | 0 | 0.00% | 1.119 | Informação pós-evento; não usar em um score calculado no momento da criação ou aprovação do pedido. |
+| `Requested Delivery` | str | operação | 0 | 0.00% | 1.122 | Não usar como texto bruto; considerar somente transformações temporais definidas no futuro. |
+| `Actual Delivery` | str | possíveis labels | 0 | 0.00% | 1.119 | Informação pós-evento; não usar em um score calculado no momento da criação ou aprovação do pedido. |
 | `Days Late` | int64 | possíveis labels | 0 | 0.00% | 36 | Informação pós-evento; não usar em um score calculado no momento da criação ou aprovação do pedido. |
-| `On Time Delivery` | object | possíveis labels | 0 | 0.00% | 2 | Informação pós-evento; não usar em um score calculado no momento da criação ou aprovação do pedido. |
+| `On Time Delivery` | str | possíveis labels | 0 | 0.00% | 2 | Informação pós-evento; não usar em um score calculado no momento da criação ou aprovação do pedido. |
 | `Lead Time Days` | int64 | operação | 0 | 0.00% | 91 | Candidato inicial, sujeito à validação e ao pré-processamento. |
-| `Department` | object | operação | 0 | 0.00% | 10 | Candidato inicial, sujeito à validação e ao pré-processamento. |
-| `Cost Centre` | object | operação | 0 | 0.00% | 10 | Candidato inicial, sujeito à validação e ao pré-processamento. |
-| `Requestor Name` | object | identificação | 0 | 0.00% | 15 | Não usar diretamente; manter para rastreabilidade, junções ou agregações. |
-| `Approver Name` | object | identificação | 0 | 0.00% | 5 | Não usar diretamente; manter para rastreabilidade, junções ou agregações. |
-| `Contract ID` | object | identificação | 0 | 0.00% | 2.817 | Não usar diretamente; manter para rastreabilidade, junções ou agregações. |
-| `Contract Type` | object | operação | 0 | 0.00% | 4 | Candidato inicial, sujeito à validação e ao pré-processamento. |
-| `Contract Start` | object | operação | 0 | 0.00% | 1.327 | Não usar como texto bruto; considerar somente transformações temporais definidas no futuro. |
-| `Contract End` | object | operação | 0 | 0.00% | 1.694 | Não usar como texto bruto; considerar somente transformações temporais definidas no futuro. |
-| `Invoice Status` | object | possíveis labels | 0 | 0.00% | 4 | Informação pós-evento; não usar em um score calculado no momento da criação ou aprovação do pedido. |
-| `Payment Status` | object | possíveis labels | 0 | 0.00% | 4 | Informação pós-evento; não usar em um score calculado no momento da criação ou aprovação do pedido. |
-| `Invoice Match Type` | object | possíveis labels | 0 | 0.00% | 3 | Informação pós-evento; não usar em um score calculado no momento da criação ou aprovação do pedido. |
-| `Maverick Spend` | object | possíveis labels | 0 | 0.00% | 2 | Possível classificação ou resultado; excluir inicialmente e reservar para avaliação. |
-| `Single Source Flag` | object | operação | 0 | 0.00% | 2 | Candidato inicial, sujeito à validação e ao pré-processamento. |
-| `Preferred Supplier` | object | fornecedor | 0 | 0.00% | 2 | Candidato inicial, sujeito à validação e ao pré-processamento. |
-| `Local International` | object | fornecedor | 0 | 0.00% | 2 | Candidato inicial, sujeito à validação e ao pré-processamento. |
+| `Department` | str | operação | 0 | 0.00% | 10 | Candidato inicial, sujeito à validação e ao pré-processamento. |
+| `Cost Centre` | str | operação | 0 | 0.00% | 10 | Candidato inicial, sujeito à validação e ao pré-processamento. |
+| `Requestor Name` | str | identificação | 0 | 0.00% | 15 | Não usar diretamente; manter para rastreabilidade, junções ou agregações. |
+| `Approver Name` | str | identificação | 0 | 0.00% | 5 | Não usar diretamente; manter para rastreabilidade, junções ou agregações. |
+| `Contract ID` | str | identificação | 0 | 0.00% | 2.817 | Não usar diretamente; manter para rastreabilidade, junções ou agregações. |
+| `Contract Type` | str | operação | 0 | 0.00% | 4 | Candidato inicial, sujeito à validação e ao pré-processamento. |
+| `Contract Start` | str | operação | 0 | 0.00% | 1.327 | Não usar como texto bruto; considerar somente transformações temporais definidas no futuro. |
+| `Contract End` | str | operação | 0 | 0.00% | 1.694 | Não usar como texto bruto; considerar somente transformações temporais definidas no futuro. |
+| `Invoice Status` | str | possíveis labels | 0 | 0.00% | 4 | Informação pós-evento; não usar em um score calculado no momento da criação ou aprovação do pedido. |
+| `Payment Status` | str | possíveis labels | 0 | 0.00% | 4 | Informação pós-evento; não usar em um score calculado no momento da criação ou aprovação do pedido. |
+| `Invoice Match Type` | str | possíveis labels | 0 | 0.00% | 3 | Informação pós-evento; não usar em um score calculado no momento da criação ou aprovação do pedido. |
+| `Maverick Spend` | str | possíveis labels | 0 | 0.00% | 2 | Possível classificação ou resultado; excluir inicialmente e reservar para avaliação. |
+| `Single Source Flag` | str | operação | 0 | 0.00% | 2 | Candidato inicial, sujeito à validação e ao pré-processamento. |
+| `Preferred Supplier` | str | fornecedor | 0 | 0.00% | 2 | Candidato inicial, sujeito à validação e ao pré-processamento. |
+| `Local International` | str | fornecedor | 0 | 0.00% | 2 | Candidato inicial, sujeito à validação e ao pré-processamento. |
 | `Supplier ESG Score` | float64 | qualidade | 0 | 0.00% | 15 | Score externo; auditar metodologia e temporalidade antes de utilizar. |
 
 #### Estatísticas numéricas
