@@ -13,7 +13,7 @@ A saída é a classe prevista e, para modelos compatíveis, a **probabilidade es
 
 Essa definição substitui a hipótese anterior de tratar Supplier Risk simplesmente como identificação de perfis incomuns. Invoice Anomaly e Purchase Risk conservam seus próprios objetivos e arquiteturas; não há merge direto das features dessas populações distintas.
 
-Esta documentação define o contrato arquitetural do domínio. O pipeline de preparação versão 2.0.0 produz uma base pré-modelagem com nulos preservados. O pipeline ML-Ready versão 1.0.0, descrito na seção 11, deriva conjuntos de treino, validação e teste com imputação aprendida somente no treino, sem alterar essa base. Essas etapas de preparação não treinaram classificadores. Posteriormente foram concluídas a EDA TRAIN e a primeira rodada experimental TRAIN/VALIDATION, descritas nas seções 13.8 e 15. O contrato detalhado da base está em [Features do Supplier Risk](supplier_risk_features.md).
+Esta documentação define o contrato arquitetural do domínio. O pipeline de preparação versão 2.0.0 produz uma base pré-modelagem com nulos preservados. O pipeline ML-Ready versão 1.0.0, descrito na seção 11, deriva conjuntos de treino, validação e teste com imputação aprendida somente no treino, sem alterar essa base. Essas etapas de preparação não treinaram classificadores. Posteriormente foram concluídas a EDA TRAIN, a primeira rodada experimental TRAIN/VALIDATION e a CV exploratória A/D dentro de TRAIN, descritas nas seções 13.8, 15 e 16. O contrato detalhado da base está em [Features do Supplier Risk](supplier_risk_features.md).
 
 ## 2. Unidade de análise
 
@@ -147,11 +147,11 @@ O pipeline ML-Ready reutiliza `supplier_split_assignments.parquet` sem recalcula
 
 O pipeline deverá salvar junto ao modelo a lista ordenada de features, parâmetros, estratégia de imputação, categorias aprendidas e metadados da execução.
 
-O artefato oficial pré-modelagem é `data/processed/supplier_risk/supplier_features_base.parquet`, com nulos preservados. Ele **não é uma matriz pronta para o `fit()`**. Seus derivados numéricos para consumo futuro ficam em `data/processed/supplier_risk/ml_ready/`. O fluxo implementado vai da fonte à base com nulos, reutiliza o split por fornecedor e ajusta apenas o imputador no treino, aplicando-o nos três conjuntos. O treinamento do modelo continua futuro. A base anterior com imputação global foi descontinuada e não participa desse fluxo.
+O artefato oficial pré-modelagem é `data/processed/supplier_risk/supplier_features_base.parquet`, com nulos preservados. Ele **não é uma matriz pronta para o `fit()`**. Seus derivados numéricos para consumo futuro ficam em `data/processed/supplier_risk/ml_ready/`. O fluxo implementado vai da fonte à base com nulos, reutiliza o split por fornecedor e ajusta apenas o imputador no treino, aplicando-o nos três conjuntos. O treinamento de um modelo final continua futuro; classificadores já foram ajustados apenas como experimentos TRAIN/VALIDATION documentados nas seções 15 e 16. A base anterior com imputação global foi descontinuada e não participa desse fluxo.
 
-## 10. Critérios de prontidão
+## 10. Critérios históricos de prontidão e gate atual
 
-O treinamento somente deverá começar depois que:
+Os critérios abaixo foram definidos antes da primeira rodada experimental:
 
 - a representação por fornecedor estiver definida;
 - duplicidades e nulos tiverem tratamento documentado;
@@ -160,6 +160,10 @@ O treinamento somente deverá começar depois que:
 - `Risk_Level` estiver excluído da matriz de features;
 - a divisão entre treino, validação e teste estiver definida;
 - testes confirmarem ausência de leakage e estabilidade do esquema.
+
+Preparação, EDA e ajustes experimentais TRAIN/VALIDATION já ocorreram. Isso não significa que todos os pontos de procedência foram resolvidos: a versão enriquecida do índice permaneceu provisoriamente nos cenários A/C e a origem de `Risk_Level` continua desconhecida.
+
+**Gate atual — PLANEJADO:** antes de treino final ou abertura de TEST, extrair os helpers experimentais e o carregador com allowlist para módulos testáveis, revisar procedência, registrar orçamento adicional e congelar explicitamente features, transformações, modelo, parâmetros, seed(s), threshold e eventual calibração. É válido concluir que nenhum candidato é defensável. Não há seleção final nesta documentação.
 
 ## 11. Pipeline de preparação para Machine Learning
 
@@ -249,7 +253,7 @@ Na implementação inicial foram exercitados 39 testes em memória. Agora há um
 
 As saídas possuem schemas esperados, mesma quantidade de linhas entre X/y, zero nulos, zero infinitos e nenhuma coluna inteiramente nula. Não houve perda de fornecedores. Ruff: `All checks passed!`.
 
-O único ajuste executado nesta etapa foi o do transformador de imputação; nenhum modelo preditivo foi treinado, nenhuma EDA foi criada e nenhum commit foi realizado. A preparação numérica não resolve as pendências de procedência do índice geopolítico, domínio de compliance/lead time ou validade operacional de `Risk_Level`.
+Na etapa original de preparação, o único ajuste foi o do transformador de imputação; nenhum modelo preditivo ou EDA foi criado naquela entrega. Posteriormente foram executadas a EDA TRAIN e rodadas experimentais, sem modificar os Parquets. A preparação numérica e os experimentos não resolvem as pendências de procedência do índice geopolítico, domínio de compliance/lead time ou validade operacional de `Risk_Level`.
 
 Futuras comparações entre modelos devem reutilizar este split, manter qualquer aprendizado de transformações restrito ao treino e reservar teste para avaliação final. A seção 13 define antecipadamente o scaling da Logistic Regression e as ablações; nada disso altera os Parquets atuais. Alternativas de imputação e categorias ficam para fases posteriores, sem usar resultados do teste para escolher a configuração.
 
@@ -268,9 +272,9 @@ O modelo atual não pretende:
 
 O dataset não possui sequência temporal adequada para previsão futura. Essa limitação não é resolvida pelo split por fornecedor, nem pela imputação. Nenhum cenário de previsão de acontecimentos futuros será implementado nesta fase. Também permanecem as incertezas de origem do índice geopolítico, escala de compliance e significado de lead time zero. `supplier_record_count` continua representando somente registros distintos após deduplicação, não histórico temporal.
 
-## 13. Protocolo experimental pré-definido — PLANEJADO
+## 13. Protocolo experimental pré-definido — IMPLEMENTADO EM PARTE
 
-**Protocolo 1.0, registrado em 2026-09-14, antes de EDA ou resultados de classificadores.** Esta seção é a referência experimental do Supplier Risk. Não contém resultados de modelos, não autoriza mudanças nas fontes e não modifica os artefatos existentes. Qualquer revisão deverá ser registrada antes de observar os resultados afetados, com motivo e versão; nunca será justificada por desempenho no TEST.
+**Protocolo 1.0, registrado em 2026-09-14, antes de EDA ou resultados de classificadores.** Esta seção conserva as regras originais e anota o que já foi executado; os resultados permanecem nas seções 15 e 16. Ela não autoriza mudanças nas fontes e não modifica os artefatos existentes. Qualquer revisão deverá ser registrada antes de observar os resultados afetados, com motivo e versão; nunca será justificada por desempenho no TEST.
 
 ### 13.1. Papéis dos conjuntos e sequência
 
@@ -323,7 +327,7 @@ Comparar A/B/C/D dentro de cada família de classificador, com os mesmos fornece
 SimpleImputer(strategy="median") → StandardScaler → LogisticRegression
 ```
 
-Imputador e scaler serão ajustados somente em TRAIN. Na CV, serão ajustados somente no subtreino de cada fold. O scaling é PLANEJADO para esse classificador; o ML-Ready atual continua sem scaling e não será sobrescrito. Para executar o pipeline completo, preferir a base com nulos filtrada pelos IDs de TRAIN.
+**PROTOCOLO ORIGINALMENTE PLANEJADO:** imputador e scaler seriam ajustados somente em TRAIN e, na CV, somente no subtreino de cada fold. **EXECUÇÃO REGISTRADA:** essa regra foi aplicada nos Pipelines experimentais de Logistic Regression da primeira rodada e da CV A/D. O ML-Ready atual continua sem scaling e não foi sobrescrito. Para executar novamente o pipeline completo, usar a base com nulos filtrada pelos IDs de TRAIN e preservar a fronteira por fold.
 
 **Primeiro modelo não linear — RandomForestClassifier:** candidato para relações não lineares em dados tabulares, já disponível no scikit-learn, sem dependência externa. Usará imputação mediana train-only dentro de Pipeline; StandardScaler não é exigido para esse candidato. Importâncias podem apoiar a análise, mas não comprovam causalidade e precisam ser interpretadas com cautela diante de cardinalidade, correlações e proxies.
 
@@ -333,7 +337,9 @@ Gradient Boosting permanece hipótese posterior, não primeiro candidato desta r
 
 **IMPLEMENTADO:** o ML-Ready tem imputação ajustada no TRAIN completo e aplicada a validation/test. Continua válido para experimentos simples com essa separação fixa e sem novo aprendizado em holdout.
 
-**PLANEJADO, se houver CV interna:** partir de `supplier_features_base.parquet`, selecionar somente `split == train` por `supplier_id`, associar os targets e passar os valores ainda nulos a um Pipeline contendo imputador e estimador; incluir StandardScaler no caso da Logistic Regression. Cada fold aprende seus próprios parâmetros exclusivamente em seu subtreino. Registrar previamente o particionamento interno e garantir ambas as classes e IDs disjuntos entre os lados de cada fold.
+**IMPLEMENTADO na validação científica A/D:** a CV partiu de `supplier_features_base.parquet`, selecionou somente `split == train` por `supplier_id`, associou os targets e passou os valores ainda nulos a um Pipeline contendo imputador, StandardScaler e Logistic Regression. Cada fold aprendeu seus próprios parâmetros exclusivamente no subtreino, com ambas as classes e IDs disjuntos entre ajuste e validação interna.
+
+**PLANEJADO para qualquer CV futura:** reutilizar helpers testáveis com as mesmas fronteiras, registrar previamente o particionamento/orçamento e não ampliar cenários após observar resultados.
 
 Não usar `X_train` previamente imputado como entrada direta dessa CV: as medianas do TRAIN completo já viram os folds que seriam validação interna. Nenhum fold de CV pode incorporar VALIDATION ou TEST oficiais. O mesmo princípio vale para seleção de features, scaling e encoding futuros. Ao terminar a seleção interna, ajustar o pipeline escolhido no TRAIN completo e avaliar em VALIDATION.
 
@@ -362,7 +368,7 @@ Um candidato somente poderá ser considerado útil **no experimento** se, compar
 4. não obtiver aparente vantagem apenas prevendo majoritariamente classe 1;
 5. apresentar ganho claro, não somente uma diferença nominal possivelmente explicada por variação amostral.
 
-Não é imposto um alvo arbitrário, como F1 de 90%. Para quantificar a clareza do ganho, planeja-se bootstrap pareado por fornecedor em VALIDATION, comparando predições já produzidas pelo candidato e pela baseline: 2.000 reamostragens, seed 42, IC percentil de 95% para as diferenças de F1-macro e balanced accuracy. Se o intervalo incluir zero em qualquer uma, o ganho será tratado como inconclusivo. Reamostragens sem ambas as classes não terão métricas inventadas; sua frequência deverá ser registrada. Essa análise não refaz treinamento e não corrige o viés de uma busca excessiva no mesmo validation; o orçamento de experimentos precisa ser limitado e documentado.
+Não é imposto um alvo arbitrário, como F1 de 90%. Para quantificar a clareza do ganho, o primeiro experimento executou bootstrap pareado por fornecedor em VALIDATION, comparando as predições do candidato e da baseline: 2.000 reamostragens, seed 42, IC percentil de 95% para as diferenças de F1-macro e balanced accuracy. Se o intervalo incluir zero em qualquer uma, o ganho será tratado como inconclusivo. Reamostragens sem ambas as classes não terão métricas inventadas; sua frequência deverá ser registrada. Essa análise não refez treinamento e não corrige o viés de uma busca excessiva no mesmo validation; o orçamento de novos experimentos precisa ser limitado e documentado.
 
 Entre candidatos elegíveis, selecionar pelo maior F1-macro em VALIDATION. Em empate exato, considerar balanced accuracy, depois a alternativa mais conservadora na ordem D/B/C/A e, por fim, Logistic Regression antes de Random Forest. Se nenhum satisfizer os critérios, registrar ausência de evidência de utilidade e não declarar um vencedor útil por obrigação. Threshold inicial será 0,5 para a probabilidade da classe 1; qualquer otimização posterior de threshold exige grade/regra registrada antes da comparação, usa somente VALIDATION e respeita os mesmos critérios.
 
@@ -412,6 +418,32 @@ O [notebook 02](../ml/supplier_risk/notebooks/02_supplier_risk_baseline_models.i
 
 **INTERPRETAÇÃO/LIMITAÇÃO:** remover o índice geopolítico reduz o F1-macro em aproximadamente 14,30 pontos percentuais na LR e 13,57 na RF; sua procedência segue não comprovada. A contagem não mostrou ganho claro. Estabilidade financeira e índice geopolítico dominam coeficientes/importâncias, compatíveis com as associações da EDA, sem provar causalidade ou a construção da label. Não há vencedor definitivo, validação empresarial ou probabilidade calibrada.
 
-O ML-Ready já estava imputado a partir de TRAIN. O SimpleImputer de cada Pipeline foi fitado apenas em TRAIN, com transformação neutra nesses dados sem nulos; o scaler da LR foi aprendido apenas em TRAIN. Não houve CV, e o protocolo para CV futura da seção 13.4 permanece obrigatório.
+O ML-Ready já estava imputado a partir de TRAIN. O SimpleImputer de cada Pipeline foi fitado apenas em TRAIN, com transformação neutra nesses dados sem nulos; o scaler da LR foi aprendido apenas em TRAIN. Não houve CV nessa primeira rodada; a seção 16 registra a CV posterior que partiu corretamente da base com nulos.
 
 O [relatório completo](supplier_risk_baseline_models.md) contém dados, parâmetros, métricas por classe, ablações, incerteza, limitações e próximos experimentos. A próxima etapa exige revisão da evidência e das pendências de origem; esta rodada não autoriza a abertura de TEST nem a seleção automática de uma versão final.
+
+## 16. Validação científica exploratória — IMPLEMENTADO
+
+O [notebook 03](../ml/supplier_risk/notebooks/03_supplier_risk_validation_analysis.ipynb) e seu [relatório](supplier_risk_validation_analysis.md) executaram uma validação adicional sem TEST:
+
+- CV de cinco folds estratificados somente dentro de TRAIN, comparando LR A e D;
+- Pipeline novo por fold, com imputação e scaling ajustados apenas no respectivo subtreino;
+- controle negativo com uma permutação de labels;
+- reprodução diagnóstica da LR A anterior em VALIDATION e análise pós-hoc de erros;
+- 21 fits experimentais, sem tuning, serialização, calibração ou treino final.
+
+**RESULTADO OBSERVADO:** A obteve F1-macro médio `0,92683 ± 0,00624`; D, `0,79729 ± 0,00929`. A foi superior em todos os cinco folds. Com labels embaralhadas, ambos os cenários caíram para balanced accuracy `0,50000` e ROC-AUC aproximadamente `0,50`.
+
+**INTERPRETAÇÃO:** existe evidência adicional de sinal classificatório e de consistência nessa partição interna. O controle negativo é favorável como teste de sanidade, mas não prova ausência absoluta de leakage: a própria label pode ter sido construída a partir das features. A comparação A/D também não isola o efeito de cada variável removida.
+
+**LIMITAÇÕES:** uma fonte, uma estratificação, nenhuma validação temporal/externa, probabilidades não calibradas e diagnóstico de VALIDATION pós-hoc. Predições individuais da primeira rodada não foram persistidas; a reprodução confirmou agregados e coeficientes, não igualdade bit a bit com um vetor histórico inexistente. Nenhum vencedor, feature set final ou threshold foi escolhido. TEST permanece congelado.
+
+## 17. Evidência futura e próximos gates
+
+**IMPLEMENTADO:** o [contrato de registros experimentais](supplier_risk_experiment_records.md) disponibiliza uma API/CLI JSON, somente biblioteca padrão, para gravar e verificar novas predições TRAIN/VALIDATION. Um arquivo representa um estimador/configuração/cenário; schemas, IDs, allowlist, hashes e digest são validados. O helper não carrega dados/modelos, não aceita TEST nesta versão e ainda não possui registros experimentais reais.
+
+**LIMITAÇÃO:** checksum verifica consistência interna, não é assinatura ou atestado de procedência. Hashes esperados são fornecidos pelo chamador e não provam que TEST nunca foi lido. Nenhum registro histórico foi fabricado.
+
+**PLANEJADO antes do próximo experimento:** extrair helpers de cenários, métricas, alinhamento e carregamento allowlisted para módulos testáveis; tornar notebooks futuros consumidores finos; preservar notebooks históricos sem refatoração retroativa. A publicação dos pipelines também deverá evoluir de escritas sequenciais para promoção transacional de conjuntos completos, porque uma falha hoje pode deixar saídas antigas e novas misturadas.
+
+O [roadmap completo](implementation_roadmap.md) define responsáveis e gates. O caminho Supplier conserva: seleção apenas em desenvolvimento → congelamento explícito → ajuste em TRAIN → avaliação final única em TEST, sem refit TRAIN + VALIDATION. Resultado de TEST não realimenta a seleção.

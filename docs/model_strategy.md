@@ -4,14 +4,14 @@
 
 O projeto **Detector Inteligente de Anomalias em Compras** adota **3 domínios → 3 modelos especializados**. Cada componente usa sua própria fonte e mantém resultados independentes. As populações dos datasets são diferentes e não possuem chaves reais comuns para integração: não haverá merge direto de suas features. Uma eventual camada futura de integração de scores precisará de contexto verificável, avaliação própria e rastreabilidade, sem assumir que IDs semelhantes representam a mesma entidade.
 
-A fase inicial criou a estrutura dos domínios externos. O Supplier Risk agora possui base consolidada, auditoria de target, split, pipeline ML-Ready e testes sintéticos persistidos. Purchase continua com auditoria/estratégia e implementação pendente. A consolidação atual não treinou modelos, não criou EDA e não alterou os artefatos ou a arquitetura Invoice/Purchase.
+A fase inicial criou a estrutura dos domínios externos. O Supplier Risk agora possui base consolidada, auditoria de target, split, pipeline ML-Ready, testes sintéticos, EDA TRAIN, baselines em VALIDATION e CV exploratória A/D dentro de TRAIN. Purchase continua com auditoria/estratégia e implementação pendente. Esses ajustes Supplier são experimentais: não há modelo final, avaliação TEST ou mudança da arquitetura Invoice/Purchase.
 
 ## 2. Arquitetura dos modelos
 
 | Modelo | Unidade de análise | Fonte principal | Momento de scoring | Saída planejada | Estado |
 | --- | --- | --- | --- | --- | --- |
 | Invoice Anomaly Model | Fatura | Procurement Invoice Fraud Dataset | Após preparação da fatura | `invoice_anomaly_score` | Existente; não alterado nesta etapa |
-| Supplier Risk Model | Fornecedor | Supplier Risk Assessment Dataset | Classificação do perfil representado no dataset, sem previsão temporal | Classe 0/1 e, quando compatível, probabilidade estimada da classe 1 | Base, targets, split e ML-Ready concluídos; EDA/treinamento/avaliação pendentes |
+| Supplier Risk Model | Fornecedor | Supplier Risk Assessment Dataset | Classificação do perfil representado no dataset, sem previsão temporal | Classe 0/1 e, quando compatível, probabilidade estimada da classe 1 | Preparação, EDA e experimentos TRAIN/VALIDATION concluídos; seleção final e TEST pendentes |
 | Purchase Risk Model | Linha de pedido na fonte; agregação por pedido não comprovada | Purchase Orders & Supplier Performance Dataset | Antes da aprovação | Significado pendente: anomalia ou desfecho específico; `purchase_risk_score` é nome histórico | Somente auditoria/documentação; features/modelo não criados |
 
 Os scores devem permanecer separados, versionados e auditáveis. Uma eventual composição em um score geral deverá ocorrer somente depois da validação individual dos modelos e deverá preservar a contribuição de cada componente.
@@ -42,9 +42,9 @@ Arquivos binários de modelo nos formatos `.joblib` e `.pkl` permanecem fora do 
 
 ### 4.1. Invoice Anomaly Model
 
-O modelo existente continua responsável pela detecção de anomalias transacionais em faturas. Sua metodologia, suas 19 features e seus artefatos não fazem parte desta refatoração.
+O modelo existente continua responsável pela detecção de anomalias transacionais em faturas. Sua metodologia, suas 19 features, seus parâmetros e seus artefatos foram preservados nesta refatoração.
 
-**IMPLEMENTADO:** Isolation Forest com `contamination=0.22` como configuração inicial. **PLANEJADO:** avaliação consolidada e por `fraud_type`, com escolha de threshold somente em validação. **LIMITAÇÕES:** as estatísticas usam todo o TRAIN, sem reconstrução ponto-a-ponto do histórico; o experimento atual avalia principalmente novas faturas de fornecedores já conhecidos. Não comprova generalização para fornecedores inéditos. Nenhum ajuste no código, retraining ou uso de TEST para selecionar threshold foi realizado neste fechamento.
+**IMPLEMENTADO:** Isolation Forest com `contamination=0.22` como configuração inicial; neste fechamento, o comando de treino recebeu validação explícita das 19 features e `main` guard, tornando a importação inerte. **PLANEJADO:** avaliação consolidada e por `fraud_type`, com escolha de threshold somente em validação. **LIMITAÇÕES:** as estatísticas usam todo o TRAIN, sem reconstrução ponto-a-ponto do histórico; o experimento atual avalia principalmente novas faturas de fornecedores já conhecidos. Não comprova generalização para fornecedores inéditos. A mudança de código foi apenas de segurança da fronteira de execução: metodologia, features, parâmetros, caminhos, metadata e modelo foram preservados, sem treino real, retraining ou uso de TEST.
 
 ### 4.2. Supplier Risk Model
 
@@ -73,7 +73,9 @@ Cada pipeline especializado deverá ser independente e executar, no mínimo, as 
 9. salvar modelo, parâmetros, lista de features e metadados de execução;
 10. manter os datasets originais imutáveis.
 
-No Supplier, a preparação, o split e a imputação mediana train-only já estão implementados; treino e avaliação não. Seus testes usam exclusivamente DataFrames sintéticos e `tmp_path`, sem reprocessar dados reais. Não é necessário refatorar os scripts para expor funções: eles já possuem funções reutilizáveis e blocos `main` protegidos.
+No Supplier, a preparação, o split e a imputação mediana train-only já estão implementados; EDA, baselines e CV exploratória também foram executadas. Isso não equivale a treino final ou avaliação TEST. Os testes dos pipelines usam exclusivamente DataFrames sintéticos e `tmp_path`, sem reprocessar dados reais. Os scripts de preparação já possuem funções reutilizáveis e blocos `main` protegidos.
+
+Antes de qualquer novo experimento real, a lógica hoje concentrada nos notebooks deverá ser extraída para helpers experimentais testáveis, incluindo um carregador com allowlist explícita de splits. Os notebooks futuros deverão tornar-se consumidores finos desses módulos. **PLANEJADO:** essa refatoração; os notebooks históricos não foram alterados neste fechamento.
 
 ## 6. Controles contra data leakage
 
@@ -120,18 +122,26 @@ A fase inicial definiu os seguintes critérios para receber pipelines; o Supplie
 
 As ideias antigas “V2 = Invoice + Purchase” e “V3 = Invoice + Purchase + Supplier” foram substituídas. São hipóteses históricas, não arquitetura vigente nem junções diretas planejadas. O versionamento e as baselines serão separados por domínio; comparar scores futuramente não autoriza fundir features ou comparar métricas de populações diferentes.
 
-## 9. Próxima fase do Supplier Risk
+## 9. Estado e próxima fase do Supplier Risk
 
-**PLANEJADO — protocolo 1.0 de 2026-09-14:** EDA em TRAIN → baseline 0 majoritária → baseline 1 Logistic Regression → RandomForestClassifier como primeiro candidato não linear → comparação em VALIDATION → congelamento → avaliação final única em TEST. Gradient Boosting fica para fase posterior; XGBoost exige justificativa futura e não foi adicionado. O [protocolo detalhado do Supplier](supplier_risk_model.md#13-protocolo-experimental-pré-definido--planejado) é a referência experimental, evitando regras divergentes entre documentos.
+**PROTOCOLO 1.0 de 2026-09-14 — IMPLEMENTADO EM PARTE:** EDA em TRAIN → baseline 0 majoritária → baseline 1 Logistic Regression → RandomForestClassifier como primeiro candidato não linear → comparação em VALIDATION → congelamento → avaliação final única em TEST. EDA, comparação A/B/C/D e CV exploratória LR A/D dentro de TRAIN foram concluídas. Congelamento e TEST permanecem planejados. Gradient Boosting fica para fase posterior; XGBoost exige justificativa futura e não foi adicionado. O [protocolo detalhado do Supplier](supplier_risk_model.md#13-protocolo-experimental-pré-definido--implementado-em-parte) é a referência experimental, evitando regras divergentes entre documentos.
 
-As ablações pré-definidas são A (10 features), B (sem `geopolitical_risk_index`), C (sem `supplier_record_count`) e D (sem ambas). Comparar todas em VALIDATION, não em TEST. O conjunto mais completo não é presumido superior: índice provisório e contagem potencialmente associada à coleta exigem teste de dependência.
+As ablações pré-definidas são A (10 features), B (sem `geopolitical_risk_index`), C (sem `supplier_record_count`) e D (sem ambas). As quatro já foram comparadas em VALIDATION; a CV posterior comparou A/D sem selecionar uma versão final. O conjunto mais completo não é presumido superior: índice provisório e contagem potencialmente associada à coleta exigem decisão de procedência, não escolha automática pelo maior valor pontual.
 
-Métrica principal: **F1-macro**. Secundárias: precision/recall/F1 das classes 0 e 1, balanced accuracy, ROC-AUC, PR-AUC reportada como Average Precision e confusion matrix; accuracy é complementar. Utilidade mínima exige ganho claro sobre a classe majoritária de TRAIN em F1-macro e balanced accuracy, com identificação de ambas as classes. O protocolo detalha análise de incerteza e desempate; não impõe um F1 absoluto arbitrário. Nenhuma métrica de classificador foi calculada neste fechamento.
+Métrica principal: **F1-macro**. Secundárias: precision/recall/F1 das classes 0 e 1, balanced accuracy, ROC-AUC, PR-AUC reportada como Average Precision e confusion matrix; accuracy é complementar. Utilidade mínima exige ganho claro sobre a classe majoritária de TRAIN em F1-macro e balanced accuracy, com identificação de ambas as classes. Os resultados observados e suas limitações estão nos relatórios de [baselines](supplier_risk_baseline_models.md) e [validação científica](supplier_risk_validation_analysis.md); não constituem escolha final.
 
-Logistic Regression terá `SimpleImputer → StandardScaler → LogisticRegression` dentro de Pipeline, aprendido somente no TRAIN. Na CV interna futura, cada fold aprende seus próprios transformadores a partir da base com nulos e dos IDs de TRAIN; não usar diretamente o X_train já imputado sobre todo o TRAIN. O ML-Ready atual continua válido para experimentos simples train/validation, sem alteração de artefatos.
+Logistic Regression usa `SimpleImputer → StandardScaler → LogisticRegression` dentro de Pipeline, aprendido somente no TRAIN. Na CV interna concluída, cada fold aprendeu seus próprios transformadores a partir da base com nulos e dos IDs de TRAIN; o X_train já imputado sobre todo o TRAIN não foi usado. O ML-Ready atual continua válido para experimentos simples train/validation, sem alteração de artefatos. Qualquer CV futura deve preservar esse isolamento.
 
 TRAIN explora/ajusta/treina; VALIDATION seleciona features, modelos, hiperparâmetros e threshold; TEST somente avalia ao final. Não usar TEST para EDA, tuning ou calibração. `predict_proba()` não garante probabilidades confiáveis: calibration curve, Brier score e possível CalibratedClassifierCV serão avaliados futuramente com dados de desenvolvimento. A saída significa somente pertencimento à classe 1, não falha real ou futura.
 
 `.python-version` permanece em **3.14.3**, após restauração da exclusão local no fechamento anterior; a causa da exclusão não foi comprovada. As sondagens antigas com pandas 2.2.2 não resolveram wheels em Python 3.14.3/3.13.14. Em **2026-09-16**, foi comprovada uma instalação nova e isolada em Windows x64 / Python 3.14.3 com **pandas 2.3.3**; somente esse pin mudou. `pip check`, Ruff e os 113 testes sintéticos passaram. A `.venv` antiga foi preservada e não deve ser confundida com esse ambiente validado.
 
-**IMPLEMENTADO:** correção controlada dos requisitos e CI configurada com instalação isolada e testes sintéticos. **PENDENTE:** primeira execução no GitHub e validação em outras plataformas. Isso não comprova equivalência de resultados de modelos entre ambientes; modelos, dados e metadados existentes não foram alterados. EDA e treinamento continuam planejados. O [README](../README.md#instalação) registra o procedimento e os limites da comprovação.
+**IMPLEMENTADO:** correção controlada dos requisitos e CI configurada com instalação isolada e testes sintéticos. **PENDENTE:** primeira execução no GitHub e validação em outras plataformas. Isso não comprova equivalência de resultados de modelos entre ambientes; modelos, dados e metadados existentes não foram alterados. A EDA e os ajustes experimentais foram executados depois dessa validação de ambiente, mas treino final e TEST continuam pendentes. O [README](../README.md#instalação) registra o procedimento e os limites da comprovação.
+
+## 10. Evidência, publicação e caminho de produto
+
+**IMPLEMENTADO:** o [contrato JSON de evidência Supplier](supplier_risk_experiment_records.md) registra e verifica novas predições TRAIN/VALIDATION por estimador/configuração/cenário. Ele não contém predições históricas reais, não aceita TEST nesta versão e não transforma checksum em prova de procedência.
+
+**PLANEJADO:** publicação transacional dos múltiplos artefatos de preparação e experimento. Hoje os produtores escrevem saídas sequencialmente e publicam metadata por último; uma falha pode deixar arquivos antigos e novos misturados. Consumidores precisam conferir hashes/metadata, e a evolução deverá promover atomicamente apenas conjuntos completos já validados.
+
+O [roadmap](implementation_roadmap.md) define os gates para congelamento Supplier, avaliação TEST única sem refit TRAIN+VALIDATION, fechamento Invoice, decisão formal Purchase, contratos de inferência, backend/frontend, segurança, monitoramento e reprodutibilidade. Nenhum modelo, conjunto final de features, threshold, objetivo Purchase ou score combinado é escolhido nesta documentação.
