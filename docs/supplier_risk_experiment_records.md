@@ -42,7 +42,7 @@ O verificador rejeita chaves JSON duplicadas, números não finitos, versão ou 
 | `y_pred` | inteiro `0` ou `1`; `bool` não é aceito |
 | `probability_class_1` | número real finito no intervalo fechado `[0, 1]` |
 
-As linhas são ordenadas canonicamente por `split` e `supplier_id`. A API deliberadamente não aceita `test`: nesta versão, ela serve ao ciclo de desenvolvimento anterior ao congelamento final. Uma futura avaliação TEST exige autorização e protocolo próprios, não uma ampliação silenciosa da allowlist.
+As linhas são ordenadas canonicamente por `split` e `supplier_id`. A API de desenvolvimento deliberadamente não aceita `test`: ela serve ao ciclo anterior ao congelamento final. A avaliação final autorizada utiliza o contrato distinto da seção 9, sem ampliar silenciosamente essa allowlist.
 
 `probability_class_1` significa apenas probabilidade estimada de pertencimento à classe `1` do dataset. Não é probabilidade validada de fraude, falha, ruptura ou outro evento real; tampouco é necessariamente calibrada.
 
@@ -146,3 +146,34 @@ TEST: uma única avaliação final autorizada
 ```
 
 Não haverá refit em `TRAIN + VALIDATION` no protocolo atual. O resultado de TEST será apenas avaliação da configuração já congelada e não poderá realimentar a seleção. O [roadmap de implementação](implementation_roadmap.md) descreve os gates até essa etapa.
+
+## 9. Contrato específico da avaliação final — IMPLEMENTADO
+
+`write_final_evaluation_record(..., freeze_sha256=...)` e
+`verify_final_evaluation_record(...)` usam o schema
+`supplier-risk-final/1.0.0`, exclusivo de TEST e com registros não vazios.
+O digest inclui o payload e o SHA-256 do congelamento. O verificador de
+desenvolvimento recusa esse schema; o verificador final recusa o schema de
+desenvolvimento. O comando de leitura é:
+
+```powershell
+python -m ml.supplier_risk.scripts.experiment_artifact verify-final CAMINHO_DO_REGISTRO.json
+```
+
+O executor `final_evaluation.py` verifica as fontes reais, a versão do código,
+as versões das bibliotecas, o alinhamento por IDs e os hashes antes de consumir
+os dados. O carregador de desenvolvimento continua recusando TEST. O fluxo final
+exige congelamento anterior, cujo digest esperado é fornecido externamente;
+reserva exclusivamente a execução antes do fit e registra a abertura antes de
+ler TEST. Erros interrompem a execução e não autorizam tentativas automáticas.
+
+Os dois registros finais e suas métricas são validados em `results.pending` e
+promovidos conjuntamente para `results`, com manifest e hashes. Essa publicação
+consistente está implementada **somente para a avaliação final**, não para todos
+os produtores históricos mencionados na seção 7. O estado ajustado do estimador
+é registrado em JSON para auditoria, sem gerar modelo binário de produção.
+
+Os controles impedem sobrescrita/reexecução acidental e detectam alterações;
+não substituem assinatura digital, armazenamento WORM ou controle de acesso.
+Protocolo congelado, execução e resultados ficam no
+[relatório final](supplier_risk_final_evaluation.md).

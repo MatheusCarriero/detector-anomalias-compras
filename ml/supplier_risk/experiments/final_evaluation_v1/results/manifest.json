@@ -1,0 +1,8 @@
+{
+  "files": {
+    "Baseline_majoritaria.json": "0acb8f2edfe12639923d99600dda98b9d3367a11e1c18f3a14592a82c1a5b48d",
+    "LogisticRegression_C.json": "eaf6280e5cd12544aff8e6ac231f1166f8d9ae702a77ab495778593da3541dd0",
+    "metrics.json": "11ada09a67fccaeab089e84ab0ce2e2d08fe0cf9c9bc37d3d6640d73638dbaa5"
+  },
+  "freeze_sha256": "70817bc7d270f4fb5d1d7ce27bc48920babe41cd72c317ded7bda300da7db151"
+}

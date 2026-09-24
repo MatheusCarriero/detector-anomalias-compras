@@ -1,0 +1,127 @@
+{
+  "baseline_class": 1,
+  "budget": {
+    "classifier_fits": 1,
+    "test_evaluations": 1,
+    "tuning_trials": 0
+  },
+  "calibration": null,
+  "code_base_commit": "bb9965a735f2269aa1540b0c979b763fb2187fde",
+  "created_at": "2026-09-19T13:20:53.140325Z",
+  "decision_rule": "predict(); p(class 1) > 0.5, equality -> class 0",
+  "estimator": "LogisticRegression",
+  "expected_test_hashes_from_producer": {
+    "X_test": "C80EE0E47BE00196296432CFEE101C0280B799AE1B0093CC12109D0492B0606C",
+    "y_test": "95E99B69547A45C37343077402A2A253F4070A99304B608E31701FFBDE696FC8"
+  },
+  "failure_policy": "Stop, preserve evidence, never select or retry from TEST results.",
+  "features": [
+    "financial_stability_score",
+    "on_time_delivery_rate",
+    "defect_rate",
+    "geopolitical_risk_index",
+    "lead_time_days",
+    "alternative_suppliers_available",
+    "contract_length_months",
+    "environmental_compliance",
+    "previous_disruptions"
+  ],
+  "hashes": {
+    "data/processed/supplier_risk/ml_ready/X_train.parquet": "21d7baa5b62f4d0f42754dfe3bf36236c7ec9cff610a5c8c5b3c1b651d1812b2",
+    "data/processed/supplier_risk/ml_ready/preprocessing_metadata.json": "108a2d6fdd5ca3f59fbcc7bb6ba55c203461653cbddf09f776d4378efb34533d",
+    "data/processed/supplier_risk/ml_ready/y_train.parquet": "decf5dcd969624bf89c69635eeb2e3c1c99f2589a9d7be71e4e069c885587f43",
+    "data/processed/supplier_risk/supplier_split_assignments.parquet": "13e8795f34b8b4a7e051b666aae945befe18d1b012aa16044414f975334ffa7e",
+    "docs/supplier_risk_model.md": "8fb46ffa2c162f91d3e3c8733cbcefbf2dcb4eb3630144d23d35c091926d366b",
+    "ml/supplier_risk/notebooks/02_supplier_risk_baseline_models.ipynb": "e38872e7038307a33c2badf600f9df3a9a30cf42014a14646b78178357b6f522",
+    "ml/supplier_risk/scripts/experiment_artifact.py": "9799b614818a7a45d71f0d07c1ecf972f781641a4d8d8b33003d3c00c9594a74",
+    "ml/supplier_risk/scripts/final_evaluation.py": "eb79a2b4cdd9d26232448765065d4dd37944bf78002109be69ee72275d597c43"
+  },
+  "metrics": [
+    "f1_macro",
+    "balanced_accuracy",
+    "precision_0",
+    "recall_0",
+    "f1_0",
+    "precision_1",
+    "recall_1",
+    "f1_1",
+    "confusion_matrix",
+    "roc_auc",
+    "average_precision",
+    "accuracy",
+    "support_0",
+    "support_1"
+  ],
+  "parameters": {
+    "imputer": {
+      "add_indicator": false,
+      "copy": true,
+      "fill_value": null,
+      "keep_empty_features": false,
+      "missing_values": "NaN",
+      "strategy": "median"
+    },
+    "model": {
+      "C": 1.0,
+      "class_weight": null,
+      "dual": false,
+      "fit_intercept": true,
+      "intercept_scaling": 1,
+      "l1_ratio": 0.0,
+      "max_iter": 1000,
+      "n_jobs": null,
+      "penalty": "deprecated",
+      "random_state": 42,
+      "solver": "lbfgs",
+      "tol": 0.0001,
+      "verbose": 0,
+      "warm_start": false
+    },
+    "scaler": {
+      "copy": true,
+      "with_mean": true,
+      "with_std": true
+    }
+  },
+  "protocol_version": "supplier-risk-1.0/final-academic-1.0",
+  "refit_train_validation": false,
+  "scenario": "C",
+  "schema": "supplier-risk-freeze/1.0.0",
+  "scope": "Academic classification of dataset Risk_Level, not real failure probability",
+  "selection": "VALIDATION F1-macro, balanced accuracy, exact tie D/B/C/A then LR/RF",
+  "selection_confusion_matrix": [
+    [
+      979,
+      131
+    ],
+    [
+      81,
+      2348
+    ]
+  ],
+  "split_identification": {
+    "id_hashes": {
+      "test": "5E8431165127A49C67C4D33EBFD997CF808622B550E98717966D11243E9E7A8E",
+      "train": "FECF630FEC4E26768AA0E0BC908D7B28FA856F0E8FBF5DF959D7EE5FF00394FA",
+      "validation": "B521D32A15881D7F2B30AA90A5909E5155D0D68113F1BC65B28392DEA952093C"
+    },
+    "path": "data/processed/supplier_risk/supplier_split_assignments.parquet",
+    "policy": "Existing deterministic supplier_id assignments; no resplit",
+    "rows": {
+      "test": 3679,
+      "train": 16894,
+      "validation": 3539
+    }
+  },
+  "threshold": 0.5,
+  "train_ids_sha256": "fecf630fec4e26768aa0e0bc908d7b28fa856f0e8fbf5df959d7ee5ff00394fa",
+  "train_rows": 16894,
+  "train_split": "train",
+  "versions": {
+    "numpy": "2.5.2",
+    "pandas": "2.3.3",
+    "pyarrow": "25.0.1",
+    "python": "3.14.3",
+    "scikit-learn": "1.9.0"
+  }
+}

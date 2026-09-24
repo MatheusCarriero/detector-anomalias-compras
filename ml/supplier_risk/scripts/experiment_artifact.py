@@ -19,10 +19,12 @@ from pathlib import Path
 from typing import Any
 
 SCHEMA_VERSION = "1.0.0"
+FINAL_SCHEMA_VERSION = "supplier-risk-final/1.0.0"
 DOMAIN = "supplier_risk"
 TARGET = "Risk_Level"
 PROBABILITY_SEMANTICS = "estimated_probability_of_Risk_Level_1"
 ALLOWED_SPLITS = ("train", "validation")
+FINAL_ALLOWED_SPLITS = ("test",)
 PREDICTION_KEYS = {
     "supplier_id",
     "split",
@@ -66,6 +68,7 @@ REQUIRED_METADATA_KEYS = {
 }
 OPTIONAL_METADATA_KEYS = {"notebook_sha256"}
 ENVELOPE_KEYS = {"schema_version", "created_at", "artifact_id", "payload"}
+FINAL_ENVELOPE_KEYS = ENVELOPE_KEYS | {"freeze_sha256"}
 PAYLOAD_KEYS = {
     "domain",
     "target",
@@ -217,13 +220,20 @@ def _validate_metadata(metadata: Any, id_hashes: dict[str, str]) -> dict[str, An
     return deepcopy(metadata)
 
 
-def _validate_predictions(predictions: Any) -> tuple[list[dict[str, Any]], dict[str, str]]:
+def _validate_predictions(
+    predictions: Any,
+    *,
+    allowed_splits: tuple[str, ...] = ALLOWED_SPLITS,
+    require_nonempty: bool = False,
+) -> tuple[list[dict[str, Any]], dict[str, str]]:
     if type(predictions) is not list:
         raise ArtifactValidationError("predictions must be a list")
+    if require_nonempty and not predictions:
+        raise ArtifactValidationError("predictions must be a non-empty list")
 
     validated = []
     seen_ids = set()
-    ids_by_split = {split: [] for split in ALLOWED_SPLITS}
+    ids_by_split = {split: [] for split in allowed_splits}
     for index, row in enumerate(predictions):
         row = _require_exact_keys(row, PREDICTION_KEYS, f"predictions[{index}]")
         supplier_id = row["supplier_id"]
@@ -240,9 +250,10 @@ def _validate_predictions(predictions: Any) -> tuple[list[dict[str, Any]], dict[
         seen_ids.add(supplier_id)
 
         split = row["split"]
-        if split not in ALLOWED_SPLITS:
+        if split not in allowed_splits:
+            split_names = " or ".join(allowed_splits)
             raise ArtifactValidationError(
-                f"predictions[{index}].split must be train or validation",
+                f"predictions[{index}].split must be {split_names}",
             )
         for class_name in ("y_true", "y_pred"):
             if type(row[class_name]) is not int or row[class_name] not in (0, 1):
@@ -283,7 +294,12 @@ def _validate_created_at(value: Any) -> None:
         raise ArtifactValidationError("created_at must be UTC")
 
 
-def _validate_payload(payload: Any) -> dict[str, Any]:
+def _validate_payload(
+    payload: Any,
+    *,
+    allowed_splits: tuple[str, ...] = ALLOWED_SPLITS,
+    require_nonempty: bool = False,
+) -> dict[str, Any]:
     payload = _require_exact_keys(payload, PAYLOAD_KEYS, "payload")
     if payload["domain"] != DOMAIN:
         raise ArtifactValidationError(f"domain must be {DOMAIN}")
@@ -292,7 +308,11 @@ def _validate_payload(payload: Any) -> dict[str, Any]:
     if payload["probability_semantics"] != PROBABILITY_SEMANTICS:
         raise ArtifactValidationError("probability_semantics is invalid")
 
-    predictions, id_hashes = _validate_predictions(payload["predictions"])
+    predictions, id_hashes = _validate_predictions(
+        payload["predictions"],
+        allowed_splits=allowed_splits,
+        require_nonempty=require_nonempty,
+    )
     if payload["predictions"] != predictions:
         raise ArtifactValidationError("predictions must be in canonical split/supplier_id order")
     if type(payload["record_count"]) is not int or type(payload["record_count"]) is bool:
@@ -337,7 +357,10 @@ def write_experiment_record(path, predictions, metadata) -> Path:
     """Validate and exclusively write one future Supplier experiment record."""
 
     destination = Path(path)
-    normalized_predictions, id_hashes = _validate_predictions(predictions)
+    normalized_predictions, id_hashes = _validate_predictions(
+        predictions,
+        allowed_splits=ALLOWED_SPLITS,
+    )
     normalized_metadata = _validate_metadata(metadata, id_hashes)
     payload = {
         "domain": DOMAIN,
@@ -384,7 +407,10 @@ def verify_experiment_record(path) -> dict[str, Any]:
         )
     _validate_created_at(envelope["created_at"])
     _require_sha256(envelope["artifact_id"], "artifact_id")
-    payload = _validate_payload(envelope["payload"])
+    payload = _validate_payload(
+        envelope["payload"],
+        allowed_splits=ALLOWED_SPLITS,
+    )
     expected_artifact_id = _sha256(payload)
     if envelope["artifact_id"].lower() != expected_artifact_id:
         raise ArtifactValidationError("artifact_id does not match the canonical payload")
@@ -397,16 +423,117 @@ def verify_experiment_record(path) -> dict[str, Any]:
     }
 
 
+def write_final_evaluation_record(
+    path,
+    predictions,
+    metadata,
+    *,
+    freeze_sha256,
+) -> Path:
+    """Validate and exclusively write one frozen TEST evaluation record."""
+
+    destination = Path(path)
+    _require_sha256(freeze_sha256, "freeze_sha256")
+    normalized_predictions, id_hashes = _validate_predictions(
+        predictions,
+        allowed_splits=FINAL_ALLOWED_SPLITS,
+        require_nonempty=True,
+    )
+    normalized_metadata = _validate_metadata(metadata, id_hashes)
+    payload = {
+        "domain": DOMAIN,
+        "target": TARGET,
+        "probability_semantics": PROBABILITY_SEMANTICS,
+        "metadata": normalized_metadata,
+        "predictions": normalized_predictions,
+        "record_count": len(normalized_predictions),
+        "id_hashes": id_hashes,
+    }
+    artifact_id = _sha256(
+        {"freeze_sha256": freeze_sha256, "payload": payload},
+    )
+    envelope = {
+        "schema_version": FINAL_SCHEMA_VERSION,
+        "created_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+        "artifact_id": artifact_id,
+        "freeze_sha256": freeze_sha256,
+        "payload": payload,
+    }
+    serialized = _canonical_json(envelope)
+
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    with destination.open("x", encoding="utf-8", newline="") as artifact_file:
+        artifact_file.write(serialized)
+    return destination
+
+
+def verify_final_evaluation_record(path) -> dict[str, Any]:
+    """Load and validate one frozen TEST evaluation envelope."""
+
+    source = Path(path)
+    try:
+        text = source.read_text(encoding="utf-8")
+        envelope = json.loads(
+            text,
+            object_pairs_hook=_reject_duplicate_keys,
+            parse_constant=_reject_nonfinite_constant,
+        )
+    except (json.JSONDecodeError, UnicodeError) as error:
+        raise ArtifactValidationError(f"invalid strict JSON: {error}") from error
+
+    envelope = _require_exact_keys(envelope, FINAL_ENVELOPE_KEYS, "envelope")
+    if envelope["schema_version"] != FINAL_SCHEMA_VERSION:
+        raise ArtifactValidationError(
+            f"schema_version must be {FINAL_SCHEMA_VERSION}",
+        )
+    _validate_created_at(envelope["created_at"])
+    _require_sha256(envelope["artifact_id"], "artifact_id")
+    _require_sha256(envelope["freeze_sha256"], "freeze_sha256")
+    payload = _validate_payload(
+        envelope["payload"],
+        allowed_splits=FINAL_ALLOWED_SPLITS,
+        require_nonempty=True,
+    )
+    expected_artifact_id = _sha256(
+        {"freeze_sha256": envelope["freeze_sha256"], "payload": payload},
+    )
+    if envelope["artifact_id"].lower() != expected_artifact_id:
+        raise ArtifactValidationError(
+            "artifact_id does not match the canonical freeze_sha256 and payload",
+        )
+
+    return {
+        "schema_version": FINAL_SCHEMA_VERSION,
+        "created_at": envelope["created_at"],
+        "artifact_id": envelope["artifact_id"],
+        "freeze_sha256": envelope["freeze_sha256"],
+        "payload": payload,
+    }
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     subparsers = parser.add_subparsers(dest="command", required=True)
     verify_parser = subparsers.add_parser("verify", help="verify one JSON record")
     verify_parser.add_argument("path", type=Path)
+    verify_final_parser = subparsers.add_parser(
+        "verify-final",
+        help="verify one frozen TEST evaluation record",
+    )
+    verify_final_parser.add_argument("path", type=Path)
     arguments = parser.parse_args(argv)
 
     if arguments.command == "verify":
         try:
             envelope = verify_experiment_record(arguments.path)
+        except (ArtifactValidationError, OSError) as error:
+            print(f"verification failed: {error}", file=sys.stderr)
+            return 1
+        print(envelope["artifact_id"])
+        return 0
+    if arguments.command == "verify-final":
+        try:
+            envelope = verify_final_evaluation_record(arguments.path)
         except (ArtifactValidationError, OSError) as error:
             print(f"verification failed: {error}", file=sys.stderr)
             return 1

@@ -1,0 +1,5 @@
+{
+  "freeze_sha256": "70817bc7d270f4fb5d1d7ce27bc48920babe41cd72c317ded7bda300da7db151",
+  "policy": "No automatic retry, even after failure.",
+  "started_at": "2026-09-19T13:21:55.497720Z"
+}

@@ -447,3 +447,32 @@ O [notebook 03](../ml/supplier_risk/notebooks/03_supplier_risk_validation_analys
 **PLANEJADO antes do próximo experimento:** extrair helpers de cenários, métricas, alinhamento e carregamento allowlisted para módulos testáveis; tornar notebooks futuros consumidores finos; preservar notebooks históricos sem refatoração retroativa. A publicação dos pipelines também deverá evoluir de escritas sequenciais para promoção transacional de conjuntos completos, porque uma falha hoje pode deixar saídas antigas e novas misturadas.
 
 O [roadmap completo](implementation_roadmap.md) define responsáveis e gates. O caminho Supplier conserva: seleção apenas em desenvolvimento → congelamento explícito → ajuste em TRAIN → avaliação final única em TEST, sem refit TRAIN + VALIDATION. Resultado de TEST não realimenta a seleção.
+
+## 18. Configuração final acadêmica — congelada antes de TEST
+
+As seções 15–17 registram o estado histórico antes da autorização final; a
+presente seção registra a decisão posterior, ainda sem consultar TEST.
+Pela regra previamente definida na seção 13.6, foi selecionada **Logistic
+Regression, cenário C**, com nove features, excluindo somente
+`supplier_record_count`. A e C possuem a mesma matriz de confusão em VALIDATION
+(`[[979, 131], [81, 2348]]`); o desempate D/B/C/A favorece C. A CV anterior avaliou
+A e D, não C: não se atribui retrospectivamente validação cruzada ao cenário C.
+
+Configuração: SimpleImputer com mediana → StandardScaler → LogisticRegression,
+`C=1.0`, `solver="lbfgs"`, `max_iter=1000`, `random_state=42`, sem pesos de classe,
+sem tuning, sem calibração e com `predict()` padrão (corte 0,5; empate favorece 0).
+O ajuste permanece **somente em TRAIN**; não haverá refit TRAIN + VALIDATION.
+O ML-Ready conserva a imputação aprendida em TRAIN, como na rodada de seleção;
+o scaler e o classificador serão ajustados exclusivamente em TRAIN.
+
+**IMPLEMENTADO:** executor testado com dados sintéticos, contrato separado de
+evidência final, congelamento com hashes e versão do código, bloqueio de
+reexecução e publicação consistente dos registros. Os notebooks e experimentos
+históricos não foram refatorados nem reexecutados. O status real, os hashes e
+os resultados autorizados são mantidos no
+[relatório final acadêmico](supplier_risk_final_evaluation.md).
+
+**LIMITAÇÃO:** a avaliação mede a classificação de Risk_Level dessa fonte, não
+risco empresarial comprovado nem previsão de fraude/falha. A label e o índice
+geopolítico continuam sem procedência comprovada. TEST não poderá realimentar
+nenhuma escolha, mesmo se o resultado for desfavorável.
