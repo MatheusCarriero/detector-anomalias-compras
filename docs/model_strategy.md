@@ -42,9 +42,13 @@ Arquivos binários de modelo nos formatos `.joblib` e `.pkl` permanecem fora do 
 
 ### 4.1. Invoice Anomaly Model
 
-O modelo existente continua responsável pela detecção de anomalias transacionais em faturas. Sua metodologia, suas 19 features, seus parâmetros e seus artefatos foram preservados nesta refatoração.
+O objetivo vigente, formalizado em 27/09/2026, é **priorizar faturas de comportamento incomum para auditoria humana**. Não é classificação automática de fraude nem probabilidade de fraude. Isolation Forest permanece não supervisionado, com as mesmas 19 features, parâmetros e artefatos; mudou o enquadramento da avaliação, não o treinamento.
 
-**IMPLEMENTADO:** Isolation Forest com `contamination=0.22` como configuração inicial; neste fechamento, o comando de treino recebeu validação explícita das 19 features e `main` guard, tornando a importação inerte. **PLANEJADO:** avaliação consolidada e por `fraud_type`, com escolha de threshold somente em validação. **LIMITAÇÕES:** as estatísticas usam todo o TRAIN, sem reconstrução ponto-a-ponto do histórico; o experimento atual avalia principalmente novas faturas de fornecedores já conhecidos. Não comprova generalização para fornecedores inéditos. A mudança de código foi apenas de segurança da fronteira de execução: metodologia, features, parâmetros, caminhos, metadata e modelo foram preservados, sem treino real, retraining ou uso de TEST.
+**IMPLEMENTADO:** Isolation Forest com `contamination=0.22` como configuração inicial; validação explícita das 19 features e `main` guard no treino. A [avaliação histórica](invoice_validation_results.md) consolidada e por `fraud_type` e a [auditoria](invoice_methodological_audit.md) foram preservadas. O [diagnóstico de triagem](invoice_triage_results.md), pré-definido por [protocolo](invoice_triage_protocol.md), mede Precision@K, captura e lift nos orçamentos 1%/5%/10%, usando `is_fraud` apenas como referência secundária não verificada. Não houve novo fit, tuning ou escolha de threshold.
+
+**IMPLEMENTADO posteriormente (28/09/2026):** [comparação IF versus valor](invoice_value_comparison_results.md), com ganho líquido de positivos −40/+7/+192 em 1%/5%/10%, sem vantagem uniforme ou orçamento escolhido. O teste técnico com avaliadores artificiais foi encerrado e excluído da evidência acadêmica; não houve revisão humana válida.
+
+**PLANEJADO:** controles mínimos para eventual avaliação final segundo o [contrato acadêmico](invoice_academic_evaluation_protocol.md), com autorização e congelamento antes do acesso. Separadamente, validar utilidade humana, capacidade, custos e disponibilidade de informações antes de uso operacional. **LIMITAÇÕES:** estatísticas sobre todo TRAIN sem reconstrução ponto-a-ponto; avaliação anterior em fornecedores conhecidos e períodos parciais; referência ambígua e procedência histórica incompleta. Enriquecimento de INFLATED no top 1% e ganho condicionado ao orçamento não comprovam detecção geral de fraude. TEST continua fechado; nenhum threshold operacional é necessário para este benchmark retrospectivo.
 
 ### 4.2. Supplier Risk Model
 

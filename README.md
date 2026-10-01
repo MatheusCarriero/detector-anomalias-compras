@@ -1,10 +1,10 @@
 # Detector Inteligente de Anomalias em Compras
 
-Projeto acadêmico de Machine Learning com três domínios independentes: anomalias em faturas, classificação de risco de fornecedores e risco de pedidos de compra. O Invoice possui um Isolation Forest treinado; o Supplier Risk possui dados ML-Ready, EDA exclusivamente no TRAIN, primeira rodada experimental em VALIDATION e validação cruzada exploratória dentro de TRAIN, sem modelo definitivo e sem usar TEST. Backend e frontend ainda não estão implementados.
+Projeto acadêmico de Machine Learning com três domínios independentes: anomalias em faturas, classificação de risco de fornecedores e risco de pedidos de compra. O Invoice possui um Isolation Forest treinado e primeira avaliação em VALIDATION concluída. A avaliação final acadêmica Supplier Risk foi concluída, sem modelo de produção; seu TEST não será reutilizado. Backend e frontend ainda não estão implementados.
 
 ## Objetivo
 
-O Invoice Anomaly Model identifica padrões incomuns em faturas com Isolation Forest. O Supplier Risk Model será uma classificação supervisionada de `Risk_Level`: estimar o pertencimento à classe de risco definida pelo dataset, não prever acontecimentos futuros. O Purchase mantém a fronteira pré-aprovação, mas ainda precisa escolher entre detecção de anomalias e previsão de um desfecho específico; sua fonte representa linhas de pedido.
+O Invoice Anomaly Model prioriza faturas com comportamento incomum para auditoria humana, usando Isolation Forest; não classifica fraude automaticamente nem produz probabilidade de fraude. O Supplier Risk Model será uma classificação supervisionada de `Risk_Level`: estimar o pertencimento à classe de risco definida pelo dataset, não prever acontecimentos futuros. O Purchase mantém a fronteira pré-aprovação, mas ainda precisa escolher entre detecção de anomalias e previsão de um desfecho específico; sua fonte representa linhas de pedido.
 
 As fontes representam populações diferentes, sem chaves reais comuns para integração. Não há merge direto entre suas features. Uma eventual integração de scores seria uma etapa conceitual futura, com validação própria. O Procurement KPI é somente auxiliar.
 
@@ -12,8 +12,8 @@ As fontes representam populações diferentes, sem chaves reais comuns para inte
 
 | Domínio | Concluído | Pendente |
 |---|---|---|
-| Invoice Anomaly | Inspeção, validação, 19 features, split oficial, Isolation Forest treinado e salvo | Revisão metodológica da avaliação, seleção de threshold/hiperparâmetros e avaliação final |
-| Supplier Risk | Base por fornecedor, qualidade, auditoria do target, split determinístico, ML-Ready train-only, suíte pytest sintética, protocolo, EDA TRAIN, baselines/ablações A/B/C/D em VALIDATION e CV exploratória A/D dentro de TRAIN | Extrair helpers experimentais testáveis, validar procedência e congelar explicitamente uma configuração antes da avaliação final única; TEST não utilizado |
+| Invoice Anomaly | 19 features, auditoria, triagem e comparação IF × valor em VALIDATION; escopo acadêmico documentado | Executor/revisão do protocolo final antes de TEST autorizado; utilidade humana não demonstrada; labels/procedência limitadas |
+| Supplier Risk | Preparação, EDA TRAIN, baselines/ablações, CV exploratória, configuração LR/C congelada e avaliação final única documentada | Procedência da label/índice, validade externa e eventual uso operacional; não reabrir TEST |
 | Purchase Risk | Dataset analisado, granularidade da fonte em linha de pedido e fronteira pré-aprovação documentadas | Escolher anomalia ou desfecho específico; feature engineering, modelagem e avaliação |
 
 A consolidação anterior de qualidade não executou treinamento, EDA nem reprocessamento dos dados reais. Em 16/09/2026 foi concluída a [primeira EDA Supplier, somente TRAIN](docs/supplier_risk_eda.md), sem alterar datasets ou treinar modelos. Posteriormente, a [primeira rodada de baselines](docs/supplier_risk_baseline_models.md) ajustou classificadores experimentais em TRAIN e comparou VALIDATION. A [validação científica exploratória](docs/supplier_risk_validation_analysis.md) acrescentou CV de cinco folds A/D dentro de TRAIN, controle negativo e reprodução diagnóstica da LR A. Esses experimentos não exportaram modelo final nem abriram TEST. O artefato Invoice existente não foi modificado.
@@ -43,7 +43,7 @@ O backend, o banco de dados e o frontend ainda não fazem parte da implementaç�
 
 O Invoice utiliza Isolation Forest, um algoritmo não supervisionado para detecção de anomalias. Seus labels não entram como features; `is_fraud` é reservado à avaliação e `fraud_type` às análises complementares. Modelo e metadata já existem em `ml/models/` no ambiente com os dados locais.
 
-Para evitar data leakage entre partições, campos derivados do risco conhecido (`supplier_risk_score` e `blacklisted_flag`), labels e explicações não entram nas features. As estatísticas de fornecedores, departamentos, países e relações fornecedor/departamento são calculadas exclusivamente no conjunto de treino, mas **não são ponto-a-ponto temporais dentro do TRAIN**: usam todo o período de treino, inclusive a própria observação. `contamination=0.22` é configuração inicial, não desempenho comprovado. Faltam avaliação consolidada e por `fraud_type`; o experimento atual avalia principalmente novas faturas de fornecedores já conhecidos. Threshold deverá ser escolhido em validação, nunca em TEST. **IMPLEMENTADO neste fechamento:** validação explícita das 19 features e `main` guard para tornar a importação do comando de treino inerte. Metodologia, features, parâmetros, caminhos, metadata e modelo Invoice foram preservados; nenhum treino real, retraining ou uso de TEST foi executado.
+Para evitar data leakage entre partições, campos derivados do risco conhecido (`supplier_risk_score` e `blacklisted_flag`), labels e explicações não entram nas features. As estatísticas de fornecedores, departamentos, países e relações fornecedor/departamento são calculadas exclusivamente no conjunto de treino, mas **não são ponto-a-ponto temporais dentro do TRAIN**: usam todo o período de treino, inclusive a própria observação. `contamination=0.22` é configuração inicial, não desempenho comprovado. A avaliação consolidada e por `fraud_type` em VALIDATION está registrada em docs/invoice_validation_results.md; a amostra avaliou apenas fornecedores já observados no TRAIN. A avaliação final permanece pendente. O ranking retrospectivo usa orçamentos fixos e não exige selecionar threshold operacional; caso este seja necessário futuramente, exigirá protocolo em validação, nunca em TEST. **IMPLEMENTADO no fechamento de engenharia:** validação explícita das 19 features e `main` guard para tornar a importação do comando de treino inerte. Metodologia, features, parâmetros, caminhos, metadata e modelo Invoice foram preservados; nenhum treino real, retraining ou uso de TEST foi executado naquele fechamento.
 
 No Supplier Risk, `Risk_Level` é o **target supervisionado**, nunca uma feature. A convenção adotada no projeto é `0 = menor risco`, `1 = maior risco`. Para modelos compatíveis, a saída poderá incluir a **probabilidade estimada de pertencimento à classe de risco**, não a probabilidade real de ocorrer um problema. A origem/regra da label não foi comprovada; resultados deverão ser interpretados como capacidade de reproduzir padrões associados à classificação fornecida pelo dataset. Ver [objetivo e limitações](docs/supplier_risk_model.md).
 
@@ -228,7 +228,13 @@ python ml/scripts/inspecionar_dataset_auxiliar.py
 
 Os caminhos são resolvidos a partir da localização dos próprios scripts, portanto os comandos também funcionam quando chamados a partir de outro diretório.
 
-## Próxima fase do Supplier Risk
+## Histórico e encerramento acadêmico do Supplier Risk
+
+**Estado atual:** a avaliação final já foi concluída e documentada no
+[relatório final](docs/supplier_risk_final_evaluation.md). LR cenário C, nove
+features, F1-macro TEST 0,92883 e balanced accuracy 0,92460. O resultado mede
+classificação da label da fonte, não risco empresarial comprovado. Os parágrafos
+abaixo descrevem etapas anteriores ao congelamento; não autorizam reabrir TEST.
 
 **EDA concluída:** 16.894 fornecedores TRAIN, 10 features, base pré-imputação e holdouts cegos durante a EDA. Consulte o [relatório](docs/supplier_risk_eda.md) e o [notebook executado](ml/supplier_risk/notebooks/01_supplier_risk_eda.ipynb). Nenhum treinamento foi realizado nessa EDA; os indícios de associação não comprovam a origem da label.
 
@@ -236,7 +242,7 @@ Os caminhos são resolvidos a partir da localização dos próprios scripts, por
 
 **Validação científica exploratória concluída:** CV de cinco folds em TRAIN comparou apenas LR A/D com pipelines completos por fold, incluiu um controle negativo de labels embaralhadas e reproduziu diagnosticamente a LR A em VALIDATION. A obteve F1-macro médio **0,92683 ± 0,00624** e D **0,79729 ± 0,00929**; o controle caiu à referência majoritária. Esses resultados reforçam a existência de sinal classificatório nesta fonte, mas não escolhem vencedor, não comprovam ausência de leakage conceitual, procedência da label, validade empresarial ou generalização temporal/externa. Ver [relatório de validação](docs/supplier_risk_validation_analysis.md) e [notebook 03 executado](ml/supplier_risk/notebooks/03_supplier_risk_validation_analysis.ipynb).
 
-**Protocolo 1.0, registrado antes de EDA/treinamento:** EDA somente no TRAIN → baseline 0 majoritária → baseline 1 Logistic Regression → primeiro candidato não linear RandomForestClassifier → comparação em VALIDATION → congelamento → avaliação final única em TEST. EDA, primeira comparação e CV exploratória estão implementadas; congelamento definitivo e avaliação TEST continuam planejados. O protocolo atual não prevê refit em TRAIN + VALIDATION.
+**Protocolo 1.0, registrado antes de EDA/treinamento:** EDA somente no TRAIN → baseline 0 majoritária → baseline 1 Logistic Regression → primeiro candidato não linear RandomForestClassifier → comparação em VALIDATION → congelamento → avaliação final única em TEST. Esse percurso acadêmico foi concluído, com ajuste final somente em TRAIN, sem refit em TRAIN + VALIDATION.
 
 O [protocolo experimental do Supplier](docs/supplier_risk_model.md#13-protocolo-experimental-pré-definido--implementado-em-parte) é a referência para as decisões abaixo:
 
@@ -256,4 +262,66 @@ O [roadmap de implementação](docs/implementation_roadmap.md) organiza os gates
 
 **Purchase — somente documentação:** o Vocabulary & Notes define PO_Number como linha de pedido, Lead_Time_Days como pós-entrega, ESG como simulado e valores em moedas locais sem câmbio. Falta escolher anomalia ou desfecho específico e confirmar dados pré-aprovação; anomalia não será chamada automaticamente de risco. Ver [contrato Purchase](docs/purchase_risk_model.md).
 
-O projeto ainda não possui aplicação backend/frontend, banco integrado ou avaliação final consolidada. Os detalhes e decisões históricas estão em [Estratégia de Dados](docs/data_strategy.md), [Estratégia de Modelos](docs/model_strategy.md) e [Supplier Risk](docs/supplier_risk_model.md).
+O projeto ainda não possui aplicação backend/frontend ou banco integrado. Supplier possui avaliação final acadêmica; Invoice e Purchase não devem ser apresentados com a mesma maturidade. Os detalhes e decisões históricas estão em [Estratégia de Dados](docs/data_strategy.md), [Estratégia de Modelos](docs/model_strategy.md) e [Supplier Risk](docs/supplier_risk_model.md).
+
+## Invoice Anomaly — avaliação histórica concluída
+
+A primeira avaliação da fase 6 foi concluída com o artefato existente, sem treino,
+tuning ou novas features. O [protocolo histórico de VALIDATION](docs/invoice_validation.md)
+define score de anomalia, regra original de classificação, baseline sem alertas
+e análise por tipo de fraude. Não houve uso de TEST; comando já executado:
+
+```powershell
+python -m ml.scripts.avaliar_invoice --split val
+```
+
+O comando exige os datasets Invoice e o modelo local confiável já existente,
+recusa outros splits e não sobrescreve `ml/experiments/invoice_validation_v1.json`.
+Executar somente se o ambiente de requirements estiver funcional e ainda não
+existir saída; não apagar evidência para forçar reexecução.
+Os [resultados e limites](docs/invoice_validation_results.md) registram o estado
+da execução. Purchase continua sem modelagem até definir problema, target quando
+aplicável, disponibilidade pré-aprovação, moedas e estratégia de avaliação.
+
+**Resultado Invoice observado:** 30.000 faturas val, AP 0,31607, ROC-AUC 0,57976,
+precision de alerta 0,27210 e recall de fraude 0,49313. Foram 8.935 falsos
+positivos e 40,92% de alertas, sem retreino ou ajuste de threshold. Há 446 labels
+de fraude com tipo NONE e 140 labels normais com tipo diferente de NONE na
+fonte. A [auditoria metodológica](docs/invoice_methodological_audit.md) confirmou
+as limitações da referência e da procedência, sem corrigir labels ou alterar
+features. Invoice TEST permanece fechado.
+
+### Invoice como triagem — diagnóstico de 27/09/2026
+
+O [protocolo de triagem](docs/invoice_triage_protocol.md) fixou antes da inferência
+os orçamentos de investigação de 1%, 5% e 10%. Os
+[resultados](docs/invoice_triage_results.md) mostram Precision@K de **85,00%,
+43,00% e 32,67%**, respectivamente, contra prevalência de 22,58% da referência.
+Esses valores medem concordância com `is_fraud`, não fraude comprovada; no top
+1%, 248 dos 255 positivos são INFLATED. Há enriquecimento do topo, não validação
+operacional nem cobertura ampla de todos os mecanismos.
+
+O diagnóstico compara scores/features entre TRAIN e VALIDATION e janelas parciais
+de setembro/outubro, sem fit, tuning ou seleção de threshold. Artefato exclusivo:
+`ml/experiments/invoice_triage_validation_v1.json`; não apagar para repetir.
+A comparação com priorização por valor, recomendada nessa etapa, foi concluída
+em 28/09/2026 conforme a atualização abaixo. Modelo e 19 features preservados.
+
+### Invoice — estado vigente em 28/09/2026
+
+A [comparação IF × valor](docs/invoice_value_comparison_results.md) registrou
+ganho líquido de positivos **−40/+7/+192** nos mesmos orçamentos 1%/5%/10%.
+Há complementaridade condicionada à capacidade, não superioridade uniforme ou
+prova de benefício empresarial. Nenhum percentual foi escolhido para produção.
+
+O teste técnico da revisão cega foi encerrado. Os avaliadores eram artificiais;
+respostas simuladas e concordância não integram relatórios científicos, JSONs,
+métricas ou decisões. ZIPs simulados devem permanecer fora do repositório. A
+[preparação original](docs/invoice_blind_review_preparation.md) foi preservada;
+**não houve revisão humana válida** e a utilidade operacional continua pendente.
+
+O [contrato acadêmico Invoice](docs/invoice_academic_evaluation_protocol.md)
+define o recorte retrospectivo, a comparação futura e seus limites. Próximo
+incremento: executor mínimo com testes sintéticos e revisão, sem dados reais.
+**TEST permanece fechado** até autorização registrada e congelamento pré-acesso.
+Não há retreino, novas features, mudança de algoritmo ou threshold nesta etapa.

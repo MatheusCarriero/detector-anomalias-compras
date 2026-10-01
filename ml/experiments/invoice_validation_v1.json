@@ -1,0 +1,212 @@
+{
+  "model": {
+    "count": 30000,
+    "confusion_matrix": [
+      [
+        14292,
+        8935
+      ],
+      [
+        3433,
+        3340
+      ]
+    ],
+    "f1_macro": 0.5243404371998515,
+    "accuracy": 0.5877333333333333,
+    "balanced_accuracy": 0.5542264420614927,
+    "roc_auc": 0.5797588352970364,
+    "average_precision": 0.3160714584557651,
+    "alert_rate": 0.4091666666666667,
+    "precision_0": 0.8063187588152327,
+    "recall_0": 0.615318379472166,
+    "f1_0": 0.6979878882594257,
+    "support_0": 23227,
+    "precision_1": 0.2720977596741344,
+    "recall_1": 0.4931345046508194,
+    "f1_1": 0.3506929861402772,
+    "support_1": 6773
+  },
+  "baseline_no_alert": {
+    "count": 30000,
+    "confusion_matrix": [
+      [
+        23227,
+        0
+      ],
+      [
+        6773,
+        0
+      ]
+    ],
+    "f1_macro": 0.4363762751986774,
+    "accuracy": 0.7742333333333333,
+    "balanced_accuracy": 0.5,
+    "roc_auc": 0.5,
+    "average_precision": 0.22576666666666667,
+    "alert_rate": 0.0,
+    "precision_0": 0.7742333333333333,
+    "recall_0": 1.0,
+    "f1_0": 0.8727525503973548,
+    "support_0": 23227,
+    "precision_1": 0.0,
+    "recall_1": 0.0,
+    "f1_1": 0.0,
+    "support_1": 6773
+  },
+  "by_fraud_type": {
+    "DOC_TAMPER": {
+      "count": 230,
+      "frauds": 226,
+      "normal": 4,
+      "alerts": 110,
+      "true_positive": 110,
+      "false_negative": 116,
+      "false_positive": 0,
+      "recall_fraud": 0.48672566371681414,
+      "false_positive_rate": 0.0
+    },
+    "DUPLICATE": {
+      "count": 8,
+      "frauds": 8,
+      "normal": 0,
+      "alerts": 2,
+      "true_positive": 2,
+      "false_negative": 6,
+      "false_positive": 0,
+      "recall_fraud": 0.25,
+      "false_positive_rate": null
+    },
+    "GHOST_SUPPLIER": {
+      "count": 1254,
+      "frauds": 1224,
+      "normal": 30,
+      "alerts": 502,
+      "true_positive": 493,
+      "false_negative": 731,
+      "false_positive": 9,
+      "recall_fraud": 0.4027777777777778,
+      "false_positive_rate": 0.3
+    },
+    "INFLATED": {
+      "count": 565,
+      "frauds": 553,
+      "normal": 12,
+      "alerts": 565,
+      "true_positive": 553,
+      "false_negative": 0,
+      "false_positive": 12,
+      "recall_fraud": 1.0,
+      "false_positive_rate": 1.0
+    },
+    "NONE": {
+      "count": 23533,
+      "frauds": 446,
+      "normal": 23087,
+      "alerts": 9032,
+      "true_positive": 159,
+      "false_negative": 287,
+      "false_positive": 8873,
+      "recall_fraud": 0.35650224215246634,
+      "false_positive_rate": 0.3843288430718586
+    },
+    "SPLIT": {
+      "count": 4410,
+      "frauds": 4316,
+      "normal": 94,
+      "alerts": 2064,
+      "true_positive": 2023,
+      "false_negative": 2293,
+      "false_positive": 41,
+      "recall_fraud": 0.4687210379981464,
+      "false_positive_rate": 0.43617021276595747
+    }
+  },
+  "by_supplier_seen": {
+    "seen": {
+      "count": 30000,
+      "frauds": 6773,
+      "normal": 23227,
+      "alerts": 12275,
+      "true_positive": 3340,
+      "false_negative": 3433,
+      "false_positive": 8935,
+      "recall_fraud": 0.4931345046508194,
+      "false_positive_rate": 0.384681620527834
+    },
+    "unseen": {
+      "count": 0,
+      "frauds": 0,
+      "normal": 0,
+      "alerts": 0,
+      "true_positive": 0,
+      "false_negative": 0,
+      "false_positive": 0,
+      "recall_fraud": null,
+      "false_positive_rate": null
+    }
+  },
+  "protocol_version": "invoice-validation-1.0",
+  "split": "val",
+  "rows": 30000,
+  "created_at": "2026-09-24T13:04:00.697102+00:00",
+  "real_model_fits": 0,
+  "test_used": false,
+  "threshold_selected_on_validation": false,
+  "features": [
+    "invoice_amount",
+    "log_invoice_amount",
+    "supplier_age_days",
+    "supplier_frequency",
+    "country_frequency",
+    "amount_vs_supplier_mean",
+    "supplier_amount_zscore",
+    "department_frequency",
+    "amount_vs_department_mean",
+    "supplier_department_frequency",
+    "payment_terms_days",
+    "invoice_type_encoded",
+    "submission_hour_sin",
+    "submission_hour_cos",
+    "day_of_week_sin",
+    "day_of_week_cos",
+    "month_sin",
+    "month_cos",
+    "is_weekend"
+  ],
+  "parameters": {
+    "bootstrap": false,
+    "contamination": 0.22,
+    "max_features": 1.0,
+    "max_samples": "auto",
+    "n_estimators": 200,
+    "n_jobs": -1,
+    "random_state": 42,
+    "verbose": 0,
+    "warm_start": false
+  },
+  "offset": -0.5211491197816622,
+  "anomaly_score_threshold": 0.5211491197816622,
+  "decision_rule": "decision_function < 0; equality is normal",
+  "score_definition": "-score_samples; higher means more anomalous; not a probability",
+  "input_hashes_sha256": {
+    "data/processed/train_features.parquet": "41cfbb25baa62c1c201ce5bbc310589fd41656efae9c1d51684716cea0d6e72b",
+    "data/processed/val_features.parquet": "564d399b84c01650dfe48c3e99b06bdf88fff686eeb7dd492e568f4cd5be12d2",
+    "data/raw/splits.parquet": "608576fcc8f556df6a8406f598656c8d982efcbdab79677878eb61a9e98c9b64",
+    "data/raw/labels.parquet": "2292f70a3645effc3dde678810513a95c70024d84e1918f67bd1ab49115fc539",
+    "ml/models/isolation_forest.joblib": "c9c0f51a9c962fac5ea6b34db5e0b74f09c120896bf9e7bf3a87418df2adba1b",
+    "ml/models/model_metadata.json": "ba07485e8dda458e45376b6edc4bd164926efe2c6ca8385cde32f7309db86595"
+  },
+  "code_sha256": "45dfbff53a0f7eca68dc83753a88f9c45d6ecdedb521d75d78ce9aa3945035d1",
+  "feature_contract_code_sha256": "f980abfa2a0c9a19c5372690997df8cf7069d78c39aa36225df8ce2b800e8ea1",
+  "protocol_sha256_at_execution": "16176cf0ec2a2754b65fc8fb658f1a67791110e65291d66124c1317f014708a6",
+  "validation_ids_sha256": "e8667d99df1dd9f43e8c369fa20188d1f1a5cce916dac0fe5db22287747df640",
+  "versions": {
+    "python": "3.14.3",
+    "numpy": "2.5.2",
+    "pandas": "2.3.3",
+    "scikit-learn": "1.9.0",
+    "joblib": "1.6.0",
+    "pyarrow": "25.0.1"
+  },
+  "training_provenance": "Legacy metadata has no training input hash; original fit provenance not retrospectively certified"
+}

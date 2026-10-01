@@ -69,3 +69,6 @@ frontend/dist/
 
 # Logs
 *.log
+
+# Revisão cega Invoice: chave de coordenação e respostas humanas não são públicas.
+ml/experiments/invoice_blind_review_v1/

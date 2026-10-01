@@ -1,0 +1,1167 @@
+{
+  "isolation_forest": {
+    "rows": 30000,
+    "known_positives": 6773,
+    "prevalence": 0.22576666666666667,
+    "scores": {
+      "count": 30000,
+      "min": 0.4604852148459951,
+      "p01": 0.4781603728614827,
+      "p05": 0.48668556743042013,
+      "p25": 0.5019348218468972,
+      "p50": 0.5157565401611846,
+      "p75": 0.5337232039055568,
+      "p95": 0.5718941044149141,
+      "p99": 0.6155751410273423,
+      "max": 0.6887471882864867
+    },
+    "budgets": [
+      {
+        "percent": 1,
+        "k": 300,
+        "fraction": 0.01,
+        "known_positives": 255,
+        "reference_negatives": 45,
+        "precision_at_k": 0.85,
+        "capture": 0.03764949062453861,
+        "lift": 3.764949062453861,
+        "random_expected_positives": 67.73,
+        "random_precision_at_k": 0.22576666666666667,
+        "random_capture": 0.01,
+        "random_lift": 1.0,
+        "boundary_score": 0.6156871515135294,
+        "boundary_tie_count": 1,
+        "boundary_ties_selected": 1,
+        "selected_ids_sha256": "725acbe41f3d9a49c31b02e666b20d2faa15c94020a2eff0ea60271512502a6e",
+        "ambiguous_labels": 3,
+        "by_fraud_type": {
+          "DOC_TAMPER": {
+            "rows": 5,
+            "known_positives": 5
+          },
+          "GHOST_SUPPLIER": {
+            "rows": 2,
+            "known_positives": 2
+          },
+          "INFLATED": {
+            "rows": 251,
+            "known_positives": 248
+          },
+          "NONE": {
+            "rows": 42,
+            "known_positives": 0
+          }
+        }
+      },
+      {
+        "percent": 5,
+        "k": 1500,
+        "fraction": 0.05,
+        "known_positives": 645,
+        "reference_negatives": 855,
+        "precision_at_k": 0.43,
+        "capture": 0.09523106452089178,
+        "lift": 1.9046212904178355,
+        "random_expected_positives": 338.65000000000003,
+        "random_precision_at_k": 0.22576666666666667,
+        "random_capture": 0.05,
+        "random_lift": 1.0,
+        "boundary_score": 0.5718946756900154,
+        "boundary_tie_count": 1,
+        "boundary_ties_selected": 1,
+        "selected_ids_sha256": "d000c0f22998d8fba67362061c8f527b6f29708c9d6cd74eb0628f656ea664b2",
+        "ambiguous_labels": 21,
+        "by_fraud_type": {
+          "DOC_TAMPER": {
+            "rows": 13,
+            "known_positives": 13
+          },
+          "GHOST_SUPPLIER": {
+            "rows": 53,
+            "known_positives": 52
+          },
+          "INFLATED": {
+            "rows": 529,
+            "known_positives": 517
+          },
+          "NONE": {
+            "rows": 846,
+            "known_positives": 6
+          },
+          "SPLIT": {
+            "rows": 59,
+            "known_positives": 57
+          }
+        }
+      },
+      {
+        "percent": 10,
+        "k": 3000,
+        "fraction": 0.1,
+        "known_positives": 980,
+        "reference_negatives": 2020,
+        "precision_at_k": 0.32666666666666666,
+        "capture": 0.14469216004724642,
+        "lift": 1.446921600472464,
+        "random_expected_positives": 677.3000000000001,
+        "random_precision_at_k": 0.22576666666666667,
+        "random_capture": 0.1,
+        "random_lift": 1.0,
+        "boundary_score": 0.5552417255983931,
+        "boundary_tie_count": 1,
+        "boundary_ties_selected": 1,
+        "selected_ids_sha256": "873768e7a94e805ec1d09a19e6fd21d63eaf738fbfcaf27278ddd0d084d2436b",
+        "ambiguous_labels": 43,
+        "by_fraud_type": {
+          "DOC_TAMPER": {
+            "rows": 29,
+            "known_positives": 29
+          },
+          "DUPLICATE": {
+            "rows": 1,
+            "known_positives": 1
+          },
+          "GHOST_SUPPLIER": {
+            "rows": 126,
+            "known_positives": 124
+          },
+          "INFLATED": {
+            "rows": 560,
+            "known_positives": 548
+          },
+          "NONE": {
+            "rows": 2025,
+            "known_positives": 24
+          },
+          "SPLIT": {
+            "rows": 259,
+            "known_positives": 254
+          }
+        }
+      }
+    ]
+  },
+  "invoice_value": {
+    "rows": 30000,
+    "known_positives": 6773,
+    "prevalence": 0.22576666666666667,
+    "scores": {
+      "count": 30000,
+      "min": 37.35,
+      "p01": 562.5994000000001,
+      "p05": 1060.132,
+      "p25": 2627.8275,
+      "p50": 4851.33,
+      "p75": 9088.72,
+      "p95": 22822.74099999999,
+      "p99": 43028.84889999998,
+      "max": 216481.17
+    },
+    "budgets": [
+      {
+        "percent": 1,
+        "k": 300,
+        "fraction": 0.01,
+        "known_positives": 295,
+        "reference_negatives": 5,
+        "precision_at_k": 0.9833333333333333,
+        "capture": 0.04355529307544662,
+        "lift": 4.355529307544662,
+        "random_expected_positives": 67.73,
+        "random_precision_at_k": 0.22576666666666667,
+        "random_capture": 0.01,
+        "random_lift": 1.0,
+        "boundary_score": 43041.61,
+        "boundary_tie_count": 1,
+        "boundary_ties_selected": 1,
+        "selected_ids_sha256": "1665df8fcd0fe3fa21e16d979d4370983909914b5469785ae4be76254f5bfb8e",
+        "ambiguous_labels": 5,
+        "by_fraud_type": {
+          "DOC_TAMPER": {
+            "rows": 6,
+            "known_positives": 6
+          },
+          "INFLATED": {
+            "rows": 294,
+            "known_positives": 289
+          }
+        }
+      },
+      {
+        "percent": 5,
+        "k": 1500,
+        "fraction": 0.05,
+        "known_positives": 638,
+        "reference_negatives": 862,
+        "precision_at_k": 0.42533333333333334,
+        "capture": 0.09419754909198287,
+        "lift": 1.8839509818396574,
+        "random_expected_positives": 338.65000000000003,
+        "random_precision_at_k": 0.22576666666666667,
+        "random_capture": 0.05,
+        "random_lift": 1.0,
+        "boundary_score": 22834.16,
+        "boundary_tie_count": 1,
+        "boundary_ties_selected": 1,
+        "selected_ids_sha256": "4bd5bfcd4da0915edff5249e3d647de1a8c870d4612a6c4c6462f4f2e00e8f67",
+        "ambiguous_labels": 27,
+        "by_fraud_type": {
+          "DOC_TAMPER": {
+            "rows": 17,
+            "known_positives": 17
+          },
+          "GHOST_SUPPLIER": {
+            "rows": 55,
+            "known_positives": 54
+          },
+          "INFLATED": {
+            "rows": 565,
+            "known_positives": 553
+          },
+          "NONE": {
+            "rows": 863,
+            "known_positives": 14
+          }
+        }
+      },
+      {
+        "percent": 10,
+        "k": 3000,
+        "fraction": 0.1,
+        "known_positives": 788,
+        "reference_negatives": 2212,
+        "precision_at_k": 0.26266666666666666,
+        "capture": 0.11634430828288794,
+        "lift": 1.1634430828288793,
+        "random_expected_positives": 677.3000000000001,
+        "random_precision_at_k": 0.22576666666666667,
+        "random_capture": 0.1,
+        "random_lift": 1.0,
+        "boundary_score": 16110.74,
+        "boundary_tie_count": 1,
+        "boundary_ties_selected": 1,
+        "selected_ids_sha256": "9d7dbc6854bae414d0bca19a97a894495898d486ef90a490f90ae2ab32a41bc0",
+        "ambiguous_labels": 51,
+        "by_fraud_type": {
+          "DOC_TAMPER": {
+            "rows": 34,
+            "known_positives": 34
+          },
+          "DUPLICATE": {
+            "rows": 1,
+            "known_positives": 1
+          },
+          "GHOST_SUPPLIER": {
+            "rows": 150,
+            "known_positives": 148
+          },
+          "INFLATED": {
+            "rows": 565,
+            "known_positives": 553
+          },
+          "NONE": {
+            "rows": 2235,
+            "known_positives": 37
+          },
+          "SPLIT": {
+            "rows": 15,
+            "known_positives": 15
+          }
+        }
+      }
+    ]
+  },
+  "comparisons": [
+    {
+      "percent": 1,
+      "k": 300,
+      "if_selected": {
+        "rows": 300,
+        "known_positives": 255,
+        "reference_negatives": 45,
+        "by_fraud_type": {
+          "DOC_TAMPER": {
+            "rows": 5,
+            "known_positives": 5
+          },
+          "GHOST_SUPPLIER": {
+            "rows": 2,
+            "known_positives": 2
+          },
+          "INFLATED": {
+            "rows": 251,
+            "known_positives": 248
+          },
+          "NONE": {
+            "rows": 42,
+            "known_positives": 0
+          }
+        },
+        "concentration": {
+          "all": {
+            "types": [
+              "INFLATED"
+            ],
+            "count": 251,
+            "share": 0.8366666666666667
+          },
+          "positive": {
+            "types": [
+              "INFLATED"
+            ],
+            "count": 248,
+            "share": 0.9725490196078431
+          }
+        },
+        "positive_type_count": 3,
+        "ids_sha256": "8db47fcba8532cf58b4c7903d8080236decc1def502471c4411217b4f80a4f23"
+      },
+      "value_selected": {
+        "rows": 300,
+        "known_positives": 295,
+        "reference_negatives": 5,
+        "by_fraud_type": {
+          "DOC_TAMPER": {
+            "rows": 6,
+            "known_positives": 6
+          },
+          "INFLATED": {
+            "rows": 294,
+            "known_positives": 289
+          }
+        },
+        "concentration": {
+          "all": {
+            "types": [
+              "INFLATED"
+            ],
+            "count": 294,
+            "share": 0.98
+          },
+          "positive": {
+            "types": [
+              "INFLATED"
+            ],
+            "count": 289,
+            "share": 0.9796610169491525
+          }
+        },
+        "positive_type_count": 2,
+        "ids_sha256": "b86eb67b8988d199e524d96ee01a9fc04ac6bd6e0f6ed5aca96a4fb53d753f95"
+      },
+      "common": {
+        "rows": 189,
+        "known_positives": 187,
+        "reference_negatives": 2,
+        "by_fraud_type": {
+          "DOC_TAMPER": {
+            "rows": 4,
+            "known_positives": 4
+          },
+          "INFLATED": {
+            "rows": 185,
+            "known_positives": 183
+          }
+        },
+        "concentration": {
+          "all": {
+            "types": [
+              "INFLATED"
+            ],
+            "count": 185,
+            "share": 0.9788359788359788
+          },
+          "positive": {
+            "types": [
+              "INFLATED"
+            ],
+            "count": 183,
+            "share": 0.9786096256684492
+          }
+        },
+        "positive_type_count": 2,
+        "ids_sha256": "e6ee3a48d3e78774aac4f922cd52b1d42e4877b7317d7d5fe3157426fb5608fb"
+      },
+      "if_only": {
+        "rows": 111,
+        "known_positives": 68,
+        "reference_negatives": 43,
+        "by_fraud_type": {
+          "DOC_TAMPER": {
+            "rows": 1,
+            "known_positives": 1
+          },
+          "GHOST_SUPPLIER": {
+            "rows": 2,
+            "known_positives": 2
+          },
+          "INFLATED": {
+            "rows": 66,
+            "known_positives": 65
+          },
+          "NONE": {
+            "rows": 42,
+            "known_positives": 0
+          }
+        },
+        "concentration": {
+          "all": {
+            "types": [
+              "INFLATED"
+            ],
+            "count": 66,
+            "share": 0.5945945945945946
+          },
+          "positive": {
+            "types": [
+              "INFLATED"
+            ],
+            "count": 65,
+            "share": 0.9558823529411765
+          }
+        },
+        "positive_type_count": 3,
+        "ids_sha256": "20b873228c0435059777bcf12a010f4154afd61d920eef5c43d67bbf7b5994a7"
+      },
+      "value_only": {
+        "rows": 111,
+        "known_positives": 108,
+        "reference_negatives": 3,
+        "by_fraud_type": {
+          "DOC_TAMPER": {
+            "rows": 2,
+            "known_positives": 2
+          },
+          "INFLATED": {
+            "rows": 109,
+            "known_positives": 106
+          }
+        },
+        "concentration": {
+          "all": {
+            "types": [
+              "INFLATED"
+            ],
+            "count": 109,
+            "share": 0.9819819819819819
+          },
+          "positive": {
+            "types": [
+              "INFLATED"
+            ],
+            "count": 106,
+            "share": 0.9814814814814815
+          }
+        },
+        "positive_type_count": 2,
+        "ids_sha256": "450d911995c5df7d11e4bdfc19e80bbce8d0ffd9e0be3d63c553c4fb8798f315"
+      },
+      "union": {
+        "rows": 411,
+        "known_positives": 363,
+        "reference_negatives": 48,
+        "by_fraud_type": {
+          "DOC_TAMPER": {
+            "rows": 7,
+            "known_positives": 7
+          },
+          "GHOST_SUPPLIER": {
+            "rows": 2,
+            "known_positives": 2
+          },
+          "INFLATED": {
+            "rows": 360,
+            "known_positives": 354
+          },
+          "NONE": {
+            "rows": 42,
+            "known_positives": 0
+          }
+        },
+        "concentration": {
+          "all": {
+            "types": [
+              "INFLATED"
+            ],
+            "count": 360,
+            "share": 0.8759124087591241
+          },
+          "positive": {
+            "types": [
+              "INFLATED"
+            ],
+            "count": 354,
+            "share": 0.9752066115702479
+          }
+        },
+        "positive_type_count": 3,
+        "ids_sha256": "ad49f34e2e1db788491f5a980d571d4cab0c86c9f769dccb0a176671ffd35c0e"
+      },
+      "overlap_fraction": 0.63,
+      "jaccard": 0.45985401459854014,
+      "gross_additional_if_positives": 68,
+      "value_positives_forgone": 108,
+      "net_additional_positives": -40,
+      "precision_delta": -0.13333333333333333,
+      "capture_delta": -0.0059058024509080174
+    },
+    {
+      "percent": 5,
+      "k": 1500,
+      "if_selected": {
+        "rows": 1500,
+        "known_positives": 645,
+        "reference_negatives": 855,
+        "by_fraud_type": {
+          "DOC_TAMPER": {
+            "rows": 13,
+            "known_positives": 13
+          },
+          "GHOST_SUPPLIER": {
+            "rows": 53,
+            "known_positives": 52
+          },
+          "INFLATED": {
+            "rows": 529,
+            "known_positives": 517
+          },
+          "NONE": {
+            "rows": 846,
+            "known_positives": 6
+          },
+          "SPLIT": {
+            "rows": 59,
+            "known_positives": 57
+          }
+        },
+        "concentration": {
+          "all": {
+            "types": [
+              "NONE"
+            ],
+            "count": 846,
+            "share": 0.564
+          },
+          "positive": {
+            "types": [
+              "INFLATED"
+            ],
+            "count": 517,
+            "share": 0.8015503875968992
+          }
+        },
+        "positive_type_count": 5,
+        "ids_sha256": "51cbf73fd161f4b9ff3c33da22fdcac1a6cad7890204e3f39d3ab7e030d6b913"
+      },
+      "value_selected": {
+        "rows": 1500,
+        "known_positives": 638,
+        "reference_negatives": 862,
+        "by_fraud_type": {
+          "DOC_TAMPER": {
+            "rows": 17,
+            "known_positives": 17
+          },
+          "GHOST_SUPPLIER": {
+            "rows": 55,
+            "known_positives": 54
+          },
+          "INFLATED": {
+            "rows": 565,
+            "known_positives": 553
+          },
+          "NONE": {
+            "rows": 863,
+            "known_positives": 14
+          }
+        },
+        "concentration": {
+          "all": {
+            "types": [
+              "NONE"
+            ],
+            "count": 863,
+            "share": 0.5753333333333334
+          },
+          "positive": {
+            "types": [
+              "INFLATED"
+            ],
+            "count": 553,
+            "share": 0.8667711598746082
+          }
+        },
+        "positive_type_count": 4,
+        "ids_sha256": "20588cf04814540efd8390891df2f9a7f38e36066e36517421dae6279921969a"
+      },
+      "common": {
+        "rows": 965,
+        "known_positives": 556,
+        "reference_negatives": 409,
+        "by_fraud_type": {
+          "DOC_TAMPER": {
+            "rows": 10,
+            "known_positives": 10
+          },
+          "GHOST_SUPPLIER": {
+            "rows": 27,
+            "known_positives": 26
+          },
+          "INFLATED": {
+            "rows": 529,
+            "known_positives": 517
+          },
+          "NONE": {
+            "rows": 399,
+            "known_positives": 3
+          }
+        },
+        "concentration": {
+          "all": {
+            "types": [
+              "INFLATED"
+            ],
+            "count": 529,
+            "share": 0.5481865284974093
+          },
+          "positive": {
+            "types": [
+              "INFLATED"
+            ],
+            "count": 517,
+            "share": 0.9298561151079137
+          }
+        },
+        "positive_type_count": 4,
+        "ids_sha256": "e3631a4b9cf954ee76561cf834f9cdaa462f03f34ae603649ef93edabb7f48aa"
+      },
+      "if_only": {
+        "rows": 535,
+        "known_positives": 89,
+        "reference_negatives": 446,
+        "by_fraud_type": {
+          "DOC_TAMPER": {
+            "rows": 3,
+            "known_positives": 3
+          },
+          "GHOST_SUPPLIER": {
+            "rows": 26,
+            "known_positives": 26
+          },
+          "NONE": {
+            "rows": 447,
+            "known_positives": 3
+          },
+          "SPLIT": {
+            "rows": 59,
+            "known_positives": 57
+          }
+        },
+        "concentration": {
+          "all": {
+            "types": [
+              "NONE"
+            ],
+            "count": 447,
+            "share": 0.8355140186915888
+          },
+          "positive": {
+            "types": [
+              "SPLIT"
+            ],
+            "count": 57,
+            "share": 0.6404494382022472
+          }
+        },
+        "positive_type_count": 4,
+        "ids_sha256": "5626338294bd1aaf75579efe54334da1c660fd3673d306c048b0840e61ede6f0"
+      },
+      "value_only": {
+        "rows": 535,
+        "known_positives": 82,
+        "reference_negatives": 453,
+        "by_fraud_type": {
+          "DOC_TAMPER": {
+            "rows": 7,
+            "known_positives": 7
+          },
+          "GHOST_SUPPLIER": {
+            "rows": 28,
+            "known_positives": 28
+          },
+          "INFLATED": {
+            "rows": 36,
+            "known_positives": 36
+          },
+          "NONE": {
+            "rows": 464,
+            "known_positives": 11
+          }
+        },
+        "concentration": {
+          "all": {
+            "types": [
+              "NONE"
+            ],
+            "count": 464,
+            "share": 0.8672897196261682
+          },
+          "positive": {
+            "types": [
+              "INFLATED"
+            ],
+            "count": 36,
+            "share": 0.43902439024390244
+          }
+        },
+        "positive_type_count": 4,
+        "ids_sha256": "f4f869f78c713460a05931387d4dce97ae9a45d292a14159c28bdd442ff6ef8d"
+      },
+      "union": {
+        "rows": 2035,
+        "known_positives": 727,
+        "reference_negatives": 1308,
+        "by_fraud_type": {
+          "DOC_TAMPER": {
+            "rows": 20,
+            "known_positives": 20
+          },
+          "GHOST_SUPPLIER": {
+            "rows": 81,
+            "known_positives": 80
+          },
+          "INFLATED": {
+            "rows": 565,
+            "known_positives": 553
+          },
+          "NONE": {
+            "rows": 1310,
+            "known_positives": 17
+          },
+          "SPLIT": {
+            "rows": 59,
+            "known_positives": 57
+          }
+        },
+        "concentration": {
+          "all": {
+            "types": [
+              "NONE"
+            ],
+            "count": 1310,
+            "share": 0.6437346437346437
+          },
+          "positive": {
+            "types": [
+              "INFLATED"
+            ],
+            "count": 553,
+            "share": 0.7606602475928473
+          }
+        },
+        "positive_type_count": 5,
+        "ids_sha256": "3ac810492f4cf0a9c7f13ea0555773f16c58774416d047497a2875cc975ea505"
+      },
+      "overlap_fraction": 0.6433333333333333,
+      "jaccard": 0.4742014742014742,
+      "gross_additional_if_positives": 89,
+      "value_positives_forgone": 82,
+      "net_additional_positives": 7,
+      "precision_delta": 0.004666666666666667,
+      "capture_delta": 0.001033515428908903
+    },
+    {
+      "percent": 10,
+      "k": 3000,
+      "if_selected": {
+        "rows": 3000,
+        "known_positives": 980,
+        "reference_negatives": 2020,
+        "by_fraud_type": {
+          "DOC_TAMPER": {
+            "rows": 29,
+            "known_positives": 29
+          },
+          "DUPLICATE": {
+            "rows": 1,
+            "known_positives": 1
+          },
+          "GHOST_SUPPLIER": {
+            "rows": 126,
+            "known_positives": 124
+          },
+          "INFLATED": {
+            "rows": 560,
+            "known_positives": 548
+          },
+          "NONE": {
+            "rows": 2025,
+            "known_positives": 24
+          },
+          "SPLIT": {
+            "rows": 259,
+            "known_positives": 254
+          }
+        },
+        "concentration": {
+          "all": {
+            "types": [
+              "NONE"
+            ],
+            "count": 2025,
+            "share": 0.675
+          },
+          "positive": {
+            "types": [
+              "INFLATED"
+            ],
+            "count": 548,
+            "share": 0.5591836734693878
+          }
+        },
+        "positive_type_count": 6,
+        "ids_sha256": "729ba3c7f7acb2661a7cff64671f0f64c77731709cc0a2b28fee03f28988366e"
+      },
+      "value_selected": {
+        "rows": 3000,
+        "known_positives": 788,
+        "reference_negatives": 2212,
+        "by_fraud_type": {
+          "DOC_TAMPER": {
+            "rows": 34,
+            "known_positives": 34
+          },
+          "DUPLICATE": {
+            "rows": 1,
+            "known_positives": 1
+          },
+          "GHOST_SUPPLIER": {
+            "rows": 150,
+            "known_positives": 148
+          },
+          "INFLATED": {
+            "rows": 565,
+            "known_positives": 553
+          },
+          "NONE": {
+            "rows": 2235,
+            "known_positives": 37
+          },
+          "SPLIT": {
+            "rows": 15,
+            "known_positives": 15
+          }
+        },
+        "concentration": {
+          "all": {
+            "types": [
+              "NONE"
+            ],
+            "count": 2235,
+            "share": 0.745
+          },
+          "positive": {
+            "types": [
+              "INFLATED"
+            ],
+            "count": 553,
+            "share": 0.7017766497461929
+          }
+        },
+        "positive_type_count": 6,
+        "ids_sha256": "3f0e42b4565c5e262cddaf73f1299467ba75db768331e87dee1ed74db0412757"
+      },
+      "common": {
+        "rows": 1832,
+        "known_positives": 662,
+        "reference_negatives": 1170,
+        "by_fraud_type": {
+          "DOC_TAMPER": {
+            "rows": 20,
+            "known_positives": 20
+          },
+          "DUPLICATE": {
+            "rows": 1,
+            "known_positives": 1
+          },
+          "GHOST_SUPPLIER": {
+            "rows": 81,
+            "known_positives": 79
+          },
+          "INFLATED": {
+            "rows": 560,
+            "known_positives": 548
+          },
+          "NONE": {
+            "rows": 1169,
+            "known_positives": 13
+          },
+          "SPLIT": {
+            "rows": 1,
+            "known_positives": 1
+          }
+        },
+        "concentration": {
+          "all": {
+            "types": [
+              "NONE"
+            ],
+            "count": 1169,
+            "share": 0.6381004366812227
+          },
+          "positive": {
+            "types": [
+              "INFLATED"
+            ],
+            "count": 548,
+            "share": 0.8277945619335347
+          }
+        },
+        "positive_type_count": 6,
+        "ids_sha256": "06f5d0519cc28b97715e5bdee33b8e55c9350aefe2a9161ac2f7477b652f184d"
+      },
+      "if_only": {
+        "rows": 1168,
+        "known_positives": 318,
+        "reference_negatives": 850,
+        "by_fraud_type": {
+          "DOC_TAMPER": {
+            "rows": 9,
+            "known_positives": 9
+          },
+          "GHOST_SUPPLIER": {
+            "rows": 45,
+            "known_positives": 45
+          },
+          "NONE": {
+            "rows": 856,
+            "known_positives": 11
+          },
+          "SPLIT": {
+            "rows": 258,
+            "known_positives": 253
+          }
+        },
+        "concentration": {
+          "all": {
+            "types": [
+              "NONE"
+            ],
+            "count": 856,
+            "share": 0.7328767123287672
+          },
+          "positive": {
+            "types": [
+              "SPLIT"
+            ],
+            "count": 253,
+            "share": 0.7955974842767296
+          }
+        },
+        "positive_type_count": 4,
+        "ids_sha256": "20525c89da8e9115a753a653efe37ed8444baadf75258dd5cb369f1879f9c0cf"
+      },
+      "value_only": {
+        "rows": 1168,
+        "known_positives": 126,
+        "reference_negatives": 1042,
+        "by_fraud_type": {
+          "DOC_TAMPER": {
+            "rows": 14,
+            "known_positives": 14
+          },
+          "GHOST_SUPPLIER": {
+            "rows": 69,
+            "known_positives": 69
+          },
+          "INFLATED": {
+            "rows": 5,
+            "known_positives": 5
+          },
+          "NONE": {
+            "rows": 1066,
+            "known_positives": 24
+          },
+          "SPLIT": {
+            "rows": 14,
+            "known_positives": 14
+          }
+        },
+        "concentration": {
+          "all": {
+            "types": [
+              "NONE"
+            ],
+            "count": 1066,
+            "share": 0.9126712328767124
+          },
+          "positive": {
+            "types": [
+              "GHOST_SUPPLIER"
+            ],
+            "count": 69,
+            "share": 0.5476190476190477
+          }
+        },
+        "positive_type_count": 5,
+        "ids_sha256": "cc60b9948a0ba6c344b56d79027bc56dbf1bea6672e65ecd49fff1ee9a3faf87"
+      },
+      "union": {
+        "rows": 4168,
+        "known_positives": 1106,
+        "reference_negatives": 3062,
+        "by_fraud_type": {
+          "DOC_TAMPER": {
+            "rows": 43,
+            "known_positives": 43
+          },
+          "DUPLICATE": {
+            "rows": 1,
+            "known_positives": 1
+          },
+          "GHOST_SUPPLIER": {
+            "rows": 195,
+            "known_positives": 193
+          },
+          "INFLATED": {
+            "rows": 565,
+            "known_positives": 553
+          },
+          "NONE": {
+            "rows": 3091,
+            "known_positives": 48
+          },
+          "SPLIT": {
+            "rows": 273,
+            "known_positives": 268
+          }
+        },
+        "concentration": {
+          "all": {
+            "types": [
+              "NONE"
+            ],
+            "count": 3091,
+            "share": 0.7416026871401151
+          },
+          "positive": {
+            "types": [
+              "INFLATED"
+            ],
+            "count": 553,
+            "share": 0.5
+          }
+        },
+        "positive_type_count": 6,
+        "ids_sha256": "1514296d7768e986dfa0fdf74c5285d62a89f06f853e5b4301bce858ee60d4b6"
+      },
+      "overlap_fraction": 0.6106666666666667,
+      "jaccard": 0.43953934740882916,
+      "gross_additional_if_positives": 318,
+      "value_positives_forgone": 126,
+      "net_additional_positives": 192,
+      "precision_delta": 0.064,
+      "capture_delta": 0.028347851764358483
+    }
+  ],
+  "protocol_version": "invoice-value-comparison-1.0",
+  "created_at": "2026-09-28T13:49:30.181043+00:00",
+  "split": "val",
+  "real_model_fits": 0,
+  "test_used": false,
+  "threshold_selected": false,
+  "budget_selected": false,
+  "budget_percentages": [
+    1,
+    5,
+    10
+  ],
+  "score_definitions": {
+    "isolation_forest": "-score_samples; not a probability",
+    "invoice_value": "invoice_amount; descending; not absolute value"
+  },
+  "tie_break": "ranking value descending, invoice_id ascending; no labels",
+  "currency": "ZAR",
+  "features": [
+    "invoice_amount",
+    "log_invoice_amount",
+    "supplier_age_days",
+    "supplier_frequency",
+    "country_frequency",
+    "amount_vs_supplier_mean",
+    "supplier_amount_zscore",
+    "department_frequency",
+    "amount_vs_department_mean",
+    "supplier_department_frequency",
+    "payment_terms_days",
+    "invoice_type_encoded",
+    "submission_hour_sin",
+    "submission_hour_cos",
+    "day_of_week_sin",
+    "day_of_week_cos",
+    "month_sin",
+    "month_cos",
+    "is_weekend"
+  ],
+  "parameters": {
+    "bootstrap": false,
+    "contamination": 0.22,
+    "max_features": 1.0,
+    "max_samples": "auto",
+    "n_estimators": 200,
+    "n_jobs": -1,
+    "random_state": 42,
+    "verbose": 0,
+    "warm_start": false
+  },
+  "legacy_offset": -0.5211491197816622,
+  "input_hashes_sha256": {
+    "data/processed/train_features.parquet": "41cfbb25baa62c1c201ce5bbc310589fd41656efae9c1d51684716cea0d6e72b",
+    "data/processed/val_features.parquet": "564d399b84c01650dfe48c3e99b06bdf88fff686eeb7dd492e568f4cd5be12d2",
+    "ml/models/isolation_forest.joblib": "c9c0f51a9c962fac5ea6b34db5e0b74f09c120896bf9e7bf3a87418df2adba1b",
+    "ml/models/model_metadata.json": "ba07485e8dda458e45376b6edc4bd164926efe2c6ca8385cde32f7309db86595",
+    "ml/experiments/invoice_validation_v1.json": "1218ed395095c69dd8d3439e27b7e1416dfeba68b8f1d9d83328e2c2f27e12f9",
+    "ml/experiments/invoice_triage_validation_v1.json": "ff218d45c54c2376d43b0be46bfda93ba8eb438c8ebd72c395e67fe7cfbdfb3d"
+  },
+  "code_and_protocol_sha256": {
+    "ml/scripts/comparar_triagem_invoice.py": "75b6b23ea0b365add1a792bc359d0029168e2bf3cd15dfd775df0d2e55d4e6b3",
+    "ml/scripts/diagnosticar_triagem_invoice.py": "aa1de1dc3b0b56131caa0917eb90a0c78607f33e63109d2d27baafc4398ea038",
+    "docs/invoice_value_comparison_protocol.md": "259f5155000cd444965f54f461b0287251ac88cb3e41953b3878bec93369b5ec",
+    "ml/scripts/avaliar_invoice.py": "45dfbff53a0f7eca68dc83753a88f9c45d6ecdedb521d75d78ce9aa3945035d1",
+    "ml/scripts/treinar_modelo.py": "f980abfa2a0c9a19c5372690997df8cf7069d78c39aa36225df8ce2b800e8ea1"
+  },
+  "shared_raw_stat_before_after": {
+    "data/raw/splits.parquet": {
+      "bytes": 1955161,
+      "mtime_ns": "1788266293204449400"
+    },
+    "data/raw/labels.parquet": {
+      "bytes": 1934190,
+      "mtime_ns": "1788266292949423400"
+    },
+    "data/raw/invoices.parquet": {
+      "bytes": 5281902,
+      "mtime_ns": "1788266292806433000"
+    }
+  },
+  "authorized_source_amounts_sha256": "87ae90d4f20f65ef72085ca09ca3833692ffd4b6b39e46d1aa94b6c2be5aa5f3",
+  "validation_ids_sha256": "e8667d99df1dd9f43e8c369fa20188d1f1a5cce916dac0fe5db22287747df640",
+  "previous_triage_reconciled": true,
+  "versions": {
+    "python": "3.14.3",
+    "numpy": "2.5.2",
+    "pandas": "2.3.3",
+    "scikit-learn": "1.9.0",
+    "joblib": "1.6.0",
+    "pyarrow": "25.0.1"
+  },
+  "limits": [
+    "is_fraud is an unverified secondary reference, not business ground truth",
+    "fraud_type inconsistency preserved; concentration is descriptive, not validated mechanisms",
+    "incremental positive labels do not establish causal or financial business benefit",
+    "union bookkeeping uses extra capacity; it is not an equal-budget third strategy",
+    "VALIDATION has already been explored; no independent generalization or significance claim",
+    "legacy fit provenance is not retrospectively certified; existing temporal/context limits remain",
+    "shared raw Parquets filtered by authorized IDs/splits; physical row groups may be shared"
+  ]
+}

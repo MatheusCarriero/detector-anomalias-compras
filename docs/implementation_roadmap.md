@@ -1,5 +1,81 @@
 # Roadmap de implementação
 
+## Atualização de execução — 28/09/2026
+
+A [comparação IF versus valor](invoice_value_comparison_results.md) está
+**concluída em VALIDATION**: ganho líquido de positivos −40/+7/+192 nos orçamentos
+fixos 1%/5%/10%. Não há vencedor uniforme, orçamento escolhido ou utilidade
+empresarial comprovada. Não repetir essa comparação como pendência.
+
+O teste técnico da revisão cega foi encerrado pelo responsável. Avaliadores
+artificiais não são pessoas nem evidência; respostas simuladas, concordância e
+julgamentos ficam excluídos de resultados, JSONs e decisões acadêmicas. ZIPs
+simulados devem permanecer fora do repositório. A [preparação original](invoice_blind_review_preparation.md)
+foi preservada; não houve revisão humana válida e uma eventual etapa real segue
+separada, sem ser substituída pela simulação.
+
+**Próximo gate Invoice:** o [contrato acadêmico](invoice_academic_evaluation_protocol.md)
+separa benchmark retrospectivo de adoção operacional. Implementar/revisar somente
+o executor mínimo e seus testes sintéticos antes de qualquer avaliação final.
+TEST permanece fechado até autorização registrada e congelamento pré-acesso;
+nenhum retreino, mudança de algoritmo, features, labels ou percentuais. Custos,
+capacidade e avaliação humana reais continuam necessários para alegar utilidade
+operacional, não podem ser inferidos do benchmark ou da simulação.
+
+As atualizações datadas abaixo preservam o histórico, não redefinem o próximo
+passo vigente. Supplier/Purchase e suas decisões permanecem fora desta etapa.
+
+## Atualização de execução — 27/09/2026
+
+Invoice foi formalizado como **triagem de anomalias para auditoria humana**,
+não classificação automática de fraude. A avaliação anterior e a
+[auditoria metodológica](invoice_methodological_audit.md) estão concluídas e
+preservadas; as pendências de auditoria abaixo são registros históricos.
+
+O [protocolo de triagem](invoice_triage_protocol.md) e seus
+[resultados](invoice_triage_results.md) registram diagnóstico top-1%/5%/10%
+somente em VALIDATION, com o modelo e as 19 features existentes, zero fit/tuning
+ou ajuste de threshold. Precision@K da referência: 85,00%/43,00%/32,67%;
+sinal concentrado em INFLATED, sem comprovação de utilidade humana.
+Distribuições TRAIN/VALIDATION e períodos parciais foram descritos, não usados
+para alterar features ou atribuir causalidade.
+
+**Próximo gate Invoice:** definir utilidade/capacidade de auditoria e comparação
+prévia com uma regra simples de priorização por valor. Revisão humana depende
+de evidência de negócio disponível; não se presume que a label seja verdade
+empresarial. Não escolher orçamento de produção com estes resultados.
+TEST permanece fechado. Esta atualização não modifica Supplier, Purchase ou
+a arquitetura e não libera produção.
+
+## Atualização de execução — 24/09/2026
+
+As seções seguintes conservam o planejamento e os gates originais; estados
+históricos de Supplier ainda planejado não representam o estado atual.
+
+- Supplier: avaliação final acadêmica e encerramento documental concluídos,
+  conforme [relatório final](supplier_risk_final_evaluation.md). Não repetir
+  EDA, treino, seleção, validação ou TEST. Não há modelo de produção nem
+  comprovação de risco empresarial; procedência/validade externa seguem limitadas.
+- Fases 1/2: helpers e publicação de evidência final implementados no escopo
+  Supplier; isso não implica refatoração de todos os produtores históricos.
+- Próxima prioridade: **fase 6, Invoice**, pois já há modelo e features.
+  Escopo mínimo: inferência somente em VALIDATION com artefato e offset originais,
+  métricas consolidadas/por fraude, sem treino, tuning ou TEST. Ver
+  [protocolo](invoice_validation.md) e [estado/resultados](invoice_validation_results.md).
+- Fase 7, Purchase: somente auditoria e documentação; pastas de código ainda
+  vazias. Objetivo, target/horizonte quando aplicáveis, disponibilidade anterior
+  à aprovação e política monetária impedem iniciar modelagem responsável.
+- Backend/frontend permanecem placeholders, sem código funcional. Não entram
+  no incremento Invoice nem justificam fabricar um score combinado.
+
+Esta atualização não libera automaticamente TEST Invoice. O menor próximo gate
+de avaliação da baseline existente em VALIDATION foi executado: AP 0,31607,
+ROC-AUC 0,57976 e 8.935 falsos positivos, sem fit/tuning. O próximo incremento
+é auditar is_fraud versus fraud_type e a procedência do artefato, somente em
+TRAIN/VALIDATION, sem corrigir labels por suposição. Uma avaliação final exigirá
+decisão explícita e prévia sobre configuração, regra e uso pretendido. A fase 6
+como um todo ainda não está concluída.
+
 ## 1. Escopo e regras permanentes
 
 Este roadmap ordena o trabalho restante por dependência e risco. Ele não seleciona um modelo Supplier, uma lista final de features, um threshold, um score combinado nem o objetivo de negócio Purchase.
@@ -115,9 +191,13 @@ Mesmo um resultado favorável não supre validação externa/temporal nem prova 
 
 **Responsáveis:** ciência de dados Invoice e revisão de risco.
 
-**PLANEJADO:** preservar as 19 features e a configuração atual (`IsolationForest`, 200 árvores, `contamination=0.22`, `random_state=42`, `n_jobs=-1`) enquanto se define protocolo de avaliação, threshold somente em validação, análise consolidada e por `fraud_type`, e comportamento para fornecedores não observados. Revisar o limite das agregações de TRAIN, que não são ponto-a-ponto temporais.
+**CONCLUÍDO:** avaliação consolidada/por `fraud_type`, auditoria metodológica, diagnóstico de triagem e comparação IF versus valor em VALIDATION nos orçamentos 1%/5%/10%, preservando 19 features e a configuração (`IsolationForest`, 200 árvores, `contamination=0.22`, `random_state=42`, `n_jobs=-1`). Sem retreino, tuning ou seleção de threshold. O objetivo vigente é priorização de faturas incomuns para auditoria humana. Teste técnico da revisão cega encerrado e excluído da evidência acadêmica; nenhuma revisão humana válida realizada.
 
-**Gate de saída:** protocolo pré-registrado, threshold congelado sem uso de TEST, avaliação final documentada e contrato de score que não confunda anomalia com probabilidade de fraude. Mudanças de metodologia exigem nova versão, não alteração silenciosa do artefato existente.
+**PLANEJADO — acadêmico:** executor mínimo, validação sintética e registro pré-acesso segundo o [contrato](invoice_academic_evaluation_protocol.md). Eventual avaliação final única compara as duas estratégias em todos os orçamentos, sem retreino ou ajuste condicionado a TEST. A procedência parcial do fit e a validade não comprovada da referência permanecem explícitas.
+
+**Gate acadêmico:** configuração, métricas e conclusões admissíveis registradas antes do acesso; revisão técnica, autorização explícita e evidência de execução única, sem alegar certificação retroativa do treinamento legado. Este gate não foi executado/liberado nesta etapa. O score não é probabilidade de fraude.
+
+**Gate operacional separado:** evidência humana real, contexto disponível, capacidade/custos e eventual regra operacional pré-definida. Se um threshold vier a ser necessário, sua seleção/congelamento exige protocolo próprio em validação; não é necessário inventá-lo para o ranking retrospectivo. Sem evidência operacional, não liberar produção, mesmo com benchmark favorável. Mudanças metodológicas exigem nova versão, não alteração silenciosa do artefato existente.
 
 ## 9. Fase 7 — decisão formal do Purchase
 
