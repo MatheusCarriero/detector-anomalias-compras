@@ -1,4 +1,4 @@
-"""Evaluate the existing Invoice model on validation only; never fit or tune."""
+"""Historical validation calculations; filesystem runs now require synthetic fixtures."""
 
 import argparse
 import hashlib
@@ -39,6 +39,24 @@ INPUTS = (
 )
 
 
+def require_external_invoice_fixture(root):
+    """Retire real raw access from historical routes, preserving synthetic tests.
+
+    Logical row filters cannot isolate TEST in the shared raw files. This guard
+    prevents accidental checkout/symlink access; it does not certify the origin
+    of externally copied files. Never copy real datasets to bypass this boundary.
+    """
+    root = Path(root).resolve()
+    checkout = Path(__file__).resolve().parents[2]
+    if root == checkout or checkout in root.parents:
+        raise PermissionError("Rota historica bloqueada para dados reais; somente fixtures externas")
+    for name in (*INPUTS, "data/raw/invoices.parquet"):
+        candidate = root / name
+        if candidate.resolve() != candidate:
+            raise PermissionError("Input de fixture redirecionado; raw compartilhado nao autorizado")
+    return root
+
+
 def sha256(path):
     with Path(path).open("rb") as stream:
         return hashlib.file_digest(stream, "sha256").hexdigest()
@@ -68,7 +86,7 @@ def validate_target(frame):
 def load_validation(root, split="val"):
     if split != "val":
         raise ValueError("Este avaliador permite somente split=val, nunca TEST.")
-    root = Path(root)
+    root = require_external_invoice_fixture(root)
     frame = pd.read_parquet(root / "data/processed/val_features.parquet")
     if list(frame.columns) != ["invoice_id", "split", "is_fraud", "fraud_type", *FEATURES]:
         raise ValueError("Schema de validação diferente do contrato Invoice")
@@ -196,7 +214,7 @@ def evaluate_frame(model, frame):
 def run(root=PROJECT_ROOT, output=None, split="val"):
     if split != "val":
         raise ValueError("Somente split=val autorizado")
-    root = Path(root)
+    root = require_external_invoice_fixture(root)
     output = Path(output) if output is not None else root / "ml/experiments/invoice_validation_v1.json"
     if output.exists():
         raise FileExistsError(f"Saída já existe; não sobrescrever: {output}")

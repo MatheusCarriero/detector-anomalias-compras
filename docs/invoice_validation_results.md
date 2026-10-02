@@ -162,14 +162,11 @@ O artefato legado não identifica por hash seu treinamento original.
 A venv temporária anterior estava incompleta e a principal não conseguia
 importar pandas por dependências ausentes. Foi criada uma venv nova separada
 com exatamente requirements-dev.txt, sem upgrade/downgrade ou alteração da
-venv principal. Ambiente usado nesta etapa:
+venv principal. O ambiente usado naquela etapa era temporário e externo ao
+repositório; seu caminho pessoal não é requisito de reprodução.
 
-```text
-C:\Users\mathe\AppData\Local\Temp\invoice-validation-88a846b12e0a4242884d458de4dc8297\venv\Scripts\python.exe
-```
-
-Ambientes temporários podem ser removidos pelo sistema. Para continuidade,
-recriar ambiente isolado com os pins do README se esse executável não existir;
+Ambientes temporários podem ser removidos pelo sistema. Para continuidade técnica,
+criar ambiente isolado com os pins do README quando necessário;
 não presumir que a venv principal esteja funcional.
 
 ## 6. Encerramento e próximo passo exato

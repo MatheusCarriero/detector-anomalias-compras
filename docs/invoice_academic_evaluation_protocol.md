@@ -76,6 +76,12 @@ Os relatórios/protocolos históricos permanecem datados. Suas recomendações d
 próximo passo descrevem o momento da emissão; o estado vigente é este contrato
 e o [roadmap atualizado](implementation_roadmap.md).
 
+`test_used=false` nos registros históricos descreve ausência de avaliação/decisão
+em TEST, não certificação de ausência de leitura física dos raw compartilhados.
+Os carregadores antigos usavam filtros lógicos; essa limitação não deve ser
+apagada nem corrigida retrospectivamente nos JSONs. Nesta auditoria pré-TEST
+não houve leitura, hashing ou avaliação de TEST.
+
 ## 4. Especificação prévia para eventual avaliação final
 
 **PLANEJADO, não executado:** verificar em uma partição ainda não analisada nesta
@@ -159,17 +165,22 @@ O presente fechamento **não abre TEST**. Antes de qualquer futura execução:
 1. Registrar revisão/aceitação deste escopo restrito e autorização explícita de
    execução, sem alegar certificação retroativa do fit. Não extrapolar a autorização
    para recalcular resultados, repetir a avaliação ou realizar outra rodada de seleção.
-2. Implementar somente o executor mínimo separado para a avaliação única e
-   revisá-lo com fixtures sintéticas: allowlist de partição, IDs únicos/disjuntos,
-   alinhamento, contrato das 19 features, moeda/valores, ausência de fit, cálculos,
-   empates, falhas e recusa de sobrescrita. Não relaxar os comandos históricos
-   que hoje aceitam apenas VALIDATION.
+2. Completar a ligação real dos componentes já implementados (adaptador, gate,
+   rota de inputs e cálculos sintéticos) até publicação, revisando o fluxo inteiro
+   com fixtures sintéticas: partição autorizada, IDs únicos/disjuntos, alinhamento,
+   19 features, moeda/valores, ausência de fit, cálculos, empates, falhas e recusa
+   de sobrescrita. Não relaxar comandos históricos: agora recusam o checkout real
+   mesmo com split `val`, pois filtros não isolam fisicamente TEST.
 3. Persistir antes do primeiro acesso a TEST um registro exclusivo contendo
    este protocolo, configuração completa/lista ordenada de features, hashes de
    código/modelo/metadata/evidências anteriores, versões, partição autorizada e
    caminhos de entrada/saída. Não apresentar este Markdown mutável como selo.
    Hashes do conteúdo de TEST e dos IDs lidos só serão obtidos **após** a abertura
    autorizada, associados ao registro anterior; não inspecioná-los para planejar.
+   **Lacuna técnica identificada na auditoria:** `source_sha256` do gate confere
+   código e protocolo, mas ainda não os bytes dos três JSONs do item 3. Verificar
+   essas evidências contra pins confiáveis e vinculá-las ao congelamento antes de
+   considerá-lo completo. O hash deste Markdown não substitui essa verificação.
 4. Registrar o início antes da leitura/scoring e impedir nova avaliação ou
    sobrescrita se já houver registro de início/conclusão. Diante de falha após
    acesso, conservar o estado e relatar o incidente; não apagar marcadores para
@@ -284,5 +295,9 @@ Nesta entrega, somente fixtures artificiais exercitam essas APIs. Não foi emiti
 autorização real; implementação e testes não autorizam TEST. A execução de
 métricas continua uma operação distinta: a API de avaliação existente aceita
 exclusivamente `synthetic_holdout`, sem promover automaticamente os inputs reais
-validados a resultados. Congelamento real e autorização humana permanecem
-condições futuras, não realizadas por esta implementação.
+validados a resultados. **A ligação real até métricas/publicação ainda precisa
+ser implementada e validada sinteticamente**, além do vínculo verificável às
+evidências anteriores. Somente depois cabem congelamento real e autorização
+humana. Não iniciar a rota de inputs como um dry-run real: ela já abre dados e
+consome a tentativa, mesmo sem scoring. Nenhuma dessas condições futuras foi
+suprida por esta auditoria documental/estática.

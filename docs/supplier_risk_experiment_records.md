@@ -4,7 +4,7 @@
 
 **IMPLEMENTADO:** o módulo `ml/supplier_risk/scripts/experiment_artifact.py` define um contrato JSON verificável para **novos** experimentos Supplier. Ele usa somente a biblioteca padrão e não carrega datasets, modelos, pandas ou scikit-learn. Um arquivo registra um único estimador, uma única configuração e um único cenário.
 
-**LIMITAÇÃO:** as primeiras rodadas e a validação científica exploratória não persistiram vetores individuais de predição nesse formato. Métricas agregadas, matrizes de confusão e uma reprodução diagnóstica não permitem reconstruir nem certificar o vetor histórico. Nenhum registro real foi fabricado ou retroativamente preenchido neste fechamento; o helper ainda não possui registros reais.
+**LIMITAÇÃO do contrato de desenvolvimento TRAIN/VALIDATION:** as primeiras rodadas e a validação científica exploratória não persistiram vetores individuais de predição nesse formato. Métricas agregadas, matrizes de confusão e uma reprodução diagnóstica não permitem reconstruir nem certificar o vetor histórico. Nenhum registro real de desenvolvimento foi fabricado retroativamente. Isso não descreve a avaliação final: ela possui registros reais próprios no contrato separado da seção 9, já encerrada e sem autorização para repetir TEST.
 
 O registro melhora a rastreabilidade interna de execuções futuras. Ele não transforma um experimento em modelo final, não autoriza acesso a TEST e não comprova validade empresarial de `Risk_Level`.
 

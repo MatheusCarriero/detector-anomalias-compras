@@ -1,4 +1,4 @@
-"""Diagnose fixed-budget Invoice triage on VALIDATION; no fit, tuning or TEST."""
+"""Historical fixed-budget triage; filesystem runs require external synthetic fixtures."""
 
 import argparse
 import hashlib
@@ -22,6 +22,7 @@ from ml.scripts.avaliar_invoice import (
     FEATURES,
     PROJECT_ROOT,
     load_validation,
+    require_external_invoice_fixture,
     sha256,
     validate_ids,
     validate_target,
@@ -123,6 +124,7 @@ def rank_summary(frame, scores):
 
 
 def _load_frames(root):
+    root = require_external_invoice_fixture(root)
     validation = load_validation(root)
     train = pd.read_parquet(
         root / PRESERVED_INPUTS[0], columns=["invoice_id", "split", *FEATURES],
@@ -239,7 +241,7 @@ def _raw_stats(root):
 def run(root=PROJECT_ROOT, output=None, split="val"):
     if split != "val":
         raise ValueError("Somente val autorizado; TEST permanece fechado.")
-    root = Path(root)
+    root = require_external_invoice_fixture(root)
     output = Path(output) if output is not None else root / OUTPUT
     if output.exists():
         raise FileExistsError(f"Saída já existe; não sobrescrever: {output}")

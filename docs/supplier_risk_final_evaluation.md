@@ -343,3 +343,42 @@ um eventual commit autorizado, excluindo o notebook EDA. Antes de publicar JSONs
 com IDs e labels individuais, conferir licença, retenção e acesso da fonte.
 Pendências de procedência e engenharia não autorizam reutilizar TEST para
 melhorar o resultado. A avaliação final está encerrada.
+
+## Nota de rastreabilidade do checkout
+
+**Auditoria estática de 01–02/10/2026; não é nova avaliação.** As seções anteriores
+registram o encerramento histórico de setembro: HEAD `bb9965a`, hashes de TEST,
+testes e próximo commit referem-se àquele momento. A avaliação foi posteriormente
+incorporada no commit `b624204`; o checkout desta auditoria parte de `87d8621`.
+Nenhum TEST, dataset ou modelo foi lido ou hasheado; nenhum notebook ou verificador
+foi executado. A inspeção estática leu documentação, código e JSONs existentes e
+conferiu hashes dos notebooks, fontes congeladas e evidências, sem acessar
+datasets/TEST. Não foram repetidas as verificações históricas de datasets/TEST
+descritas acima.
+
+Os notebooks locais 01 e 02 possuem alteração preexistente exclusivamente em
+`metadata.kernelspec.display_name`: `.venv (3.14.3.final.0)` → `.venv (3.14.3)`.
+O diff não altera células, código ou outputs. Ambos foram preservados, sem
+restauração ou staging. Essa diferença de metadata muda os bytes e seus hashes:
+
+- Notebook 02 atual: `8c31090637683cc0391075e5211b78ee3772cbf98a6b8a0ba479c0b1283dcc46`.
+  Freeze espera `e38872e7038307a33c2badf600f9df3a9a30cf42014a14646b78178357b6f522`.
+  O blob Git `7e3c0fe32ae58857c6f33d6c0b90c74bbaac6270` mantém exatamente esses
+  bytes congelados. Portanto o checkout atual não satisfaz integralmente a
+  identidade de fontes do freeze, embora a versão histórica seja recuperável.
+- Notebook 01 atual: `f750a05c83637f09faa9c9fce357c8f0448bc98f47f1d3e0bfc150e6f2f83e3f`.
+  Não integra `freeze.hashes`. O hash histórico EDA acima corresponde à versão
+  Git anterior representada em CRLF; conteúdo e representação de linhas não
+  devem ser confundidos.
+
+O SHA-256 do freeze continua `70817bc7d270f4fb5d1d7ce27bc48920babe41cd72c317ded7bda300da7db151`.
+Manifest e três JSONs de resultados coincidem com as identidades históricas;
+isso é conferência de bytes existentes, não recalculo de métricas ou nova
+certificação científica. `supplier_risk_model.md` e os dois módulos congelados
+também coincidem com seus hashes e não foram alterados.
+
+A divergência local do notebook 02 seria rejeitada pela comparação estrita de
+fontes do executor (inferência estática; não executada). Não implica mudança dos
+resultados registrados nem autoriza alterar o freeze, restaurar notebooks ou
+reabrir TEST. Reprodução histórica deve distinguir a revisão Git congelada do
+worktree atual; não repetir a avaliação para resolver uma diferença de metadata.

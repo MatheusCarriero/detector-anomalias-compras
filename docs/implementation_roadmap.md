@@ -1,5 +1,27 @@
 # Roadmap de implementação
 
+## Estado vigente — auditoria pré-TEST de 01–02/10/2026
+
+Invoice já possui executor sintético, adaptador TRAIN/VALIDATION, gate bloqueado
+por padrão e rota separada de validação de inputs autorizados. Não confundir
+esses componentes com um executor real ponta a ponta: faltam a ligação do recibo
+de inputs ao scoring/publicação e a verificação dos bytes dos JSONs históricos
+vinculados ao congelamento. Concluir e revisar isso com fixtures sintéticas é
+condição anterior a qualquer congelamento formal/autorização humana. Não iniciar
+a rota real somente para conferir inputs: ela já consome a tentativa de acesso.
+
+As rotas históricas que leem raw compartilhado agora recusam o checkout real,
+inclusive com destino alternativo; filtros de linhas não isolam TEST.
+`source_reconciled=false`, procedência do fit legado não certificada e ausência
+de utilidade operacional comprovada permanecem explícitos. TEST Invoice fechado.
+Nenhuma avaliação, teste, Ruff ou notebook foi executado nesta auditoria estática.
+
+Supplier concluiu sua avaliação final acadêmica; não repetir. A nota de
+rastreabilidade do seu relatório distingue notebooks locais de bytes congelados,
+sem alterar ambos. Purchase, backend e frontend permanecem fora deste incremento.
+As atualizações datadas e gates originais abaixo são histórico de planejamento,
+não ordens para repetir etapas nem autorizações de leitura de dados.
+
 ## Atualização de execução — 28/09/2026
 
 A [comparação IF versus valor](invoice_value_comparison_results.md) está
@@ -90,7 +112,7 @@ Regras que atravessam todas as fases:
 - datasets de origem permanecem imutáveis;
 - decisões de negócio, custos de erro e autorização de TEST precisam ser registradas, não inferidas de métricas.
 
-## 2. Estado de partida
+## 2. Estado de partida histórico — anterior à avaliação final Supplier
 
 ### IMPLEMENTADO
 
@@ -159,6 +181,9 @@ Validação externa/temporal requer outra fonte ou período adequado. Sem isso, 
 
 ## 6. Fase 4 — congelamento do candidato Supplier
 
+**Estado atual: concluído.** LR cenário C foi congelada antes de TEST; itens
+abaixo preservam o planejamento original, não constituem seleção pendente.
+
 **Impacto:** alto; é a última fase de seleção antes de TEST.
 
 **Responsáveis:** ciência de dados, revisão metodológica e proprietário do uso de negócio.
@@ -174,6 +199,9 @@ Validação externa/temporal requer outra fonte ou período adequado. Sem isso, 
 **Gate de saída:** documento de congelamento assinado/revisado com lista ordenada de features, código e inputs identificados por hash, parâmetros, threshold, política de calibração, baseline, métricas e plano de falha. Esse gate pode concluir que nenhum candidato é defensável. A documentação atual não escolhe A, D ou qualquer vencedor.
 
 ## 7. Fase 5 — avaliação final única do Supplier
+
+**Estado atual: concluído**, conforme [relatório final](supplier_risk_final_evaluation.md).
+O planejamento abaixo não autoriza nova execução nem refit.
 
 **Impacto:** alto e irreversível do ponto de vista metodológico.
 
@@ -193,7 +221,7 @@ Mesmo um resultado favorável não supre validação externa/temporal nem prova 
 
 **CONCLUÍDO:** avaliação consolidada/por `fraud_type`, auditoria metodológica, diagnóstico de triagem e comparação IF versus valor em VALIDATION nos orçamentos 1%/5%/10%, preservando 19 features e a configuração (`IsolationForest`, 200 árvores, `contamination=0.22`, `random_state=42`, `n_jobs=-1`). Sem retreino, tuning ou seleção de threshold. O objetivo vigente é priorização de faturas incomuns para auditoria humana. Teste técnico da revisão cega encerrado e excluído da evidência acadêmica; nenhuma revisão humana válida realizada.
 
-**PLANEJADO — acadêmico:** executor mínimo, validação sintética e registro pré-acesso segundo o [contrato](invoice_academic_evaluation_protocol.md). Eventual avaliação final única compara as duas estratégias em todos os orçamentos, sem retreino ou ajuste condicionado a TEST. A procedência parcial do fit e a validade não comprovada da referência permanecem explícitas.
+**IMPLEMENTADO — técnico:** executor sintético, adaptador, gate e rota de inputs. **PENDENTE — acadêmico:** completar/revisar a ligação real de scoring/publicação e o vínculo às evidências anteriores, depois congelamento e autorização segundo o [contrato](invoice_academic_evaluation_protocol.md). Eventual avaliação final única compara as duas estratégias em todos os orçamentos, sem retreino ou ajuste condicionado a TEST. A procedência parcial do fit e a validade não comprovada da referência permanecem explícitas.
 
 **Gate acadêmico:** configuração, métricas e conclusões admissíveis registradas antes do acesso; revisão técnica, autorização explícita e evidência de execução única, sem alegar certificação retroativa do treinamento legado. Este gate não foi executado/liberado nesta etapa. O score não é probabilidade de fraude.
 

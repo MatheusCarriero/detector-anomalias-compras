@@ -68,9 +68,9 @@
   leitura no processo Python e carregadores pandas/joblib: **392 passed,
   1 skipped in 41.79s; REAL_PROJECT_DATA_ACCESS_ATTEMPTS=0**. O teste ignorado
   depende da permissão Windows para symlinks.
-- Ambiente já disponível:
-  `C:/Users/mathe/AppData/Local/Temp/invoice-validation-88a846b12e0a4242884d458de4dc8297/venv/Scripts/python.exe`.
-  Nenhuma instalação ou alteração da `.venv` principal nesta entrega.
+- Ambiente temporário externo já disponível naquela etapa, com as dependências
+  registradas no README; o caminho pessoal foi omitido por não ser portátil.
+  Nenhuma instalação ou alteração da `.venv` principal naquela entrega.
 - Ruff dos dois arquivos Python novos: **All checks passed!**
 - Revisão focal da correção: nenhum achado bloqueante para o incremento
   exclusivamente sintético. Não representa autorização para TEST real.

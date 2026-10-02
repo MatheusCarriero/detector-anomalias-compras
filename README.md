@@ -4,7 +4,7 @@ Projeto acadêmico de Machine Learning com três domínios independentes: anomal
 
 ## Objetivo
 
-O Invoice Anomaly Model prioriza faturas com comportamento incomum para auditoria humana, usando Isolation Forest; não classifica fraude automaticamente nem produz probabilidade de fraude. O Supplier Risk Model será uma classificação supervisionada de `Risk_Level`: estimar o pertencimento à classe de risco definida pelo dataset, não prever acontecimentos futuros. O Purchase mantém a fronteira pré-aprovação, mas ainda precisa escolher entre detecção de anomalias e previsão de um desfecho específico; sua fonte representa linhas de pedido.
+O Invoice Anomaly Model prioriza faturas com comportamento incomum para auditoria humana, usando Isolation Forest; não classifica fraude automaticamente nem produz probabilidade de fraude. O Supplier Risk Model é uma classificação supervisionada de `Risk_Level`: estimar o pertencimento à classe de risco definida pelo dataset, não prever acontecimentos futuros. O Purchase mantém a fronteira pré-aprovação, mas ainda precisa escolher entre detecção de anomalias e previsão de um desfecho específico; sua fonte representa linhas de pedido.
 
 As fontes representam populações diferentes, sem chaves reais comuns para integração. Não há merge direto entre suas features. Uma eventual integração de scores seria uma etapa conceitual futura, com validação própria. O Procurement KPI é somente auxiliar.
 
@@ -12,7 +12,7 @@ As fontes representam populações diferentes, sem chaves reais comuns para inte
 
 | Domínio | Concluído | Pendente |
 |---|---|---|
-| Invoice Anomaly | 19 features, auditoria, triagem e comparação IF × valor em VALIDATION; escopo acadêmico documentado | Executor/revisão do protocolo final antes de TEST autorizado; utilidade humana não demonstrada; labels/procedência limitadas |
+| Invoice Anomaly | 19 features, auditoria, triagem e comparação IF × valor em VALIDATION; executor sintético, adaptador, gate e rota de validação de inputs implementados | Ligação real entre inputs autorizados, cálculo e publicação; vínculo verificável às evidências anteriores; depois, congelamento/autorização. TEST fechado; procedência e utilidade humana limitadas |
 | Supplier Risk | Preparação, EDA TRAIN, baselines/ablações, CV exploratória, configuração LR/C congelada e avaliação final única documentada | Procedência da label/índice, validade externa e eventual uso operacional; não reabrir TEST |
 | Purchase Risk | Dataset analisado, granularidade da fonte em linha de pedido e fronteira pré-aprovação documentadas | Escolher anomalia ou desfecho específico; feature engineering, modelagem e avaliação |
 
@@ -69,7 +69,7 @@ A correção foi restrita a **pandas 2.2.2 → 2.3.3** em `requirements.txt`; as
 
 ### Instalação em um checkout novo
 
-Confirmar que o executável escolhido é Python 3.14.3 antes dos comandos abaixo. `.python-version` não troca automaticamente o interpretador. No host auditado, `C:\Python314\python.exe` é 3.14.3, enquanto `py -3.14` aponta para 3.14.4; não confundir os dois.
+Confirmar que o executável escolhido é Python 3.14.3 antes dos comandos abaixo. `.python-version` não troca automaticamente o interpretador. O launcher pode selecionar outra versão instalada; conferir o executável efetivo, sem depender de um caminho pessoal.
 
 ```powershell
 python -c "import sys; assert sys.version_info[:3] == (3, 14, 3), sys.version"
@@ -105,7 +105,7 @@ As **22 versões fixadas** para a nova instalação são:
 
 **Registro histórico:** em 2026-09-14, `git status` indicava exclusão local de `.python-version`; `git ls-files` confirmou o versionamento e `git check-ignore -v` não identificou regra de exclusão. Foi restaurado o conteúdo do HEAD, `3.14.3`, sem mudança de versão; a causa da exclusão não foi comprovada. Na consolidação anterior, a venv compartilhada recebeu somente pytest 9.1.1, iniconfig 2.3.0 e pluggy 1.6.0. As sondagens de 14–15/09 usaram `pip install --dry-run --only-binary=:all: --index-url https://pypi.org/simple --no-cache-dir -r requirements-dev.txt` e não completaram a instalação antiga. Essa limitação motivou a correção controlada atual; não houve upgrade/downgrade do Python.
 
-**LIMITES:** comprovamos instalação e testes sintéticos em Windows local, não reprodução integral de modelos ou resultados dos datasets reais. Os artefatos e seus metadados históricos permanecem intactos, inclusive quando registram pandas 2.2.2. Não há garantia de equivalência bit a bit de artefatos entre versões. Os requirements fixam versões, mas não são um lock com hashes de todos os wheels; disponibilidade futura no PyPI e validação no runner remoto ainda são dependências externas. A CI está configurada no arquivo [quality.yml](.github/workflows/quality.yml), mas sua primeira execução no GitHub ainda está pendente.
+**LIMITES:** comprovamos instalação e testes sintéticos em Windows local, não reprodução integral de modelos ou resultados dos datasets reais. Os artefatos e seus metadados históricos permanecem intactos, inclusive quando registram pandas 2.2.2. Não há garantia de equivalência bit a bit de artefatos entre versões. Os requirements fixam versões, mas não são um lock com hashes de todos os wheels; disponibilidade futura no PyPI e validação no runner remoto ainda são dependências externas. A CI está configurada no arquivo [quality.yml](.github/workflows/quality.yml); seu estado remoto não foi consultado nesta auditoria.
 
 ## Qualidade e testes
 
@@ -117,14 +117,12 @@ pytest -q
 ```
 
 ```text
-tests/supplier_risk/
-├── conftest.py
-├── test_prepare_features.py
-├── test_target_and_split.py
-└── test_build_ml_dataset.py
+tests/
+├── invoice/        # contratos, limites de leitura, gate e rota de inputs
+└── supplier_risk/  # preparação, splits, ML-Ready e evidência experimental/final
 ```
 
-A suíte usa pequenos DataFrames sintéticos e `tmp_path`. Os caminhos dos três scripts Supplier Risk são redirecionados para diretórios temporários; nenhum teste depende de Kaggle, dos Parquets reais, de credenciais ou do treinamento de modelos. Os testes de imputação ajustam apenas o transformador em dados sintéticos.
+A suíte usa fixtures sintéticas e diretórios temporários, sem depender de Kaggle, Parquets reais, credenciais ou treinamento de modelos reais. Alguns testes ajustam transformadores e modelos exclusivamente sintéticos. `pytest.ini` explicita `pythonpath = .`, evitando que imports de `ml` em uma seleção isolada dependam da ordem de coleta de outros testes. Na auditoria pré-TEST de 01–02/10/2026, pytest e Ruff não foram executados; alterações dessa etapa aguardam validação manual.
 
 Resultado local da consolidação anterior: **113 testes aprovados**, aproximadamente **5 a 17 segundos** nas execuções locais da suíte; Ruff: `All checks passed!`. São cobertos deduplicação, nulos preservados na base, conflitos de target, determinismo do hash, reconciliação de IDs, train-only, alinhamento X/y e reexecução equivalente. A contagem 113 é uma linha de base histórica, não uma expectativa fixada para a suíte após novos testes.
 
@@ -134,7 +132,7 @@ Revalidação no fechamento metodológico de 14–15/09/2026: **113 aprovados em
 
 Uma segunda execução em cópia temporária contendo somente scripts Supplier, testes e configurações, sem a pasta `data/`, aprovou os mesmos **113 testes em 3,19 segundos**. A conferência final de SHA-256 preservou os 62 arquivos monitorados de dados, artefatos, scripts, testes e configurações protegidas; as versões instaladas na `.venv` principal também permaneceram iguais.
 
-**CI configurada, execução remota pendente:** [`.github/workflows/quality.yml`](.github/workflows/quality.yml) usa Windows 2025 x64, a versão de `.python-version`, venv isolada e os requirements fixados. Executa instalação por wheels, `pip check`, Ruff e pytest sintético, sem dados Kaggle, EDA ou treinamento. As ações oficiais estão fixadas por SHA, com permissão somente de leitura e sem persistência de credenciais. Após um futuro envio, rodará em push/pull request ou acionamento manual; nenhum commit, push ou disparo remoto foi realizado nesta etapa.
+**CI configurada; execução remota não verificada nesta auditoria:** [`.github/workflows/quality.yml`](.github/workflows/quality.yml) usa Windows 2025 x64, a versão de `.python-version`, venv isolada e os requirements fixados. Prevê instalação por wheels, `pip check`, Ruff e pytest sintético, sem dados Kaggle, EDA ou treinamento real. As ações oficiais estão fixadas por SHA, com permissão somente de leitura e sem persistência de credenciais. Possui gatilhos push/pull request e manual; nenhum commit, push ou disparo remoto foi realizado nesta etapa.
 
 ## Configuração dos datasets
 
@@ -188,7 +186,7 @@ Todas essas estatísticas usam apenas o conjunto de treino, sem usar validation/
 │   ├── notebooks/
 │   ├── supplier_risk/  # scripts/, models/, notebooks/
 │   └── purchase_risk/  # scripts/, models/, notebooks/
-├── tests/supplier_risk/
+├── tests/  # invoice/ e supplier_risk/
 ├── backend/
 ├── frontend/
 ├── docs/
@@ -202,7 +200,7 @@ Todas essas estatísticas usam apenas o conjunto de treino, sem usar validation/
 
 ## Execução dos scripts
 
-Os comandos abaixo documentam os pipelines existentes. Eles usam dados locais e podem sobrescrever artefatos processados; **não fazem parte da suíte de testes nem foram executados nesta consolidação**. Invoice:
+Os comandos abaixo documentam o bootstrap histórico dos pipelines, **não são comandos para validar o fechamento pré-TEST**. Usam dados locais, podem ler raw com partições fisicamente compartilhadas e sobrescrever artefatos processados. Não executá-los no checkout protegido nem reprocessar Supplier já avaliado; qualquer reprodução real exige autorização e escopo próprios. Não foram executados nesta consolidação. Invoice:
 
 ```bash
 python ml/scripts/analisar_dataset.py
@@ -256,9 +254,9 @@ O [protocolo experimental do Supplier](docs/supplier_risk_model.md#13-protocolo-
 
 **LIMITAÇÕES:** origem/regra de Risk_Level não comprovadas; índice geopolítico provisório e associado a Country; contagem pode refletir coleta, não histórico; 1.386 fornecedores com compliance > 100 e 1.134 com lead time = 0 foram preservados sem clipping/exclusão automática. Não se pretende prever fraude, falhas ou rupturas futuras, validar risco empresarial real, nem substituir avaliação humana.
 
-**Evidência futura:** o [contrato de registros experimentais](docs/supplier_risk_experiment_records.md) documenta a API/CLI JSON verificável para novas execuções TRAIN/VALIDATION. As predições individuais históricas não foram persistidas, não podem ser retroativamente certificadas e não foram fabricadas neste fechamento. Antes de novo experimento real, a lógica reutilizável e o carregador com allowlist de splits deverão sair dos notebooks para módulos testáveis; os notebooks históricos permanecem intactos.
+**Evidência:** o [contrato de registros experimentais](docs/supplier_risk_experiment_records.md) separa desenvolvimento TRAIN/VALIDATION da API final, já utilizada pelo executor Supplier. As predições individuais das primeiras rodadas não foram fabricadas retroativamente; a avaliação final tem seus próprios registros. Os notebooks locais 01/02 têm alterações preexistentes apenas no nome exibido do kernel, preservadas fora deste escopo. A [nota de rastreabilidade](docs/supplier_risk_final_evaluation.md#nota-de-rastreabilidade-do-checkout) distingue esses bytes atuais dos congelados; não autoriza reexecução.
 
-O [roadmap de implementação](docs/implementation_roadmap.md) organiza os gates restantes: biblioteca experimental, publicação transacional de artefatos, procedência, congelamento Supplier, TEST único sem refit TRAIN+VALIDATION, avaliação Invoice, decisão formal Purchase, contratos de inferência, aplicação, segurança e monitoramento.
+O [roadmap de implementação](docs/implementation_roadmap.md) preserva os gates Supplier já concluídos e organiza as pendências: fechamento técnico pré-TEST Invoice, procedência, decisão formal Purchase, publicação transacional dos produtores ainda sequenciais e, posteriormente, contratos de inferência, aplicação, segurança e monitoramento.
 
 **Purchase — somente documentação:** o Vocabulary & Notes define PO_Number como linha de pedido, Lead_Time_Days como pós-entrega, ESG como simulado e valores em moedas locais sem câmbio. Falta escolher anomalia ou desfecho específico e confirmar dados pré-aprovação; anomalia não será chamada automaticamente de risco. Ver [contrato Purchase](docs/purchase_risk_model.md).
 
@@ -275,10 +273,13 @@ e análise por tipo de fraude. Não houve uso de TEST; comando já executado:
 python -m ml.scripts.avaliar_invoice --split val
 ```
 
-O comando exige os datasets Invoice e o modelo local confiável já existente,
-recusa outros splits e não sobrescreve `ml/experiments/invoice_validation_v1.json`.
-Executar somente se o ambiente de requirements estiver funcional e ainda não
-existir saída; não apagar evidência para forçar reexecução.
+O comando acima é histórico, não uma instrução de reexecução. As rotas históricas
+de avaliação, triagem, comparação e preparação cega agora recusam o checkout real
+antes de ler inputs, mesmo com outro destino. Seus cálculos seguem disponíveis
+para fixtures sintéticas externas; não copiar dados reais para contornar a proteção.
+Filtros `val` não isolam fisicamente TEST nos raw compartilhados. As declarações
+históricas de ausência de avaliação em TEST não certificam ausência de leitura
+física desses arquivos. Não apagar evidência para repetir a execução.
 Os [resultados e limites](docs/invoice_validation_results.md) registram o estado
 da execução. Purchase continua sem modelagem até definir problema, target quando
 aplicável, disponibilidade pré-aprovação, moedas e estratégia de avaliação.
@@ -307,7 +308,7 @@ de setembro/outubro, sem fit, tuning ou seleção de threshold. Artefato exclusi
 A comparação com priorização por valor, recomendada nessa etapa, foi concluída
 em 28/09/2026 conforme a atualização abaixo. Modelo e 19 features preservados.
 
-### Invoice — estado vigente em 28/09/2026
+### Invoice — decisões de 28/09/2026 e estado técnico atual
 
 A [comparação IF × valor](docs/invoice_value_comparison_results.md) registrou
 ganho líquido de positivos **−40/+7/+192** nos mesmos orçamentos 1%/5%/10%.
@@ -321,7 +322,13 @@ métricas ou decisões. ZIPs simulados devem permanecer fora do repositório. A
 **não houve revisão humana válida** e a utilidade operacional continua pendente.
 
 O [contrato acadêmico Invoice](docs/invoice_academic_evaluation_protocol.md)
-define o recorte retrospectivo, a comparação futura e seus limites. Próximo
-incremento: executor mínimo com testes sintéticos e revisão, sem dados reais.
-**TEST permanece fechado** até autorização registrada e congelamento pré-acesso.
-Não há retreino, novas features, mudança de algoritmo ou threshold nesta etapa.
+define o recorte retrospectivo, a comparação futura e seus limites. O executor
+sintético, o adaptador TRAIN/VALIDATION, o gate bloqueado por padrão e a rota de
+validação de inputs autorizados já existem. **Validar inputs não executa avaliação.**
+A API de métricas ainda exige `synthetic_holdout`; falta a ligação real até cálculo
+e publicação, além da verificação dos JSONs históricos vinculados ao congelamento.
+Ver [contrato técnico](docs/invoice_final_executor.md). Essas pendências precisam
+de implementação/revisão sintética antes do congelamento formal e autorização
+humana por canal independente. `source_reconciled=false` permanece obrigatório:
+consistência de linhas não certifica procedência do fit legado. **TEST permanece
+fechado**, sem retreino, novas features, tuning ou mudança de threshold.

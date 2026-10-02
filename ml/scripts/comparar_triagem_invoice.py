@@ -1,4 +1,4 @@
-"""Compare existing IF and invoice-value rankings on VALIDATION only; never fit."""
+"""Historical IF/value comparison; filesystem runs require synthetic fixtures."""
 
 import argparse
 import json
@@ -72,6 +72,7 @@ def compare_rankings(frame, scores):
 
 
 def _source_amounts(root, frame):
+    root = triage.require_external_invoice_fixture(root)
     source = pd.read_parquet(
         root / "data/raw/invoices.parquet", columns=["invoice_id", "invoice_amount", "currency"],
         filters=[("invoice_id", "in", frame["invoice_id"].tolist())],
@@ -117,7 +118,7 @@ def _references(root, hashes):
 def run(root=triage.PROJECT_ROOT, output=None, split="val"):
     if split != "val":
         raise ValueError("Somente val autorizado; TEST permanece fechado.")
-    root = Path(root)
+    root = triage.require_external_invoice_fixture(root)
     output = Path(output) if output is not None else root / OUTPUT
     if output.exists():
         raise FileExistsError(f"Saída já existe; não sobrescrever: {output}")

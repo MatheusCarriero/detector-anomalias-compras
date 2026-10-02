@@ -1,4 +1,11 @@
-# Invoice — executor sintético da avaliação final
+# Invoice — contrato técnico de avaliação pré-TEST
+
+**Estado em 01–02/10/2026:** executor sintético, adaptador, gate e rota de inputs
+implementados. O gate continua bloqueado sem autorização externa. A ligação real
+entre inputs autorizados, scoring e publicação ainda não está implementada;
+portanto não há executor real ponta a ponta pronto para congelamento. As seções
+datadas abaixo preservam verificações anteriores, não resultados de QA desta
+auditoria estática. Pytest, Ruff, notebooks e avaliações não foram executados aqui.
 
 **Escopo técnico, 29/09/2026. Não é relatório de desempenho científico.**
 Implementação de [invoice_final_evaluation.py](../ml/scripts/invoice_final_evaluation.py)
@@ -94,7 +101,7 @@ não um novo limiar operacional.
 
 ## Artefatos e reprodutibilidade técnica
 
-Todos os artefatos dos testes ficam em diretórios temporários e declaram
+Os artefatos do executor sintético desta seção ficam em diretórios temporários e declaram
 `synthetic=true`, `scientific_evidence=false`, `test_used=false` e
 `model_fits_in_executor=0`. Não publicar suas métricas em relatórios científicos
 ou `ml/experiments/`. O estado científico anterior permanece independente.
@@ -145,11 +152,12 @@ antes/depois**. Essa limitação não foi contornada lendo os dados reais.
 
 O executor sintético acima é um contrato testado com fixtures, **não o adaptador
 de dados reais**. A adaptação técnica de desenvolvimento está registrada abaixo.
-Para uma avaliação real final ainda será necessário: autorização registrada;
-adaptador mínimo com leitura seletiva e reconciliação dos arquivos oficiais;
-vínculo com hashes/evidências do modelo legado; congelamento da configuração real
-antes do primeiro acesso; revisão independente desses limites. Não remover uma
-guarda por flag para contornar essa etapa.
+O adaptador e a rota autorizada de validação de inputs já estão implementados.
+Para uma avaliação real final ainda será necessário ligar essa rota ao cálculo
+e publicação, verificar o vínculo aos JSONs anteriores e revisar o fluxo completo
+com fixtures sintéticas. Somente depois: congelamento exclusivo e autorização
+humana independente. Reconciliação de linhas não certificará a procedência do fit.
+Não remover uma guarda por flag nem fazer leitura real como ensaio técnico.
 
 As limitações da label, contexto, temporalidade e procedência do fit legado
 continuam descritas no protocolo acadêmico. Testes de software não as resolvem
@@ -207,8 +215,8 @@ reconciliação real completa ou autorização de TEST.
 
 ### Snapshot e rastreabilidade desta implementação
 
-Snapshot inicial persistido fora do repositório:
-`C:/Users/mathe/AppData/Local/Temp/invoice-adapter-dcfe92ea95914bab8da91bc125368887/before.json`.
+Snapshot inicial `before.json`, persistido em diretório temporário externo ao
+repositório durante aquela etapa; não é dependência portátil ou fonte versionada.
 Contém 98 SHA-256 (código/documentação/evidências preexistentes, TRAIN/VALIDATION
 separados e modelo Invoice) e metadados de 42 arquivos protegidos.
 TEST, raw compartilhados e dados Supplier não foram lidos para hashing: sua
@@ -298,9 +306,8 @@ de partições físicas que autorize a leitura seletiva sem alcançar TEST.
 A inspeção já concluída leu exclusivamente o trailer e o rodapé, com offsets
 exatos e I/O sem buffer de pré-leitura da aplicação. O parser recebeu esses
 bytes em memória: não leu páginas de dados nem consultou estatísticas de valores.
-Nenhum arquivo específico de TEST foi aberto. O registro externo
-`C:/Users/mathe/AppData/Local/Temp/invoice-boundary-d5c2db6326bc42e0a0c286afdbc193af/footer_structure.json`
-preserva schemas, tamanhos, offsets, row groups e hashes **dos rodapés**, não
+Nenhum arquivo específico de TEST foi aberto. O registro temporário externo
+`footer_structure.json` preservou schemas, tamanhos, offsets, row groups e hashes **dos rodapés**, não
 hashes completos dos raw nem evidência científica.
 
 Não foi encontrada fonte independente segura para toda a coorte. O manifest raw
@@ -456,8 +463,8 @@ Validação histórica do gate 1.0, anterior à rota de inputs:
   comparação de hashes sem sensibilidade a caixa e separação entre procedência
   independente e consistência futura por ID.
 
-O snapshot desta extensão fica fora do repositório em
-`C:/Users/mathe/AppData/Local/Temp/invoice-authorization-dbb77b7526e64ff687a14078165be27c/`.
+O snapshot desta extensão foi mantido em diretório temporário fora do repositório,
+sem garantia de retenção; seu caminho pessoal não é requisito de reprodução.
 O baseline contém 102 hashes autorizados e 42 registros somente de tamanho/data;
 TEST/raw compartilhado não são lidos para hashing. O registro `after.json`
 preserva a conferência final e as limitações da verificação. Nenhum documento
@@ -515,8 +522,9 @@ continua recusando configuração real. Não existe autoexecução depois de um 
 ou retorno válido. O controle local impede repetição acidental, não exclusão
 deliberada dos registros nem substitui o canal independente de autorização humana.
 
-Antes de qualquer uso real, o responsável ainda deve registrar o congelamento
-executável exclusivo e fornecer a autorização verificável. Não fazer um ensaio
+Antes de qualquer uso real, deve ser concluída a ligação real até scoring e
+publicação, com revisão sintética do fluxo completo. O responsável deverá então
+registrar o congelamento exclusivo e fornecer autorização verificável. Não fazer um ensaio
 real da rota: ler TEST para validar inputs já é uma abertura que consome a
 tentativa. Não houve ajuste de threshold, tuning, retreinamento ou uso de respostas
 simuladas de revisão cega. Os resultados das fixtures não são evidência científica.
@@ -538,14 +546,40 @@ simuladas de revisão cega. Os resultados das fixtures não são evidência cien
   ambiente temporário separado, com pandas 2.3.3 e pytest 9.1.1, sem modificar
   requirements nem o ambiente principal.
 
-O snapshot desta rota fica em
-`C:/Users/mathe/AppData/Local/Temp/invoice-real-route-9eaf1e728d1c4010945e7ae3178a774f/`.
+O snapshot desta rota foi mantido em diretório temporário externo ao repositório.
 `before.json`/`after.json` registram hashes permitidos e conferência de tamanho/data
 dos arquivos que não podem ser abertos. Não foi calculado hash de conteúdo de
 TEST/raw compartilhados nesta etapa. `verify_synthetic.py`, nesse diretório
 temporário, adicionou as guardas de acesso aos comandos de QA.
 
 Não foi criado congelamento real, aprovação humana, inferência ou relatório
-científico. A rota está tecnicamente verificada; aguarda congelamento e autorização
-independente. A validade empresarial da referência e a procedência do treinamento
+científico. A rota foi tecnicamente verificada no seu escopo de validação de inputs,
+não como execução real ponta a ponta. A validade empresarial da referência e a procedência do treinamento
 continuam limitações, não falhas sanadas pelos testes de software.
+
+### Auditoria estática pré-TEST — 01–02/10/2026
+
+- Corrigido acesso pelos comandos históricos: `avaliar_invoice`,
+  `diagnosticar_triagem_invoice`, `comparar_triagem_invoice` e
+  `preparar_revisao_cega_invoice` recusam checkout/descendentes e redirecionamento
+  de inputs antes de leitura/hash. Somente fixtures externas são admitidas nesses
+  percursos. Não copiar dados reais para contorná-los; o guard não certifica a
+  origem de cópias externas nem é sandbox contra manipulação deliberada.
+- O cálculo puro das métricas, as features e os resultados históricos não mudaram.
+  Testes de fronteira foram acrescentados, mas não executados nesta auditoria.
+- Gate e rota mantêm configuração estrita, pins externos, expiração, destino
+  exclusivo e marcador antes do acesso. Hash não autentica aprovador. Nenhuma
+  aprovação ou congelamento real foi produzido.
+- **Pendência técnica 1:** consumir o retorno/recibo de inputs em um fluxo real
+  único até métricas e publicação, mantendo guards e estado de tentativa. Hoje
+  `validate_authorized_inputs` termina em `inputs_validated.json`; `evaluate_frame`
+  aceita apenas `synthetic_holdout`. Não abrir TEST com esse handoff incompleto.
+- **Pendência técnica 2:** conferir bytes dos três JSONs históricos contra pins
+  e vinculá-los ao freeze. O gate atual confere código/protocolo/adaptador/rota;
+  o hash do protocolo fixa os hashes escritos nele, mas não verifica os arquivos
+  de evidência correspondentes. O item 7 do protocolo exige essa ligação antes
+  da abertura. Não alegar que ela já está implementada.
+- A revisão independente foi estática. Permanecem pendentes a validação manual
+  dos patches desta auditoria e, para o incremento seguinte, testes exclusivamente
+  sintéticos da ligação real e do vínculo de evidências. Nenhum conteúdo de TEST
+  foi lido nem seu hash recalculado; `source_reconciled=false` permanece obrigatório.

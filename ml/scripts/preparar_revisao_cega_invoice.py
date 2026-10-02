@@ -140,6 +140,7 @@ def make_packets(context, members, seed, guide):
 
 
 def _load_validation(root):
+    root = triage.require_external_invoice_fixture(root)
     # Intentional projection: never use the older loader that also reads labels.
     frame = pd.read_parquet(root / triage.PRESERVED_INPUTS[1], columns=["invoice_id", "split", *triage.FEATURES])
     triage.validate_ids(frame, "VALIDATION")
@@ -160,6 +161,7 @@ def _load_validation(root):
 
 
 def _context(root, frame, members):
+    root = triage.require_external_invoice_fixture(root)
     ids = sorted({m["invoice_id"] for m in members})
     source = pd.read_parquet(root / "data/raw/invoices.parquet", columns=RAW_COLUMNS,
                              filters=[("invoice_id", "in", ids)])
@@ -199,7 +201,7 @@ def _raw_stats(root):
 def run(root=triage.PROJECT_ROOT, output=None, seed=None, split="val"):
     if split != "val":
         raise ValueError("Somente val; TEST permanece fechado.")
-    root = Path(root)
+    root = triage.require_external_invoice_fixture(root)
     output = Path(output) if output is not None else root / OUTPUT
     if output.exists():
         raise FileExistsError("Preparação já iniciada/existente; não sobrescrever nem sortear novamente.")
