@@ -1,5 +1,5 @@
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 import joblib
@@ -147,7 +147,7 @@ def main():
         "random_state": 42,
         "feature_count": feature_count,
         "features": FEATURES,
-        "training_date": datetime.now().astimezone().isoformat(timespec="seconds"),
+        "training_date": datetime.now(timezone.utc).isoformat(timespec="seconds"),
     }
 
     with METADATA_PATH.open("w", encoding="utf-8") as metadata_file:

@@ -192,7 +192,8 @@ def test_main_trains_from_selected_train_features_and_writes_metadata(
 
     class FrozenDatetime:
         @classmethod
-        def now(cls):
+        def now(cls, tz=None):
+            assert tz is timezone.utc, "training_date must request UTC explicitly"
             local_timezone = timezone(timedelta(hours=-3))
             return RealDatetime(
                 2026,
@@ -202,7 +203,7 @@ def test_main_trains_from_selected_train_features_and_writes_metadata(
                 34,
                 56,
                 tzinfo=local_timezone,
-            )
+            ).astimezone(tz)
 
     monkeypatch.setattr(training_module, "TRAIN_DATA_PATH", training_path)
     monkeypatch.setattr(training_module, "MODELS_DIR", models_dir)
@@ -238,5 +239,5 @@ def test_main_trains_from_selected_train_features_and_writes_metadata(
         "random_state": 42,
         "feature_count": 19,
         "features": EXPECTED_FEATURES,
-        "training_date": "2026-09-17T12:34:56-03:00",
+        "training_date": "2026-09-17T15:34:56+00:00",
     }
