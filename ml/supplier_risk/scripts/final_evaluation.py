@@ -7,9 +7,9 @@ import json
 import os
 import platform
 import warnings
-from io import BytesIO
 from datetime import datetime, timezone
 from importlib.metadata import version
+from io import BytesIO
 from pathlib import Path
 from uuid import uuid4
 
@@ -283,7 +283,7 @@ def run_final_evaluation(root, freeze_path, *, expected_freeze_sha256):
     execution_id = uuid4().hex
     try:
         return _run_final_evaluation(root, freeze_path, expected_freeze_sha256, execution_id)
-    except Exception as error:  # noqa: BLE001 -- record any failure and re-raise, never recover or retry.
+    except Exception as error:  # record any failure and re-raise, never recover or retry.
         run_dir = Path(freeze_path).parent
         marker = run_dir / "execution_started.json"
         if marker.exists():
