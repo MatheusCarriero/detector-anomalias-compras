@@ -10,6 +10,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
+from invoice_context_fixtures import seal_context, separate
+from invoice_history_fixtures import write_history
 
 from ml.scripts import invoice_final_evaluation as executor
 
@@ -82,22 +84,26 @@ def documents(tmp_path, monkeypatch):
     run_dir = tmp_path / "run"
     run_dir.mkdir()
     freeze = {
-        "schema": "invoice-real-preregistration/1.1", "access_scope": ACCESS_SCOPE,
+        "schema": "invoice-real-preregistration/1.2", "access_scope": ACCESS_SCOPE,
+        "authorized_operation": "evaluate_and_publish_once",
         "created_at": "2026-09-01T10:00:00+00:00", "run_dir": str(run_dir.resolve()),
         "project_root": str(project_root.resolve()), "configuration": copy.deepcopy(CONFIGURATION),
         "versions": executor._versions(),
         "source_sha256": {
             name: digest((ROOT / name).read_bytes())
-            for name in (*executor.SOURCE_NAMES, "ml/scripts/invoice_data_adapter.py",
-                         "ml/scripts/invoice_real_inputs.py")
+            for name in executor.REAL_SOURCE_NAMES
         },
         "pre_access_sha256": dict(zip(PRE_ACCESS, ["1" * 64, "2" * 64, MODEL_SHA, METADATA_SHA])),
         "input_paths": {
             name: str(project_root / name) for name in (*PRE_ACCESS, TEST_INPUT, *RAW_INPUTS)
         },
     }
+    freeze["historical_evidence_sha256"] = write_history(
+        project_root, CONFIGURATION, freeze["pre_access_sha256"], monkeypatch,
+    )
     authorization = {
-        "schema": "invoice-real-authorization/1.1", "decision": "approve_once",
+        "schema": "invoice-real-authorization/1.2", "decision": "approve_once",
+        "authorized_operation": "evaluate_and_publish_once",
         "access_scope": ACCESS_SCOPE, "expires_at": "2026-10-01T00:00:00+00:00",
         "authorized_by": "SYNTHETIC_FIXTURE_NOT_AN_APPROVER",
         "authorization_reference": "SYNTHETIC_CONTRACT_NOT_HUMAN_APPROVAL",
@@ -105,27 +111,19 @@ def documents(tmp_path, monkeypatch):
         "configuration_sha256": "", "run_dir": str(run_dir.resolve()), "split": "test",
         "purpose": "academic_retrospective_triage", "provenance_acknowledged": copy.deepcopy(PROVENANCE),
     }
-    return freeze, authorization, run_dir / "freeze.json", tmp_path / "authorization.json"
+    context = separate(freeze, authorization, run_dir / "freeze.json")
+    return freeze, authorization, run_dir / "freeze.json", tmp_path / "authorization.json", context
 
 
 def seal(documents):
-    freeze, authorization, freeze_path, authorization_path = documents
-    frozen_bytes = canonical(freeze)
-    authorization["freeze_sha256"] = digest(frozen_bytes)
-    authorization["configuration_sha256"] = digest(canonical(freeze["configuration"]))
-    authorized_bytes = canonical(authorization)
-    freeze_path.write_bytes(frozen_bytes)
-    authorization_path.write_bytes(authorized_bytes)
-    return {
-        "expected_freeze_sha256": digest(frozen_bytes),
-        "expected_authorization_sha256": digest(authorized_bytes),
-    }
-
+    freeze, authorization, freeze_path, authorization_path, context = documents
+    return seal_context(freeze, context, authorization, freeze_path,
+                        freeze_path.parent / "context.json", authorization_path)
 
 @pytest.fixture
 def no_input_access(monkeypatch, documents):
     # Guard both Path and lower-level opens/stat, without resolving declared input paths.
-    declared = {os.path.normcase(os.path.abspath(path)) for path in documents[0]["input_paths"].values()}
+    declared = {os.path.normcase(os.path.abspath(path)) for path in documents[4]["input_paths"].values()}
     real_roots = [os.path.normcase(str(ROOT / suffix)) + os.sep
                   for suffix in ("data", "ml/models", "notebooks", "evidence")]
 
@@ -153,7 +151,16 @@ def claim(documents, pins):
 
 
 def assert_unclaimed(documents):
-    assert {path.name for path in documents[2].parent.iterdir()} == {"freeze.json"}
+    assert {path.name for path in documents[2].parent.iterdir()} == {"freeze.json", "context.json"}
+
+
+def test_legacy_input_only_authority_does_not_enable_final_execution(documents, no_input_access):
+    documents[0]["schema"] = "invoice-real-preregistration/1.1"
+    documents[1]["schema"] = "invoice-real-authorization/1.1"
+    pins = seal(documents)
+    with pytest.raises(ValueError):
+        claim(documents, pins)
+    assert_unclaimed(documents)
 
 
 @pytest.mark.parametrize("missing", ["authorization", "freeze_pin", "authorization_pin"])
@@ -173,12 +180,30 @@ def test_missing_authorization_fails_closed_before_any_path_io(tmp_path, monkeyp
             executor.claim_real_evaluation_authorization(tmp_path / "missing-freeze.json", **arguments)
 
 
+@pytest.mark.parametrize("position", [2, 3])
+def test_input_path_as_permission_document_rejected_before_resolution(documents, monkeypatch, position):
+    pins = seal(documents)
+    invalid = Path(documents[4]["input_paths"][TEST_INPUT])
+    changed = list(documents)
+    changed[position] = invalid
+    original = Path.resolve
+
+    def resolve(path, *args, **kwargs):
+        assert path != invalid, "Input path resolved before document allowlist"
+        return original(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "resolve", resolve)
+    with pytest.raises(ValueError, match="documentos"):
+        claim(changed, pins)
+    assert_unclaimed(documents)
+
+
 def test_valid_permission_writes_receipt_without_input_access(documents, no_input_access):
     pins = seal(documents)
     result = claim(documents, pins)
     assert result == documents[2].parent / "authorization_claim.json"
     receipt = json.loads(result.read_bytes())
-    assert receipt["schema"] == "invoice-real-authorization-claim/1.0"
+    assert receipt["schema"] == "invoice-real-authorization-claim/1.2"
     assert receipt["freeze_sha256"] == pins["expected_freeze_sha256"]
     assert receipt["authorization_sha256"] == pins["expected_authorization_sha256"]
     assert receipt["configuration_sha256"] == digest(canonical(CONFIGURATION))
@@ -187,12 +212,14 @@ def test_valid_permission_writes_receipt_without_input_access(documents, no_inpu
     assert receipt["provenance"] == PROVENANCE
     assert receipt["authorization"]["expires_at"] == "2026-10-01T00:00:00+00:00"
     assert receipt["authorization"]["access_scope"] == ACCESS_SCOPE
-    for field in ("test_used", "data_access_performed", "real_execution_available", "source_reconciled",
+    assert receipt["real_execution_available"] is True
+    assert receipt["evaluation_started"] is False
+    for field in ("test_used", "data_access_performed", "source_reconciled",
                   "input_hashes_verified"):
         assert receipt[field] is False
     assert receipt["model_fits"] == 0
     assert receipt["score_calls"] == 0
-    assert {path.name for path in result.parent.iterdir()} == {"freeze.json", "authorization_claim.json"}
+    assert {path.name for path in result.parent.iterdir()} == {"freeze.json", "context.json", "authorization_claim.json"}
 
 
 @pytest.mark.parametrize("pin", ["expected_freeze_sha256", "expected_authorization_sha256"])
@@ -257,7 +284,7 @@ def test_changed_freeze_fails_without_inspecting_described_inputs(documents, no_
     if change == "test_hash":
         freeze["pre_access_sha256"][TEST_INPUT] = "0" * 64
     elif change == "swapped_paths":
-        freeze["input_paths"][TEST_INPUT] = freeze["input_paths"][PRE_ACCESS[0]]
+        documents[4]["input_paths"][TEST_INPUT] = documents[4]["input_paths"][PRE_ACCESS[0]]
     elif change == "source_path":
         freeze["source_sha256"][TEST_INPUT] = "0" * 64
     elif change == "source_digest":
@@ -388,7 +415,7 @@ def test_authorization_for_other_absolute_run_is_rejected(documents, no_input_ac
 
 
 def test_digest_case_does_not_change_identity_or_rewrite_configuration(documents, no_input_access):
-    freeze, authorization, _, authorization_path = documents
+    freeze, authorization, _, authorization_path, _ = documents
     for field in ("model_sha256", "model_metadata_sha256"):
         freeze["configuration"][field] = freeze["configuration"][field].upper()
     for group in ("source_sha256", "pre_access_sha256"):
@@ -399,7 +426,7 @@ def test_digest_case_does_not_change_identity_or_rewrite_configuration(documents
     content = canonical(authorization)
     authorization_path.write_bytes(content)
     pins["expected_authorization_sha256"] = digest(content)
-    pins = {name: value.upper() for name, value in pins.items()}
+    pins = {name: value.upper() if name.startswith("expected_") else value for name, value in pins.items()}
     receipt = json.loads(claim(documents, pins).read_bytes())
     assert receipt["configuration"] == freeze["configuration"]
     assert receipt["configuration_sha256"] == digest(canonical(freeze["configuration"]))
@@ -457,9 +484,9 @@ def test_raw_allowlist_tamper_rejects_without_input_access(
         documents, no_input_access, raw_input, change):
     freeze = documents[0]
     if change == "missing":
-        del freeze["input_paths"][raw_input]
+        del documents[4]["input_paths"][raw_input]
     elif change == "redirected":
-        freeze["input_paths"][raw_input] = freeze["input_paths"][TEST_INPUT]
+        documents[4]["input_paths"][raw_input] = documents[4]["input_paths"][TEST_INPUT]
     else:
         freeze["pre_access_sha256"][raw_input] = "0" * 64
     pins = seal(documents)

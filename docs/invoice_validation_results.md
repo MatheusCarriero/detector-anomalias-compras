@@ -140,6 +140,13 @@ O artefato legado não identifica por hash seu treinamento original.
 
 ## 5. Implementação, validação e integridade
 
+**Nota técnica de 06/10/2026:** os itens abaixo descrevem a execução histórica.
+Filtrar IDs não garante isolamento físico dos raw compartilhados; não certifica
+ausência de leitura física de TEST. A rota histórica atualmente recusa o checkout
+real e é exercitada apenas com fixtures. Não reexecutar nem copiar fontes reais
+para contornar a guarda. O [contrato vigente](invoice_final_executor.md) mantém
+`source_reconciled=false`; os resultados e JSON históricos não foram alterados.
+
 - Avaliador importa o contrato seguro de features sem acionar treino.
 - Recusa qualquer split diferente de val antes de I/O.
 - Confere schema, tipos, nulos/infinitos, IDs e disjunção train/val, IDs frente ao

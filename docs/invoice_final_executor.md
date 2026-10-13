@@ -1,11 +1,13 @@
 # Invoice — contrato técnico de avaliação pré-TEST
 
-**Estado em 01–02/10/2026:** executor sintético, adaptador, gate e rota de inputs
-implementados. O gate continua bloqueado sem autorização externa. A ligação real
-entre inputs autorizados, scoring e publicação ainda não está implementada;
-portanto não há executor real ponta a ponta pronto para congelamento. As seções
-datadas abaixo preservam verificações anteriores, não resultados de QA desta
-auditoria estática. Pytest, Ruff, notebooks e avaliações não foram executados aqui.
+**Estado em 11/10/2026 — correção dos bloqueadores:** freeze portátil 1.1,
+contexto 1.0 e autorização 1.3; publicação exige manifesto 1.2 e recibo separado
+de conclusão 1.0. A integração foi exercitada somente com fixtures sintéticas;
+o gate permanece bloqueado sem congelamento e autorização externos. Nenhum
+freeze formal, contexto real ou aprovação humana é emitido nesta etapa.
+TEST/raw permanecem fechados. As seções datadas preservam o histórico; a seção
+final descreve as correções posteriores à auditoria e o inventário de preparação,
+não resultados científicos nem autorização para executar.
 
 **Escopo técnico, 29/09/2026. Não é relatório de desempenho científico.**
 Implementação de [invoice_final_evaluation.py](../ml/scripts/invoice_final_evaluation.py)
@@ -14,7 +16,8 @@ Nenhum resultado da simulação de revisão cega é entrada deste executor.
 
 ## Fronteira desta entrega
 
-- Não existe CLI ou avaliação de dados reais. A API de avaliação aceita somente
+- No executor sintético desta seção não existe CLI ou avaliação de dados reais.
+  Sua API de avaliação aceita somente
   `synthetic_only`, com `synthetic_holdout`. O gate pré-acesso descrito adiante
   verifica documentos de autorização para a futura partição `test`, mas não
   permite lê-la nem faz inferência.
@@ -153,10 +156,10 @@ antes/depois**. Essa limitação não foi contornada lendo os dados reais.
 O executor sintético acima é um contrato testado com fixtures, **não o adaptador
 de dados reais**. A adaptação técnica de desenvolvimento está registrada abaixo.
 O adaptador e a rota autorizada de validação de inputs já estão implementados.
-Para uma avaliação real final ainda será necessário ligar essa rota ao cálculo
-e publicação, verificar o vínculo aos JSONs anteriores e revisar o fluxo completo
-com fixtures sintéticas. Somente depois: congelamento exclusivo e autorização
-humana independente. Reconciliação de linhas não certificará a procedência do fit.
+O incremento de 05/10/2026 liga essa rota ao cálculo e publicação em uma API
+separada e verifica o vínculo aos JSONs anteriores, somente com testes sintéticos.
+Ainda são necessários congelamento exclusivo e autorização humana independente.
+Reconciliação de linhas não certificará a procedência do fit.
 Não remover uma guarda por flag nem fazer leitura real como ensaio técnico.
 
 As limitações da label, contexto, temporalidade e procedência do fit legado
@@ -368,9 +371,11 @@ Nenhuma avaliação real, novo treinamento real, notebook ou commit foi executad
 
 ### Gate de autorização pré-acesso — contrato técnico
 
-O gate está no próprio `invoice_final_evaluation.py`; não foi adicionado um
-segundo executor, servidor de autorização ou emissor automático de aprovações.
-A API sintética existente continua incompatível com configuração real.
+O gate está no próprio `invoice_final_evaluation.py`; a implementação inicial
+não adicionou outro executor. O incremento de 05/10/2026 acrescenta somente o
+runner explícito `invoice_real_evaluation.py`, não um servidor de autorização
+ou emissor automático de aprovações. A API sintética existente continua
+incompatível com configuração real.
 
 Plano desta extensão delimitada:
 
@@ -386,16 +391,18 @@ offset legado exato, 19 features ordenadas, nove parâmetros, preparação exist
 orçamentos 1%/5%/10%, desempate por ID, valor com sinal e os limites de procedência.
 
 `claim_real_evaluation_authorization(freeze_path, authorization_path=None,
-expected_freeze_sha256=None, expected_authorization_sha256=None)` exige hashes
+expected_freeze_sha256=None, expected_authorization_sha256=None,
+context_path=None, expected_context_sha256=None)` exige hashes
 como argumentos nomeados e retorna apenas o caminho de `authorization_claim.json`.
 Argumentos ausentes mantêm o gate bloqueado antes de I/O. A API não recebe frame,
 modelo, callback, loader ou caminho individual de TEST para abrir.
 
 | Documento | Contrato |
 |---|---|
-| `freeze.json` | Schema `invoice-real-preregistration/1.1`; data com fuso, destino e raiz absolutos canônicos, configuração completa, versões, hashes do código/protocolo, adaptador e rota, quatro hashes pré-acesso, escopo de acesso físico e allowlist dos oito caminhos descritivos |
-| `authorization.json` | Schema `invoice-real-authorization/1.1`; `approve_once`, responsável/referência, emissão e expiração com fuso, SHA do freeze, SHA da configuração canônica, mesmo destino, split `test`, escopo físico, finalidade acadêmica e reconhecimento das limitações |
-| `authorization_claim.json` | Recibo exclusivo com hashes externos, configuração, autorização, destino e procedência; não é evidência de execução ou resultado |
+| `freeze.json` | Schema `invoice-portable-freeze/1.0`; UUID, data com fuso, configuração completa, versões, hashes do código/protocolo e módulos de integração, quatro hashes pré-acesso, três hashes históricos, escopo físico, operação `evaluate_and_publish_once`, oito nomes relativos e `test_authorized=false`; sem caminhos absolutos |
+| `context.json` | Schema `invoice-execution-context/1.0`; UUID, data, SHA/caminho do freeze, `project_root`, `run_dir`, destino `run_dir/results`, oito caminhos absolutos canônicos e hashes pré-acesso; TEST/raw com hashes nulos |
+| `authorization.json` | Schema `invoice-real-authorization/1.3`; `approve_once`, responsável/referência, emissão e expiração com fuso, SHA do freeze, SHA do contexto, SHA da configuração canônica, mesmo destino, split `test`, escopo físico, operação explícita, finalidade acadêmica e reconhecimento das limitações |
+| `authorization_claim.json` | Recibo `invoice-real-authorization-claim/1.2`, exclusivo, com hashes externos, configuração, autorização, destino e procedência; não é evidência de execução ou resultado |
 
 Os quatro hashes pré-acesso descrevem TRAIN, VALIDATION, modelo e metadata; a
 identidade modelo/metadata deve coincidir com o contrato legado. Nenhum hash de
@@ -404,11 +411,13 @@ TEST/raw é admitido nessa lista. Os caminhos incluem esses quatro arquivos,
 **apenas como strings**: o gate não resolve,
 consulta stat, lê ou hasheia esses inputs. Registra `input_hashes_verified=false`,
 pois validar a sintaxe e o vínculo dos pins não verifica os bytes atuais dos dados.
-Somente documentos JSON e a allowlist fixa de código/protocolo são lidos.
+Somente documentos de permissão, a allowlist fixa de código/protocolo e os três
+JSONs históricos de VALIDATION são lidos; nenhum dataset/modelo é aberto no gate.
 
 Os registros do gate ficam em destino externo ao checkout, como os registros
-sintéticos existentes. O freeze deve ser `run_dir/freeze.json`; outro destino ou
-cópia não altera o destino vinculado. O recibo é criado com modo exclusivo `xb`.
+sintéticos existentes. O contexto deve ser `run_dir/context.json` e declarar o
+caminho exato do freeze portátil externo. Outro destino ou cópia de documentos
+não altera os vínculos nem concede outra tentativa. O recibo é criado com modo exclusivo `xb`.
 Recibo, início, falha ou resultados preexistentes bloqueiam a tentativa, inclusive
 um recibo parcial. Não existe retry/limpeza automática; a proteção depende de
 preservar os registros locais, não é um controle global contra exclusão deliberada.
@@ -416,8 +425,8 @@ preservar os registros locais, não é um controle global contra exclusão delib
 JSON duplicado, não finito, com campos desconhecidos, configuração divergente,
 split/finalidade incompatíveis e hashes inválidos são rejeitados. Comparações de
 hash ignoram maiúsculas/minúsculas sem regravar os documentos. Código/ambiente e
-hashes dos dois documentos são conferidos antes de criar o recibo. Os documentos
-ficam vinculados à cronologia `congelamento <= aprovação <= presente < expiração`,
+hashes dos três documentos são conferidos antes de criar o recibo. Os documentos
+ficam vinculados à cronologia `congelamento <= contexto <= aprovação <= presente < expiração`,
 com fuso explícito; datas futuras ou autorização expirada não são aceitas.
 
 O responsável deverá fornecer a referência de aprovação e o hash esperado da
@@ -429,8 +438,10 @@ artificiais para testar o contrato, nunca como procedimento de aprovação real.
 O recibo mantém `source_reconciled=false`,
 `legacy_training_provenance_certified=false` e `raw_independence_certified=false`.
 Aceitar as limitações não as remove. `test_used=false`,
-`data_access_performed=false`, `real_execution_available=false`, `model_fits=0`
+`data_access_performed=false`, `evaluation_started=false`, `model_fits=0`
 e `score_calls=0` tornam explícito que nenhum acesso/avaliação foi executado.
+`real_execution_available=true` indica apenas existência da API separada, não
+início de execução. Contratos reais 1.0/1.1/1.2 antigos são recusados, sem migração implícita.
 Nenhuma autorização ou congelamento real foi emitido nesta implementação.
 
 Verificação específica, somente com contratos sintéticos:
@@ -475,12 +486,13 @@ real de aprovação ou congelamento foi criado nessa pasta ou no checkout.
 `ml/scripts/invoice_real_inputs.py` contém a API
 `validate_authorized_inputs(freeze_path, authorization_path, receipt_path, *,
 expected_freeze_sha256, expected_authorization_sha256, expected_receipt_sha256,
-start_input_validation=False, split="test")`. Não há CLI, execução no import,
+context_path, expected_context_sha256, start_input_validation=False, split="test")`. Não há CLI, execução no import,
 emissor de aprovação, callback de scoring ou uso de dados reais nos testes.
 
-O contrato 1.1 substitui os descritores artificiais 1.0 para essa rota. Exige
+O contrato vigente 1.3 substitui os descritores artificiais 1.0/1.1/1.2 para essa rota. Exige
 `expires_at` e `access_scope=processed_test_and_physical_shared_raw_for_consistency_only`
-nos documentos. Não há migração automática de uma autorização antiga. Nenhuma
+nos documentos, além da operação explícita e vínculo às evidências históricas.
+Não há migração automática de uma autorização antiga. Nenhuma
 autorização real foi criada. Essa mudança não altera as 19 features, o modelo,
 o offset, os orçamentos ou qualquer decisão metodológica.
 
@@ -489,7 +501,7 @@ Sequência técnica:
 1. Sem início explícito, documentos/pins completos ou split autorizado, rejeitar
    antes de qualquer I/O. Os pins devem vir do fluxo externo confiável; SHA-256
    não autentica a pessoa que aprovou.
-2. Revalidar freeze/autorização, hashes de código e ambiente, expiração e recibo
+2. Revalidar freeze/contexto/autorização, hashes de código e ambiente, expiração e recibo
    estrito. Reconstruir seu conteúdo esperado a partir dos documentos vinculados,
    incluindo configuração, cronologia, destino e limites de procedência.
 3. Recusar tentativas/resultados existentes e criar `execution_started.json` em
@@ -522,9 +534,9 @@ continua recusando configuração real. Não existe autoexecução depois de um 
 ou retorno válido. O controle local impede repetição acidental, não exclusão
 deliberada dos registros nem substitui o canal independente de autorização humana.
 
-Antes de qualquer uso real, deve ser concluída a ligação real até scoring e
-publicação, com revisão sintética do fluxo completo. O responsável deverá então
-registrar o congelamento exclusivo e fornecer autorização verificável. Não fazer um ensaio
+O incremento descrito adiante implementa a ligação até scoring e publicação,
+com revisão sintética do fluxo completo. Antes de qualquer uso real, o responsável
+deverá registrar o congelamento exclusivo e fornecer autorização verificável. Não fazer um ensaio
 real da rota: ler TEST para validar inputs já é uma abertura que consome a
 tentativa. Não houve ajuste de threshold, tuning, retreinamento ou uso de respostas
 simuladas de revisão cega. Os resultados das fixtures não são evidência científica.
@@ -559,6 +571,9 @@ continuam limitações, não falhas sanadas pelos testes de software.
 
 ### Auditoria estática pré-TEST — 01–02/10/2026
 
+Registro histórico: as duas pendências abaixo motivaram o incremento de
+05/10/2026; não descrevem bloqueadores de implementação ainda abertos.
+
 - Corrigido acesso pelos comandos históricos: `avaliar_invoice`,
   `diagnosticar_triagem_invoice`, `comparar_triagem_invoice` e
   `preparar_revisao_cega_invoice` recusam checkout/descendentes e redirecionamento
@@ -583,3 +598,373 @@ continuam limitações, não falhas sanadas pelos testes de software.
   dos patches desta auditoria e, para o incremento seguinte, testes exclusivamente
   sintéticos da ligação real e do vínculo de evidências. Nenhum conteúdo de TEST
   foi lido nem seu hash recalculado; `source_reconciled=false` permanece obrigatório.
+
+## Integração autorizada até publicação — 05/10/2026
+
+### Vínculo verificável ao histórico
+
+`invoice_historical_evidence.verify_historical_evidence` lê somente os três
+JSONs fixos em `ml/experiments/`, contra os SHA-256 do item 3 do
+[protocolo](invoice_academic_evaluation_protocol.md). Nesta etapa seus bytes
+foram conferidos e preservados. Verifica schema sem chaves duplicadas/números
+não finitos, versões, split VALIDATION, 19 features ordenadas, parâmetros,
+offset, hashes pré-acesso registrados e referências entre os três artefatos.
+Também confere o fingerprint comum de IDs e igualdade da triagem IF entre os
+registros de triagem e comparação. A ordem das chaves JSON não muda a validação.
+
+Os três registros identificam o mesmo modelo e a mesma coorte de VALIDATION.
+Eles já existiam no commit `87d8621`; timestamps autodeclarados não provam a
+data da execução nem a origem do treinamento. O registro de comparação vincula
+os outros dois JSONs, e o de triagem vincula a avaliação inicial. Não se
+recalcularam métricas nem se abriram os datasets/modelos referenciados. Seus
+hashes declarados são comparados entre registros, não novamente medidos nos
+dados. `test_used=false` histórico não certifica isolamento físico dos raw.
+
+### API explícita e estágios
+
+`invoice_real_evaluation.run_authorized_evaluation` não possui CLI nem execução
+na importação. Por padrão `start_evaluation=False`; requer quatro pins externos,
+freeze portátil 1.0, contexto 1.0, autorização 1.3 vigente e recibo ainda não consumido. Recebe somente
+documentos/pins e confirmação de início, nunca frame/modelo/métricas/destino
+alternativos. Mantém as regras metodológicas do protocolo sem tuning ou fit.
+
+1. **Preparação:** congelamento exclusivo, incluindo código, ambiente,
+   configuração, identidades pré-acesso e três JSONs históricos. Nesta tarefa
+   não foi emitido um congelamento real.
+2. **Autorização:** canal independente fornece aprovação e hashes esperados;
+   gate valida documentos e produz apenas recibo. Hash não autentica uma pessoa.
+3. **Validação:** chamada explícita do runner consome a rota de inputs, com
+   marcador exclusivo antes da leitura. Arquivos, modelo, labels, IDs, splits,
+   19 features, ordem e consistência das linhas são verificados. O registro
+   contém fingerprint do frame e hash do estado do modelo em memória.
+4. **Cálculo:** reconfere os documentos, vigência e inputs; cria
+   `evaluation_started.json` exclusivo; chama o núcleo compartilhado de métricas
+   uma única vez. Mantém os três orçamentos e a matriz de seleção@K, não uma
+   classificação automática de fraude. A API pública sintética não foi liberada
+   para configuração real.
+5. **Publicação:** reconfere inputs e recibos, escreve `results.pending`, valida
+   manifesto e vínculos internos, reconfere vigência/inputs e renomeia para
+   `results`. Falha conserva marcadores e parciais; nenhum retry/sobrescrita.
+
+O bundle contém `freeze.json`, `context.json`, `authorization.json`, `authorization_claim.json`,
+`execution_started.json`, `inputs_validated.json`, `evaluation_started.json`,
+`evidence.json` e `manifest.json`. `verify_real_bundle` exige pins externos do
+manifesto, freeze, contexto e autorização; lê **apenas esse bundle**, sem datasets ou
+reavaliação. Verifica hashes, destino, configuração, cronologia, cadeia dos
+recibos, procedência e invariantes estruturais das métricas (coorte, orçamentos
+e totais das matrizes), não uma revalidação semântica exaustiva de cada métrica.
+O verificador público aceita somente `results`, nunca `results.pending`; um
+parcial íntegro continua sendo uma tentativa não publicada. O verificador interno
+de staging não muda esse estado. Expiração é verificada no instante
+registrado da execução: auditoria posterior não significa nova autorização.
+
+A validação input-only continua sem scoring/publicação; executá-la consome a
+tentativa e impede retomá-la pelo runner. Não usar essa rota como ensaio real.
+Marcadores locais evitam repetição acidental; não são trava global nem sandbox
+contra alteração deliberada de código/arquivos por um operador privilegiado.
+Pins do manifesto devem ser retidos por canal independente. Coerência interna
+de um bundle fabricado não comprova execução ou assinatura humana.
+
+`source_rows_consistent=true` não promove procedência: `source_reconciled=false`,
+`legacy_training_provenance_certified=false` e `raw_independence_certified=false`
+permanecem obrigatórios. Os raw compartilhados só pertencem ao futuro escopo de
+acesso explicitamente autorizado; não foram lidos, filtrados ou hasheados aqui.
+Saídas dos testes existem apenas em diretórios temporários com dados artificiais,
+não são evidência acadêmica e não entram em `ml/experiments/`.
+
+### Validação técnica e próximo marco
+
+Testes adicionais cobrem autorização ausente/adulterada/expirada, contrato antigo,
+hash/configuração/split/features incompatíveis, duplicação, destino/cópia do
+freeze, publicação sem execução, alteração dos inputs entre estágios, mutação
+do frame/modelo/recibo e adulteração do bundle. A revisão independente identificou
+reconferência de inputs antes da publicação e normalização de hashes do recibo;
+ambas receberam regressões RED→GREEN, preservando os bytes salvos.
+
+Para repetir somente validações de software no ambiente compatível:
+
+```powershell
+python -m pytest -q tests/invoice -p no:cacheprovider
+python -m pytest -q -p no:cacheprovider
+python -m ruff check ml/scripts/invoice_final_evaluation.py ml/scripts/invoice_real_inputs.py ml/scripts/invoice_real_evaluation.py ml/scripts/invoice_historical_evidence.py tests/invoice/test_invoice_authorization.py tests/invoice/test_invoice_real_inputs.py tests/invoice/test_invoice_real_evaluation.py tests/invoice/test_invoice_historical_evidence.py tests/invoice/invoice_history_fixtures.py
+git diff --check
+```
+
+Esses comandos usam fixtures; não executar nenhum runner com dados reais.
+Resultados consolidados desta verificação estão no ledger do
+[plano técnico](superpowers/plans/2026-10-02-invoice-authorized-execution.md).
+O próximo marco continua sendo revisão do congelamento formal e autorização
+humana independente, não abertura automática de TEST. Nenhum resultado
+científico, threshold, label, modelo ou notebook Supplier foi modificado.
+
+## Revisão pré-congelamento — 06/10/2026
+
+A revisão independente identificou resolução de caminhos de documentos antes
+da recusa lexical, ambiguidade entre bundle parcial e publicado e uma lacuna
+nos testes de referências históricas. O gate agora valida os nomes dos documentos
+antes de resolvê-los, e a rota vincula o caminho do recibo antes da resolução.
+Isso evita inspecionar um caminho de input informado por engano como documento;
+não representa descoberta de uma leitura real de TEST nesta etapa.
+
+Uma falha na última reconferência deixa `results.pending` e `failure.json`,
+sem publicação nem retry. `verify_real_bundle` recusa esse parcial. A publicação
+exige os três recibos de execução antes de preparar o diretório; o runner confere
+seus bytes e os inputs. Os testes históricos agora repinam a cadeia descendente
+da fixture e verificam o motivo semântico da recusa, evitando falsos positivos.
+Resultados de QA ficam no ledger do plano, sem incorporar métricas sintéticas.
+
+### Preparação, não autorização
+
+[invoice_freeze_preparation.json](invoice_freeze_preparation.json) é um inventário
+**não executável**, com identificador único do candidato, configuração, versões,
+hashes dos códigos, dos quatro arquivos pré-acesso e dos três JSONs históricos.
+Os quatro arquivos foram somente hasheados, sem leitura analítica de Parquet,
+desserialização do modelo, inferência ou uso da rota real. Seus hashes coincidem
+com as referências históricas. Os campos de procedência permanecem falsos.
+
+O inventário **não é** `freeze.json`, não tem schema de autorização, destino de
+execução, aprovador ou recibo. `formal_freeze=false` e `test_authorized=false`.
+Os caminhos futuros de TEST/raw são apenas descritores; seus hashes permanecem
+`null` porque seu conteúdo não foi aberto. Não preencher esses hashes agora.
+O schema do rascunho é recusado pelo gate, mesmo se renomeado para `freeze.json`.
+
+Antes da abertura futura: revisar e emitir um congelamento exclusivo compatível
+com o código/ambiente efetivos, então obter aprovação humana e pins por canal
+independente. Qualquer mudança posterior de código invalida o snapshot anterior
+e exige nova revisão antes da autorização, não reuso silencioso de hashes.
+Os notebooks Supplier locais não fazem parte da allowlist de código Invoice;
+seus bytes foram preservados, sem corrigir hashes históricos retroativamente.
+
+Não chamar a rota real como ensaio. Permanecem as limitações de origem do fit,
+labels, temporalidade e utilidade operacional, bem como a ausência de proteção
+contra um operador privilegiado que fabrique/substitua arquivos e pins.
+
+## Contrato portátil e contexto de execução — 06/10/2026
+
+**Implementado para revisão técnica; não emitido para uso real.** O módulo
+`invoice_execution_context.py` valida a estrutura e o vínculo; não possui emissor
+de autorização, CLI, carregador de datasets ou execução automática. Consulte os
+campos no gate acima e a seção 11 do protocolo.
+
+O freeze anterior 1.2 misturava configuração e localização. Agora o portátil 1.0
+identifica **o quê**; o contexto 1.0 fixa **onde/com quais arquivos**; a autorização
+1.3 vincula ambos ao destino. Não se retiraram as proteções de caminhos: elas
+foram movidas ao contexto e continuam verificadas antes dos inputs. Nenhuma
+interpretação de compatibilidade ou integridade certifica a origem do fit legado.
+
+A API do gate recebe `context_path` e `expected_context_sha256`; as APIs de inputs
+e avaliação exigem esses mesmos argumentos, além dos pins anteriores. Ordem
+interna dos documentos/pins: freeze, autorização, recibo, contexto. O recibo
+pré-acesso usa schema 1.2; registros de inputs/scoring/evidência e manifesto usam
+1.1. O manifesto inclui os bytes de `context.json`. A auditoria do bundle exige
+também o pin externo desse contexto, sem reabrir inputs. A API puramente sintética
+e seu contrato permanecem inalterados.
+
+A configuração não muda ao ser transportada, mas um contexto de outra máquina
+não reutiliza aprovação antiga. Autorizações antigas são recusadas sem migração.
+Alteração de qualquer documento entre estágios interrompe a tentativa e mantém
+marcadores/artefatos parciais; não há retomada automática nem overwrite.
+
+### Inventário anterior e próxima emissão
+
+`invoice_freeze_preparation.json` permanece como inventário histórico **anterior**
+a esta alteração de código. Seus hashes de código/protocolo não identificam a
+implementação 1.3 atual. Não foi regravado nem promovido a freeze formal. Após
+revisão desta implementação, será necessário auditar novamente os arquivos
+permitidos e emitir o freeze e contexto reais em etapa própria. Não preencher
+hashes de TEST/raw nessa preparação.
+
+Os dois notebooks Supplier não integram o contrato Invoice e permanecem
+intocados. Nenhuma evidência histórica ou métrica científica foi regravada.
+A identidade de conteúdos ainda fechados não é certificada: seus hashes serão
+registrados somente após eventual acesso autorizado, não como prova retroativa
+de independência. Não testar a rota com inputs reais como ensaio.
+
+### Limite de segurança
+
+O binding é verificação de integridade local em filesystem cooperativo, não
+assinatura humana, sandbox ou trava global. Pins e custódia independentes são
+necessários; exclusão deliberada dos marcadores, fabricação de autorização/pins
+ou substituição privilegiada de código não são neutralizadas por SHA-256.
+Nenhum freeze definitivo ou autorização humana foi criado nesta etapa.
+
+**Fechamento técnico em 07/10/2026:** o verificador confronta também os oito nomes
+e o formato dos hashes dos inputs registrados, além dos quatro hashes pré-acesso
+contra o freeze/contexto. Concordância entre dois recibos não basta se contradiz
+a identidade congelada. Essa verificação lê somente os JSONs do bundle.
+Somente o freeze é portátil: o bundle publicado continua vinculado ao destino
+original, não é aceito em outro diretório. Verificação sem resolver os caminhos
+históricos não equivale a autorização para deslocar uma execução.
+
+## Auditoria de emissão — 11/10/2026: congelamento não emitido
+
+**Estado desta etapa:** pré-condições não satisfeitas. Nenhum freeze formal,
+contexto real ou autorização humana foi criado. O inventário de preparação
+continua histórico/não executável. TEST e raw não foram abertos ou hasheados;
+nenhuma rota foi chamada com dados reais. `source_reconciled=false` permanece.
+
+Contratos vigentes: freeze portátil 1.0, contexto 1.0 e autorização 1.3.
+O inventário ainda descreve a antiga preregistration/autorização 1.2; quatro
+hashes de código/protocolo mudaram e `invoice_execution_context.py` não está
+incluído na sua lista antiga. Não basta renomear ou promover esse inventário.
+A referência a contrato 1.2 em `model_strategy.md` também precisa ser atualizada
+no fechamento, sem reescrever os registros históricos.
+
+### Integridade permitida conferida
+
+Foram recalculados os hashes dos quatro arquivos pré-acesso, dos três JSONs
+históricos, dos 11 arquivos da allowlist de código/protocolo, dos requirements
+e de `.python-version`. TRAIN/VALIDATION e modelo foram somente hasheados,
+sem desserialização. Os quatro inputs e os três JSONs coincidem com os pins
+anteriores; a função de verificação histórica confirmou referências internas,
+configuração, IDs registrados e consistência dos resultados já armazenados,
+sem recalcular métricas. Isso não certifica a procedência do treinamento legado.
+
+Python 3.14.3 e os 22 pins dos dois requirements correspondem aos metadados da
+`.venv` atual. Seus imports principais funcionam, mas ela inclui pacotes globais:
+não é comprovação de reprodução limpa isolada. O ambiente temporário de QA
+anterior está incompleto: conserva metadados, mas faltam módulos importáveis;
+a tentativa inicial de testes nele terminou antes da coleta. Nada foi instalado.
+O contrato executável confere somente Python e cinco bibliotecas; não vincula
+os bytes dos requirements nem todos os pins transitivos. Essa cobertura precisa
+ser explicitamente resolvida antes de alegar congelamento integral do ambiente.
+
+### Bloqueios reproduzidos somente com fixtures sintéticas
+
+Na `.venv` existente, cinco módulos de testes de contrato e duas sondagens
+adicionais em memória produziram **316 passed, 2 failed, 1 skipped em 107,15 s**.
+As sondagens não foram gravadas como novos testes no repositório. O skip foi
+`test_symlinked_history_is_rejected`: symlinks indisponíveis no Windows.
+
+- **Promoção manual de tentativa falha:** injetar uma falha na última
+  reconferência de inputs, preservar `failure.json`, renomear o staging completo
+  de `results.pending` para o destino contratado `results` e verificar com os
+  mesmos pins não causa a recusa esperada. O verificador não distingue esse
+  estado de uma publicação concluída com sucesso.
+- **Mutação entre verificação e promoção:** alterar bytes de `evidence.json`
+  no staging durante a última reconferência de inputs não interrompe o runner;
+  o diretório é promovido sem uma nova verificação desses bytes.
+
+Ambos os cenários exigem intervenção externa nos arquivos da fixture; não são
+execução espontânea, reexecução automática ou quebra da autorização pré-acesso.
+Ainda assim, impedem afirmar a garantia de publicação solicitada nesta etapa.
+Corrigir/testar o vínculo de conclusão e a integridade no momento da promoção
+antes de emitir um congelamento; não tentar corrigir resultados reais.
+
+A instrumentação registrou **zero tentativas de abertura de dados/modelos reais**.
+Ruff dos 12 arquivos Python envolvidos passou; `git diff --check` passou, com
+avisos de conversão LF/CRLF preexistentes. Não foi executada regressão completa,
+pois o gate de emissão já falhou nos testes focados e não houve mudança de código.
+A nova revisão independente foi tentada, mas os dois agentes não iniciaram por
+limite de uso; não se registra aprovação independente desta etapa.
+
+**Retomada:** corrigir as duas fronteiras de publicação, persistir suas regressões,
+resolver a cobertura dos pins, concluir revisão independente e só então renovar
+o inventário e emitir freeze/contexto. Autorização humana continuará separada.
+
+## Correção dos bloqueadores — 11/10/2026
+
+Esta seção sucede a auditoria acima, cujas falhas e números foram preservados
+como histórico. A correção não emite freeze, contexto real ou autorização.
+
+### Publicação reconhecida somente após conclusão
+
+O manifesto real passa a `invoice-real-manifest/1.2`. O runner fixa seu SHA-256
+a partir dos bytes que ele próprio gerou em memória; não aceita um manifesto
+substituído durante a última conferência. Verifica o staging antes e depois da
+reconferência de inputs, sua identidade de diretório e os bytes no destino após
+a promoção. Só então, com autorização ainda vigente, cria exclusivamente
+`run_dir/publication_complete.json` (`invoice-real-publication/1.0`). O recibo
+vincula manifesto, freeze, contexto, autorização, destino e instante de conclusão.
+
+`verify_real_bundle` exige esse recibo fora de `results.pending`, além do bundle
+e dos pins independentes. Lê somente JSONs e o estado de conclusão/falha da
+execução, nunca os datasets. Recusa `failure.json` no diretório de execução ou
+no bundle, ausência/adulteração do recibo, manifesto divergente e cronologia
+inválida. Renomear um staging completo não produz o recibo. Apagar somente o
+marcador de falha tampouco certifica uma tentativa como concluída. Um marcador
+de falha já existente é preservado sem mascarar a causa original da exceção.
+O recibo também bloqueia uma nova tentativa; não existe retomada automática.
+
+Uma falha após a renomeação pode deixar um diretório chamado `results`: o nome
+sozinho **não** significa sucesso. Ausência de conclusão ou presença de falha
+impede aceitação pelo verificador. A autorização usada na cronologia é a mesma
+cujos bytes foram verificados, sem releitura não pinada. O relógio é conferido
+novamente depois da verificação do destino e antes da criação do recibo.
+
+**Garantia e limite:** conferência de bytes nos pontos de verificação, identidade
+do diretório, criação exclusiva e recusa de publicação parcial em filesystem
+cooperativo. Não há transação atômica global entre dados, diretório e recibo,
+garantia de durabilidade contra falta de energia, nem defesa contra um operador
+que reescreva código, todos os marcadores e pins. Modificações detectadas após
+promoção invalidam a publicação; não se promete impedir fisicamente toda escrita
+concorrente. Custódia/pins externos e permissões continuam necessários.
+
+### Ambiente integralmente identificado pelo contrato
+
+Freeze portátil passa de 1.0 para **1.1**, sem migração silenciosa. Contexto 1.0,
+autorização 1.3, configuração/metodologia e 19 features permanecem inalterados.
+A allowlist passa a incluir `requirements.txt`, `requirements-dev.txt` e
+`.python-version`, além dos 11 arquivos de código/protocolo, incluindo o módulo
+de contexto. Verificam-se os hashes desses descritores e todas as versões
+ativas antes de aceitar o ambiente: freeze = metadados instalados = pins.
+
+São **22 distribuições ativas no Windows e Python 3.14.3**. Os markers de
+plataforma são respeitados; `colorama` é específico de Windows. A verificação
+consulta metadados de instalação, sem importar cada pacote, instalar, atualizar
+ou alterar requirements. Requisitos não exatos, ambíguos ou ausentes são
+recusados. Metadados compatíveis não comprovam todos os imports, integridade
+dos binários ou reprodução limpa: a `.venv` utilizada inclui pacotes globais.
+
+### Inventário e fronteira preservada
+
+O inventário de preparação é renovado após as correções/testes com os hashes
+atuais, versões completas e resultados de QA. Continua `draft_not_executable`,
+com `formal_freeze=false`, sem contexto real e sem autorização. A revisão
+substitui a representação antiga de caminhos diferidos por estados sem caminhos
+ou hashes de TEST/raw. Não é aceito pelo gate como freeze.
+
+`source_reconciled=false`, ausência de certificação do fit legado e limites de
+independência dos raw permanecem explícitos. Integridade de bytes e testes
+sintéticos não demonstram procedência nem utilidade científica. Nenhum resultado
+histórico, modelo, dataset ou notebook é alterado por essas correções.
+
+### Verificação das correções
+
+Os dois cenários da auditoria tornaram-se regressões permanentes em
+`test_invoice_real_evaluation.py`: promoção manual de tentativa falha e mutação
+do staging durante a conferência final. Há cobertura adicional para manifesto
+repinado, troca de diretório, alteração durante a promoção e conclusão ausente.
+Os casos parametrizados de `test_invoice_real_inputs.py` agora partem de contexto
+válido e exigem erro/mensagem específicos, com controle positivo de alcance.
+`test_invoice_environment.py` cobre os pins completos e contratos incompatíveis.
+
+| Execução sintética | Aprovados | Falhas | Skips | Duração |
+|---|---:|---:|---:|---:|
+| Publicação e inputs | 162 | 0 | 0 | 253,31 s |
+| Ambiente, contexto e autorização | 195 | 0 | 0 | 24,48 s |
+| Executor sintético compartilhado | 70 | 0 | 1 | 15,26 s |
+| Invoice, antes dos dois ajustes finais de revisão | 727 | 0 | 8 | 416,09 s |
+| Regressões finais de revisão e replay | 6 | 0 | 0 | 16,82 s |
+| Regressão final do projeto, incluindo Invoice corrigido | 955 | 0 | 8 | 456,70 s |
+
+As contagens das rodadas se sobrepõem; não devem ser somadas como testes únicos.
+Na suíte Invoice e na regressão geral, **26 testes de `test_invoice_eda.py` foram
+deliberadamente excluídos**, pois executam células do notebook. Houve somente
+coleta estática para conferir essa quantidade, não execução dessas células.
+Os oito skips são de symlinks sem privilégio Windows: cinco no adaptador, um no
+executor sintético, um no histórico e um na fronteira legada. Não contam como
+aprovações. As guardas temporárias de QA bloquearam os caminhos reais de dados,
+modelos e experimentos nos carregadores e no audit hook Python: **zero tentativas
+detectadas em todas as rodadas**. Não são um sandbox universal do sistema.
+
+A revisão independente identificou releitura de autorização não pinada e relógio
+capturado antes da conferência do destino. Ambas foram reproduzidas em dois
+testes inicialmente falhos e corrigidas; a reconferência independente não
+identificou bloqueadores adicionais nesse escopo. Ruff nos sete arquivos Python
+envolvidos e `git diff --check` passaram. Avisos de normalização futura LF/CRLF
+do Git não foram tratados com reformatacao fora de escopo.
+
+Permanece pendente a etapa separada de revisão/emissão do freeze formal e contexto,
+seguida, somente posteriormente, da autorização humana independente. Não foi
+emitido nenhum desses artefatos reais; o gate continua bloqueado por padrão.

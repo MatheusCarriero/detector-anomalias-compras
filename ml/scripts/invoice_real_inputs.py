@@ -8,7 +8,9 @@ exercise it exclusively with generated, external fixtures.
 import hashlib
 from datetime import timezone
 from io import BytesIO
+from pathlib import Path
 
+import joblib
 import numpy as np
 import pandas as pd
 
@@ -19,12 +21,15 @@ TEST_INPUT = "data/processed/test_features.parquet"
 ACCESS_SCOPE = "processed_test_and_physical_shared_raw_for_consistency_only"
 
 
-def _documents(freeze_path, authorization_path, receipt_path, pins):
+def _documents(freeze_path, authorization_path, receipt_path, pins, *, context_path):
     freeze, authorization, paths, hashes, now = executor._load_real_authorization(
         freeze_path, authorization_path,
         expected_freeze_sha256=pins[0], expected_authorization_sha256=pins[1],
+        context_path=context_path, expected_context_sha256=pins[3],
     )
-    run_dir = paths[0].parent
+    run_dir = Path(freeze["run_dir"])
+    if Path(receipt_path).absolute() != run_dir / "authorization_claim.json":
+        raise ValueError("Recibo deve pertencer ao destino congelado")
     receipt_path = executor._external(receipt_path)
     if receipt_path != run_dir / "authorization_claim.json":
         raise ValueError("Recibo deve pertencer ao destino congelado")
@@ -39,17 +44,18 @@ def _documents(freeze_path, authorization_path, receipt_path, pins):
     issued_at = executor._gate_time(authorization["issued_at"])
     if not issued_at <= claimed_at <= now:
         raise PermissionError("Cronologia do recibo incompativel com autorizacao")
-    expected = executor._claim_record(freeze, authorization, *hashes, receipt["created_at"])
+    expected = executor._claim_record(freeze, authorization, *hashes[:2], receipt["created_at"])
     normalized = receipt.copy()
-    for key in ("freeze_sha256", "authorization_sha256", "configuration_sha256"):
+    for key in ("freeze_sha256", "authorization_sha256", "configuration_sha256", "context_sha256"):
         normalized[key] = executor._digest(receipt.get(key))
     if executor._canonical(normalized) != executor._canonical(expected):
         raise PermissionError("Recibo diverge da autorizacao/configuracao congelada")
-    return freeze, authorization, (*paths, receipt_path), (*hashes, receipt_hash)
+    return freeze, authorization, (*paths[:2], receipt_path, paths[2]), (*hashes[:2], receipt_hash, hashes[2])
 
 
 def _live_contract(freeze, authorization, documents, hashes):
     executor._check_sources(freeze)
+    executor._check_real_evidence(freeze)
     if [executor.sha256(path) for path in documents] != list(hashes):
         raise ValueError("Documento alterado durante a validacao")
     # Clock checked last: expensive hashes must not extend expired permission.
@@ -132,10 +138,11 @@ def _source_consistency(frames, content):
 
 def validate_authorized_inputs(freeze_path, authorization_path=None, receipt_path=None, *,
                                expected_freeze_sha256=None, expected_authorization_sha256=None,
-                               expected_receipt_sha256=None, start_input_validation=False, split="test"):
+                               expected_receipt_sha256=None, start_input_validation=False, split="test",
+                               context_path=None, expected_context_sha256=None):
     """Consume permission once and return validated inputs, without evaluation.
 
-    All three pins must come from the trusted external approval/receipt workflow.
+    All four pins must come from the trusted external approval/receipt workflow.
     A hash checks integrity, not human identity. Default invocation cannot read
     inputs. Starting validation consumes the run even on failure; never remove
     its marker to retry. A returned object is NOT authorization to score it.
@@ -144,20 +151,22 @@ def validate_authorized_inputs(freeze_path, authorization_path=None, receipt_pat
         raise PermissionError("Validacao de inputs exige inicio explicito; avaliacao nao automatica")
     if not isinstance(split, str) or split != "test":
         raise PermissionError("Split solicitado nao autorizado pelo contrato final")
-    pins = (expected_freeze_sha256, expected_authorization_sha256, expected_receipt_sha256)
-    if authorization_path is None or receipt_path is None or any(pin is None for pin in pins):
-        raise PermissionError("Autorizacao, recibo e tres hashes externos obrigatorios")
+    pins = (expected_freeze_sha256, expected_authorization_sha256, expected_receipt_sha256,
+            expected_context_sha256)
+    if authorization_path is None or receipt_path is None or context_path is None or any(pin is None for pin in pins):
+        raise PermissionError("Autorizacao, recibo e quatro hashes externos obrigatorios")
     pins = tuple(executor._digest(pin) for pin in pins)
     freeze, authorization, documents, hashes = _documents(
-        freeze_path, authorization_path, receipt_path, pins,
+        freeze_path, authorization_path, receipt_path, pins, context_path=context_path,
     )
-    run_dir = documents[0].parent
+    run_dir = Path(freeze["run_dir"])
     executor._ensure_real_unused(run_dir, include_claim=False)
     now = _live_contract(freeze, authorization, documents, hashes)
     marker = {
-        "schema": "invoice-real-input-start/1.0", "created_at": now.isoformat(),
+        "schema": "invoice-real-input-start/1.1", "created_at": now.isoformat(),
         "freeze_sha256": hashes[0], "authorization_sha256": hashes[1],
         "receipt_sha256": hashes[2], "configuration": freeze["configuration"],
+        "context_sha256": hashes[3], "destination": freeze["destination"],
         "access_scope": freeze["access_scope"], "source_reconciled": False,
         "input_validation_started": True, "data_access_may_have_started": True,
         "evaluation_started": False, "model_fits": 0, "score_calls": 0,
@@ -188,10 +197,11 @@ def validate_authorized_inputs(freeze_path, authorization_path=None, receipt_pat
                 raise ValueError("Input alterado durante validacao; nao publicar")
         _live_contract(freeze, authorization, documents, hashes)
         record = {
-            "schema": "invoice-real-input-validation/1.0",
+            "schema": "invoice-real-input-validation/1.1",
             "created_at": executor.datetime.now(timezone.utc).isoformat(),
             "freeze_sha256": hashes[0], "authorization_sha256": hashes[1],
             "receipt_sha256": hashes[2], "configuration": freeze["configuration"],
+            "context_sha256": hashes[3], "destination": freeze["destination"],
             "configuration_sha256": hashlib.sha256(executor._canonical(freeze["configuration"])).hexdigest(),
             "provenance": freeze["configuration"]["provenance"],
             "source_reconciled": False, "source_rows_consistent": True,
@@ -200,6 +210,7 @@ def validate_authorized_inputs(freeze_path, authorization_path=None, receipt_pat
             "model_fits": 0, "score_calls": 0, "split": "test",
             "rows": {name: len(part) for name, part in frames.items()},
             "features": list(executor.ORDERED_FEATURES), "feature_count": 19,
+            "frame_sha256": adapter._table_digest(frame), "model_state_joblib_hash": joblib.hash(model),
             "currency": currency, "input_hashes_sha256": input_hashes,
             "accessed_files": list(content), "access_scope": freeze["access_scope"],
             "source_sha256": freeze["source_sha256"], "versions": executor._versions(),

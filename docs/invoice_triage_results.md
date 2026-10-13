@@ -290,14 +290,18 @@ Criados nesta etapa:
 README, roadmap e somente a seção Invoice da estratégia de modelos foram
 atualizados para refletir triagem; mudanças locais anteriores foram preservadas.
 
-Comando do diagnóstico, **já executado**:
+Comando histórico do diagnóstico, **já executado** (não reexecutar com dados reais):
 
 ```powershell
 python -m ml.scripts.diagnosticar_triagem_invoice --split val
 ```
 
-A saída já existe: a reexecução é recusada antes de ler dados. Para consulta,
-ler o JSON; não apagar evidência para repetir. Comandos de qualidade:
+A saída já existe: a reexecução é recusada antes de ler dados. **Nota técnica de
+06/10/2026:** o carregador histórico também recusa o checkout real; filtros não
+isolam os raw compartilhados de TEST. Não copiar fontes reais para contornar a
+guarda de fixtures. Para consulta, ler o JSON; não apagar evidência para repetir.
+O fluxo futuro depende do [contrato vigente](invoice_final_executor.md).
+Comandos de qualidade:
 
 ```powershell
 python -I -B -m pytest -q -p no:cacheprovider

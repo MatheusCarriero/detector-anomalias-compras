@@ -13,6 +13,8 @@ import joblib
 import numpy as np
 import pandas as pd
 import pytest
+from invoice_context_fixtures import seal_context, separate
+from invoice_history_fixtures import write_history
 from sklearn.ensemble import IsolationForest
 
 from ml.scripts import invoice_data_adapter as adapter
@@ -133,17 +135,21 @@ def bundle(tmp_path, generated, monkeypatch):
     # Sole test substitution: synthetic identity and offset; all validation still runs.
     monkeypatch.setattr(executor, "real_configuration_contract", lambda: copy.deepcopy(configuration))
     freeze = {
-        "schema": "invoice-real-preregistration/1.1", "access_scope": SCOPE,
+        "schema": "invoice-real-preregistration/1.2", "access_scope": SCOPE,
+        "authorized_operation": "evaluate_and_publish_once",
         "created_at": (NOW - timedelta(minutes=2)).isoformat(), "run_dir": str(run),
         "project_root": str(project), "configuration": copy.deepcopy(configuration),
         "versions": executor._versions(),
-        "source_sha256": {name: digest((ROOT / name).read_bytes()) for name in (
-            *executor.SOURCE_NAMES, "ml/scripts/invoice_data_adapter.py", "ml/scripts/invoice_real_inputs.py")},
+        "source_sha256": {name: digest((ROOT / name).read_bytes()) for name in executor.REAL_SOURCE_NAMES},
         "pre_access_sha256": {name: digest((project / name).read_bytes()) for name in PRE_ACCESS},
         "input_paths": {name: str(project / name) for name in INPUTS},
     }
+    freeze["historical_evidence_sha256"] = write_history(
+        project, configuration, freeze["pre_access_sha256"], monkeypatch,
+    )
     authorization = {
-        "schema": "invoice-real-authorization/1.1", "access_scope": SCOPE, "decision": "approve_once",
+        "schema": "invoice-real-authorization/1.2", "access_scope": SCOPE, "decision": "approve_once",
+        "authorized_operation": "evaluate_and_publish_once",
         "authorized_by": "SYNTHETIC_NOT_A_HUMAN_APPROVAL", "authorization_reference": "GENERATED_FIXTURE",
         "issued_at": (NOW - timedelta(minutes=1)).isoformat(), "expires_at": (NOW + timedelta(hours=1)).isoformat(),
         "freeze_sha256": "", "configuration_sha256": "", "run_dir": str(run), "split": "test",
@@ -152,6 +158,8 @@ def bundle(tmp_path, generated, monkeypatch):
     value = {"project": project, "run": run, "freeze": freeze, "auth": authorization,
              "freeze_path": run / "freeze.json", "auth_path": tmp_path / "authorization.json",
              "receipt_path": run / "authorization_claim.json"}
+    value["context"] = separate(freeze, authorization, value["freeze_path"])
+    value["context_path"] = run / "context.json"
     seal(value)
     for name in ("fit", "fit_predict", "predict", "score_samples", "decision_function"):
         monkeypatch.setattr(IsolationForest, name, forbidden)
@@ -159,14 +167,10 @@ def bundle(tmp_path, generated, monkeypatch):
 
 
 def seal(bundle):
-    content = canonical(bundle["freeze"])
-    bundle["freeze_path"].write_bytes(content)
-    bundle["auth"]["freeze_sha256"] = digest(content)
-    bundle["auth"]["configuration_sha256"] = digest(canonical(bundle["freeze"]["configuration"]))
-    bundle["auth_path"].write_bytes(canonical(bundle["auth"]))
-    bundle["pins"] = {"expected_freeze_sha256": digest(content),
-                      "expected_authorization_sha256": digest(bundle["auth_path"].read_bytes())}
-
+    bundle["pins"] = seal_context(
+        bundle["freeze"], bundle["context"], bundle["auth"], bundle["freeze_path"],
+        bundle["context_path"], bundle["auth_path"],
+    )
 
 def claim(bundle):
     receipt = executor.claim_real_evaluation_authorization(bundle["freeze_path"], bundle["auth_path"], **bundle["pins"])
@@ -180,7 +184,7 @@ def invoke(bundle, **overrides):
 
 
 def deny_declared_inputs(monkeypatch, bundle):
-    declared = {os.path.normcase(os.path.abspath(path)) for path in bundle["freeze"]["input_paths"].values()}
+    declared = {os.path.normcase(os.path.abspath(path)) for path in bundle["context"]["input_paths"].values()}
     for owner, name in ((builtins, "open"), (io, "open"), (os, "open"), (os, "stat"), (os, "lstat")):
         original = getattr(owner, name)
 
@@ -211,22 +215,57 @@ def test_explicit_validation_route_is_available():
     assert callable(getattr(route, "validate_authorized_inputs", None))
 
 
-@pytest.mark.parametrize("overrides", [
-    {"start_input_validation": False}, {"start_input_validation": 1},
-    {"authorization_path": None}, {"receipt_path": None},
-    {"expected_freeze_sha256": None}, {"expected_authorization_sha256": None},
-    {"expected_receipt_sha256": None}, {"expected_receipt_sha256": "bad"},
-    {"split": "train"}, {"split": "val"}, {"split": "TEST"}, {"split": None},
+@pytest.mark.parametrize("overrides,error,reason", [
+    ({"start_input_validation": False}, PermissionError, "inicio explicito"),
+    ({"start_input_validation": 1}, PermissionError, "inicio explicito"),
+    ({"authorization_path": None}, PermissionError, "quatro hashes externos"),
+    ({"receipt_path": None}, PermissionError, "quatro hashes externos"),
+    ({"expected_freeze_sha256": None}, PermissionError, "quatro hashes externos"),
+    ({"expected_authorization_sha256": None}, PermissionError, "quatro hashes externos"),
+    ({"expected_receipt_sha256": None}, PermissionError, "quatro hashes externos"),
+    ({"expected_receipt_sha256": "bad"}, ValueError, "SHA-256 invalido"),
+    ({"split": "train"}, PermissionError, "Split solicitado"),
+    ({"split": "val"}, PermissionError, "Split solicitado"),
+    ({"split": "TEST"}, PermissionError, "Split solicitado"),
+    ({"split": None}, PermissionError, "Split solicitado"),
 ])
-def test_invalid_request_rejected_before_any_filesystem_access(tmp_path, monkeypatch, overrides):
-    args = {"authorization_path": tmp_path / "authorization.json", "receipt_path": tmp_path / "authorization_claim.json",
-            "expected_freeze_sha256": "1" * 64, "expected_authorization_sha256": "2" * 64,
-            "expected_receipt_sha256": "3" * 64, "start_input_validation": True, **overrides}
+def test_invalid_request_rejected_before_any_filesystem_access(bundle, monkeypatch, overrides, error, reason):
+    claim(bundle)
+    args = {"authorization_path": bundle["auth_path"], "receipt_path": bundle["receipt_path"],
+            "start_input_validation": True, **bundle["pins"], **overrides}
     with monkeypatch.context() as context:
         for name in ("open", "resolve", "stat"):
             context.setattr(Path, name, forbidden)
-        with pytest.raises((ValueError, PermissionError, TypeError)):
-            route.validate_authorized_inputs(tmp_path / "freeze.json", **args)
+        with pytest.raises(error, match=reason):
+            route.validate_authorized_inputs(bundle["freeze_path"], **args)
+
+
+def test_valid_request_reaches_document_validation_with_complete_context(bundle, monkeypatch):
+    claim(bundle)
+
+    def reached_documents(*args, **kwargs):
+        assert kwargs["context_path"] == bundle["context_path"]
+        assert args[3][3] == bundle["pins"]["expected_context_sha256"]
+        raise RuntimeError("Synthetic request reached document validation")
+
+    monkeypatch.setattr(route, "_documents", reached_documents)
+    with pytest.raises(RuntimeError, match="reached document validation"):
+        invoke(bundle)
+
+
+def test_input_path_as_receipt_rejected_before_resolution(bundle, monkeypatch):
+    claim(bundle)
+    invalid = bundle["project"] / TEST_INPUT
+    original = Path.resolve
+
+    def resolve(path, *args, **kwargs):
+        assert path != invalid, "Input path resolved before receipt binding"
+        return original(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "resolve", resolve)
+    with pytest.raises(ValueError, match="Recibo"):
+        invoke(bundle, receipt_path=invalid)
+    assert_not_started(bundle)
 
 
 def test_authorized_inputs_preserve_model_and_publish_only_validation(bundle, generated, monkeypatch):
@@ -260,13 +299,13 @@ def test_authorized_inputs_preserve_model_and_publish_only_validation(bundle, ge
     assert record["provenance"] == PROVENANCE
     assert json.loads((bundle["run"] / "inputs_validated.json").read_bytes()) == record
     assert {path.name for path in bundle["run"].iterdir()} == {
-        "freeze.json", "authorization_claim.json", "execution_started.json", "inputs_validated.json"}
+        "freeze.json", "context.json", "authorization_claim.json", "execution_started.json", "inputs_validated.json"}
     assert {name: digest((bundle["project"] / name).read_bytes()) for name in INPUTS} == before
     with pytest.raises(FileExistsError):
         invoke(bundle)
 
 
-@pytest.mark.parametrize("document", ["freeze_path", "auth_path", "receipt_path"])
+@pytest.mark.parametrize("document", ["freeze_path", "auth_path", "receipt_path", "context_path"])
 @pytest.mark.parametrize("fault", ["missing", "tampered"])
 def test_missing_or_unpinned_documents_never_access_inputs(bundle, monkeypatch, document, fault):
     claim(bundle)
@@ -283,9 +322,10 @@ def test_missing_or_unpinned_documents_never_access_inputs(bundle, monkeypatch, 
 
 @pytest.mark.parametrize("field,value", [
     ("freeze_sha256", "0" * 64), ("authorization_sha256", "0" * 64),
-    ("configuration_sha256", "0" * 64), ("source_reconciled", True),
+    ("configuration_sha256", "0" * 64), ("context_sha256", "0" * 64),
+    ("destination", "/other/results"), ("source_reconciled", True),
     ("data_access_performed", True), ("score_calls", 1), ("model_fits", 1),
-    ("real_execution_available", True), ("unexpected", True),
+    ("real_execution_available", False), ("unexpected", True),
 ])
 def test_repinned_receipt_must_match_every_binding(bundle, monkeypatch, field, value):
     claim(bundle)
@@ -438,8 +478,14 @@ def test_repinned_model_identity_does_not_bypass_fitted_contract(bundle, generat
     for name, key in ((PRE_ACCESS[2], "model_sha256"), (PRE_ACCESS[3], "model_metadata_sha256")):
         value = digest((bundle["project"] / name).read_bytes())
         config[key] = bundle["freeze"]["pre_access_sha256"][name] = value
+        bundle["context"]["input_hashes_sha256"][name] = value
     expected = copy.deepcopy(config)
     monkeypatch.setattr(executor, "real_configuration_contract", lambda: copy.deepcopy(expected))
+    # Bind generated history to this fixture so validation reaches the fitted
+    # model contract, rather than failing at the independent byte-identity gate.
+    bundle["freeze"]["historical_evidence_sha256"] = write_history(
+        bundle["project"], config, bundle["freeze"]["pre_access_sha256"], monkeypatch,
+    )
     seal(bundle)
     claim(bundle)
     with pytest.raises((ValueError, TypeError)):
@@ -502,7 +548,7 @@ def test_repinned_contract_must_still_match_protocol_before_inputs(bundle, monke
     elif fault == "configuration":
         bundle["freeze"]["configuration"]["features"] = list(reversed(FEATURES))
     elif fault == "paths":
-        bundle["freeze"]["input_paths"][TEST_INPUT] = str(bundle["project"] / PRE_ACCESS[0])
+        bundle["context"]["input_paths"][TEST_INPUT] = str(bundle["project"] / PRE_ACCESS[0])
     elif fault == "prehash":
         bundle["freeze"]["pre_access_sha256"][PRE_ACCESS[2]] = "0" * 64
     else:
@@ -510,6 +556,7 @@ def test_repinned_contract_must_still_match_protocol_before_inputs(bundle, monke
     seal(bundle)
     # Even an internally consistent, re-pinned receipt cannot expand protocol authority.
     receipt.update({"freeze_sha256": bundle["pins"]["expected_freeze_sha256"],
+                    "context_sha256": bundle["pins"]["expected_context_sha256"],
                     "authorization_sha256": bundle["pins"]["expected_authorization_sha256"],
                     "configuration_sha256": digest(canonical(bundle["freeze"]["configuration"])),
                     "configuration": bundle["freeze"]["configuration"], "authorization": bundle["auth"]})

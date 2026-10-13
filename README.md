@@ -12,7 +12,7 @@ As fontes representam populações diferentes, sem chaves reais comuns para inte
 
 | Domínio | Concluído | Pendente |
 |---|---|---|
-| Invoice Anomaly | 19 features, auditoria, triagem e comparação IF × valor em VALIDATION; executor sintético, adaptador, gate e rota de validação de inputs implementados | Ligação real entre inputs autorizados, cálculo e publicação; vínculo verificável às evidências anteriores; depois, congelamento/autorização. TEST fechado; procedência e utilidade humana limitadas |
+| Invoice Anomaly | 19 features, auditoria, triagem e comparação IF × valor em VALIDATION; adaptador, gate e integração inputs → cálculo → publicação com testes sintéticos e vínculo aos três JSONs históricos | Congelamento formal e autorização humana independente antes de eventual avaliação única. TEST fechado; `source_reconciled=false`, procedência e utilidade humana limitadas |
 | Supplier Risk | Preparação, EDA TRAIN, baselines/ablações, CV exploratória, configuração LR/C congelada e avaliação final única documentada | Procedência da label/índice, validade externa e eventual uso operacional; não reabrir TEST |
 | Purchase Risk | Dataset analisado, granularidade da fonte em linha de pedido e fronteira pré-aprovação documentadas | Escolher anomalia ou desfecho específico; feature engineering, modelagem e avaliação |
 
@@ -122,7 +122,7 @@ tests/
 └── supplier_risk/  # preparação, splits, ML-Ready e evidência experimental/final
 ```
 
-A suíte usa fixtures sintéticas e diretórios temporários, sem depender de Kaggle, Parquets reais, credenciais ou treinamento de modelos reais. Alguns testes ajustam transformadores e modelos exclusivamente sintéticos. `pytest.ini` explicita `pythonpath = .`, evitando que imports de `ml` em uma seleção isolada dependam da ordem de coleta de outros testes. Na auditoria pré-TEST de 01–02/10/2026, pytest e Ruff não foram executados; alterações dessa etapa aguardam validação manual.
+A suíte usa fixtures sintéticas e diretórios temporários, sem depender de Kaggle, Parquets reais, credenciais ou treinamento de modelos reais. Alguns testes ajustam transformadores e modelos exclusivamente sintéticos. `pytest.ini` explicita `pythonpath = .`, evitando que imports de `ml` em uma seleção isolada dependam da ordem de coleta de outros testes. A auditoria de 01–02/10/2026 foi apenas estática; sua validação foi incluída no fechamento sintético de 05/10/2026, registrado no [ledger técnico](docs/superpowers/plans/2026-10-02-invoice-authorized-execution.md).
 
 Resultado local da consolidação anterior: **113 testes aprovados**, aproximadamente **5 a 17 segundos** nas execuções locais da suíte; Ruff: `All checks passed!`. São cobertos deduplicação, nulos preservados na base, conflitos de target, determinismo do hash, reconciliação de IDs, train-only, alinhamento X/y e reexecução equivalente. A contagem 113 é uma linha de base histórica, não uma expectativa fixada para a suíte após novos testes.
 
@@ -264,6 +264,11 @@ O projeto ainda não possui aplicação backend/frontend ou banco integrado. Sup
 
 ## Invoice Anomaly — avaliação histórica concluída
 
+A [EDA acadêmica Invoice](docs/invoice_eda.md), com
+[notebook executado](ml/notebooks/01_invoice_eda.ipynb), descreve exclusivamente
+o TRAIN processado e suas 19 features. Não consulta raw compartilhados,
+VALIDATION ou TEST e não altera a modelagem.
+
 A primeira avaliação da fase 6 foi concluída com o artefato existente, sem treino,
 tuning ou novas features. O [protocolo histórico de VALIDATION](docs/invoice_validation.md)
 define score de anomalia, regra original de classificação, baseline sem alertas
@@ -325,10 +330,11 @@ O [contrato acadêmico Invoice](docs/invoice_academic_evaluation_protocol.md)
 define o recorte retrospectivo, a comparação futura e seus limites. O executor
 sintético, o adaptador TRAIN/VALIDATION, o gate bloqueado por padrão e a rota de
 validação de inputs autorizados já existem. **Validar inputs não executa avaliação.**
-A API de métricas ainda exige `synthetic_holdout`; falta a ligação real até cálculo
-e publicação, além da verificação dos JSONs históricos vinculados ao congelamento.
-Ver [contrato técnico](docs/invoice_final_executor.md). Essas pendências precisam
-de implementação/revisão sintética antes do congelamento formal e autorização
-humana por canal independente. `source_reconciled=false` permanece obrigatório:
+A API pública sintética ainda exige `synthetic_holdout`. A integração separada
+`invoice_real_evaluation.py` liga autorização, inputs, cálculo e publicação, com
+vínculo verificável aos bytes dos três JSONs históricos. Foi exercitada somente
+com fixtures. Ver [contrato técnico](docs/invoice_final_executor.md). Ainda faltam
+congelamento formal e autorização humana por canal independente.
+`source_reconciled=false` permanece obrigatório:
 consistência de linhas não certifica procedência do fit legado. **TEST permanece
 fechado**, sem retreino, novas features, tuning ou mudança de threshold.

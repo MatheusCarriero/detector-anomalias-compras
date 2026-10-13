@@ -233,16 +233,19 @@ Nenhum arquivo preexistente foi editado. As alterações locais anteriores conti
 no checkout e não pertencem a esta entrega. HEAD permanece `b624204`, sem staging
 ou novo commit; os cinco arquivos desta entrega permanecem não rastreados.
 
-Para reprodução independente, a partir da raiz, com os mesmos artefatos e ambiente:
+Comando histórico utilizado naquela etapa (não é instrução vigente de reexecução):
 
 ```powershell
 python -m ml.scripts.comparar_triagem_invoice --split val
 ```
 
 **A execução atual já terminou.** O comando recusa sobrescrever o JSON existente
-antes de acessar dados/modelo; não apagar a evidência para repetir. Uma reprodução
-deve usar cópia separada e conferida do projeto/artefatos. O ambiente principal
-não foi reparado nem declarado reproduzível nesta etapa.
+antes de acessar dados/modelo; não apagar a evidência para repetir. **Nota técnica
+de 06/10/2026:** a rota histórica agora admite somente fixtures externas e recusa
+o checkout real, pois filtros de linhas não isolam fisicamente TEST. Não copiar
+dados reais para contornar essa proteção. Consultar o JSON preservado e o
+[contrato vigente](invoice_final_executor.md) para qualquer etapa futura autorizada.
+O ambiente principal não foi reparado nem declarado reproduzível naquela etapa.
 
 Verificações sintéticas, sem datasets:
 

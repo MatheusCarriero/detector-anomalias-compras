@@ -1,20 +1,22 @@
 # Roadmap de implementação
 
-## Estado vigente — auditoria pré-TEST de 01–02/10/2026
+## Estado vigente — integração técnica pré-TEST de 05/10/2026
 
-Invoice já possui executor sintético, adaptador TRAIN/VALIDATION, gate bloqueado
-por padrão e rota separada de validação de inputs autorizados. Não confundir
-esses componentes com um executor real ponta a ponta: faltam a ligação do recibo
-de inputs ao scoring/publicação e a verificação dos bytes dos JSONs históricos
-vinculados ao congelamento. Concluir e revisar isso com fixtures sintéticas é
-condição anterior a qualquer congelamento formal/autorização humana. Não iniciar
-a rota real somente para conferir inputs: ela já consome a tentativa de acesso.
+Invoice possui executor sintético, adaptador TRAIN/VALIDATION, gate bloqueado
+por padrão e rota separada de validação de inputs autorizados. A integração
+explícita até scoring/publicação e a verificação dos bytes dos três JSONs
+históricos foram implementadas com fixtures sintéticas. A referência técnica
+vigente é [o contrato do executor](invoice_final_executor.md), sem avaliação real.
+O próximo marco exige congelamento formal e autorização humana independente;
+a implementação não os substitui. Não iniciar a rota real somente para conferir
+inputs: ela já consome a tentativa de acesso e não admite retomada para scoring.
 
 As rotas históricas que leem raw compartilhado agora recusam o checkout real,
 inclusive com destino alternativo; filtros de linhas não isolam TEST.
 `source_reconciled=false`, procedência do fit legado não certificada e ausência
 de utilidade operacional comprovada permanecem explícitos. TEST Invoice fechado.
-Nenhuma avaliação, teste, Ruff ou notebook foi executado nesta auditoria estática.
+Nesta integração há testes sintéticos e Ruff; não houve avaliação científica,
+inferência real, leitura de TEST ou execução de notebook.
 
 Supplier concluiu sua avaliação final acadêmica; não repetir. A nota de
 rastreabilidade do seu relatório distingue notebooks locais de bytes congelados,
@@ -221,7 +223,7 @@ Mesmo um resultado favorável não supre validação externa/temporal nem prova 
 
 **CONCLUÍDO:** avaliação consolidada/por `fraud_type`, auditoria metodológica, diagnóstico de triagem e comparação IF versus valor em VALIDATION nos orçamentos 1%/5%/10%, preservando 19 features e a configuração (`IsolationForest`, 200 árvores, `contamination=0.22`, `random_state=42`, `n_jobs=-1`). Sem retreino, tuning ou seleção de threshold. O objetivo vigente é priorização de faturas incomuns para auditoria humana. Teste técnico da revisão cega encerrado e excluído da evidência acadêmica; nenhuma revisão humana válida realizada.
 
-**IMPLEMENTADO — técnico:** executor sintético, adaptador, gate e rota de inputs. **PENDENTE — acadêmico:** completar/revisar a ligação real de scoring/publicação e o vínculo às evidências anteriores, depois congelamento e autorização segundo o [contrato](invoice_academic_evaluation_protocol.md). Eventual avaliação final única compara as duas estratégias em todos os orçamentos, sem retreino ou ajuste condicionado a TEST. A procedência parcial do fit e a validade não comprovada da referência permanecem explícitas.
+**IMPLEMENTADO — técnico:** executor sintético, adaptador, gate, rota de inputs, integração explícita até publicação e vínculo aos bytes das evidências anteriores; testes somente sintéticos. **PENDENTE — acadêmico:** congelamento formal e autorização humana segundo o [contrato](invoice_academic_evaluation_protocol.md). Eventual avaliação final única compara as duas estratégias em todos os orçamentos, sem retreino ou ajuste condicionado a TEST. A procedência parcial do fit e a validade não comprovada da referência permanecem explícitas.
 
 **Gate acadêmico:** configuração, métricas e conclusões admissíveis registradas antes do acesso; revisão técnica, autorização explícita e evidência de execução única, sem alegar certificação retroativa do treinamento legado. Este gate não foi executado/liberado nesta etapa. O score não é probabilidade de fraude.
 

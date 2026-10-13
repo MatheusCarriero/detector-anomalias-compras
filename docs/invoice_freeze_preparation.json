@@ -1,0 +1,337 @@
+{
+  "schema": "invoice-freeze-preparation/1.1",
+  "status": "draft_not_executable",
+  "freeze_candidate_id": "invoice-prefreeze-4dbb67f7-1206-43a2-82b4-0cbb4fb946de",
+  "prepared_at": "2026-10-12T00:38:39.684926+00:00",
+  "formal_freeze": false,
+  "test_authorized": false,
+  "scientific_evidence": false,
+  "real_input_route_executed": false,
+  "configuration": {
+    "schema": "invoice-real-configuration/1.0",
+    "mode": "real_pre_access",
+    "protocol_version": "invoice-academic-evaluation-1.0",
+    "split": "test",
+    "features": [
+      "invoice_amount",
+      "log_invoice_amount",
+      "supplier_age_days",
+      "supplier_frequency",
+      "country_frequency",
+      "amount_vs_supplier_mean",
+      "supplier_amount_zscore",
+      "department_frequency",
+      "amount_vs_department_mean",
+      "supplier_department_frequency",
+      "payment_terms_days",
+      "invoice_type_encoded",
+      "submission_hour_sin",
+      "submission_hour_cos",
+      "day_of_week_sin",
+      "day_of_week_cos",
+      "month_sin",
+      "month_cos",
+      "is_weekend"
+    ],
+    "parameters": {
+      "n_estimators": 200,
+      "contamination": 0.22,
+      "random_state": 42,
+      "n_jobs": -1,
+      "max_samples": "auto",
+      "max_features": 1.0,
+      "bootstrap": false,
+      "warm_start": false,
+      "verbose": 0
+    },
+    "legacy_offset": -0.5211491197816622,
+    "model_sha256": "c9c0f51a9c962fac5ea6b34db5e0b74f09c120896bf9e7bf3a87418df2adba1b",
+    "model_metadata_sha256": "ba07485e8dda458e45376b6edc4bd164926efe2c6ca8385cde32f7309db86595",
+    "budget_percentages": [
+      1,
+      5,
+      10
+    ],
+    "decision_rule": "selection_at_k",
+    "score_rule": "negative_score_samples_descending",
+    "baseline": "invoice_amount_descending_signed",
+    "tie_break": "invoice_id_ascending",
+    "preprocessing": "existing_19_features_no_refit",
+    "purpose": "academic_retrospective_triage",
+    "provenance": {
+      "source_reconciled": false,
+      "legacy_training_provenance_certified": false,
+      "raw_independence_certified": false
+    }
+  },
+  "environment": {
+    "versions": {
+      "python": "3.14.3",
+      "pandas": "2.3.3",
+      "numpy": "2.5.2",
+      "pyarrow": "25.0.1",
+      "scikit-learn": "1.9.0",
+      "joblib": "1.6.0",
+      "openpyxl": "3.1.5",
+      "python-dateutil": "2.9.0.post0",
+      "pytz": "2026.2",
+      "tzdata": "2025.3",
+      "six": "1.17.0",
+      "et-xmlfile": "2.0.0",
+      "scipy": "1.18.1",
+      "threadpoolctl": "3.6.0",
+      "narwhals": "2.21.2",
+      "cloudpickle": "3.1.2",
+      "pytest": "9.1.1",
+      "ruff": "0.16.5",
+      "colorama": "0.4.6",
+      "iniconfig": "2.3.0",
+      "packaging": "26.0",
+      "pluggy": "1.6.0",
+      "pygments": "2.20.0"
+    },
+    "active_distribution_count": 22,
+    "pins_match_installed_metadata": true,
+    "marker_platform": "win32",
+    "python_implementation": "CPython",
+    "scope": "existing_project_venv_with_system_site_packages",
+    "isolated_clean_install_verified_in_this_task": false,
+    "packages_installed_or_upgraded": false,
+    "verification": "importlib.metadata and exact requirements pins; not an import test of every package or a binary integrity certificate"
+  },
+  "code_state": {
+    "base_commit": "08d4cafdb7595b9e47d1a72325b757e62be77cfc",
+    "working_tree_dirty": true,
+    "committed_snapshot": false,
+    "reconciliation": {
+      "reconciled_at": "2026-10-12T20:22:47+00:00",
+      "previous_base_commit": "5a85b3ab3947223baf6c0956f1b8751fdc31883c",
+      "previous_inventory_sha256": "50463bea1c12d3f945721f5cc6bfecf2a455d22ad26c9a5852c947a6ca20ff61",
+      "verified_groups": [
+        "code_state.source_sha256",
+        "code_state.supporting_sha256",
+        "historical_evidence_sha256"
+      ],
+      "verified_artifact_count": 28,
+      "scope": "Documentary reconciliation only: exact bytes of source/support files and the three historical JSONs. Original prepared_at, environment/runtime checks, pre-access data/model hashes, semantic historical checks and QA remain historical records and were not repeated. No dataset/model access, pipeline, test execution or authorization."
+    },
+    "source_sha256": {
+      "ml/scripts/invoice_final_evaluation.py": "b7c646a101d4d3ae2bf8e9fb34447e12e20de3f7a7c31e23597a97a45343af42",
+      "ml/scripts/avaliar_invoice.py": "57e17340a7e6b5ac159ca83c3901ade4450ab2c4b4a89cf9bb18cbf6fc626f10",
+      "ml/scripts/comparar_triagem_invoice.py": "663e7a893d88a697e60b8efc076e48705166a39f1c7b23670cf8ff1ae71d901b",
+      "ml/scripts/diagnosticar_triagem_invoice.py": "2ab28658e5e5b2f4884e9bd4b7aab4c67c4f625607e871c3cc0e174ed527c2d9",
+      "ml/scripts/treinar_modelo.py": "6f275d212822f02dab7fd697575091db117389e907c6d5d8bc0667a031d519cf",
+      "docs/invoice_academic_evaluation_protocol.md": "7765e8bc1f782a5d96ae4499dc2e9093b4dd1b3a139f605b539b23b1d1f30bd4",
+      "ml/scripts/invoice_data_adapter.py": "f249cce9894a31aa972e048acabbbb3b9c4e06bcf4a117799bcd38d46213da79",
+      "ml/scripts/invoice_real_inputs.py": "a5637808c1f9442d60854f9e551a0678ddc5d9b5c0e5b673dc474f92774b6810",
+      "ml/scripts/invoice_historical_evidence.py": "59940ff29ca59f230670a2fdf1a282b488c4394a1ea5a22120a8b6165edad813",
+      "ml/scripts/invoice_real_evaluation.py": "c29b42381377eea9360b82492f1dd74d4ebb514719ba2bfab9d4daef1a02e948",
+      "ml/scripts/invoice_execution_context.py": "7f49bd4b515b84c3c77001fa9f27da23b71da2ca3f9d0ebba7afe16c0e25e80a",
+      "requirements.txt": "25a28ab09eaedd5d7e945589238b118ddfda365d85fe754fdc224e5b385fc3f8",
+      "requirements-dev.txt": "446603fd9977cf787835256016987ad256376c38697b73252fb00ae24d7fec1c",
+      ".python-version": "5ab05f548328863dd73c057cc6bde305fc62a87522b3f28eadb9bbdd3b1409be"
+    },
+    "supporting_sha256": {
+      "pytest.ini": "4909a4efe98ea2250e9997e126f8e87ab8610fcce7f26c816fc212965d33c70d",
+      "docs/invoice_final_executor.md": "fd18452eed02a129e20989db8f6a3cc819de936b256c830b7c79ca71f150b701",
+      "docs/model_strategy.md": "77361fb0d7e7d97ba1d85f2e657d42fa0d6a34d0dfff8a62cd4a41caa777bc47",
+      "tests/invoice/test_invoice_authorization.py": "3abfb04df5bb815826e62ff2c283fa048760c26923a95380a920d8d15f339786",
+      "tests/invoice/test_invoice_real_inputs.py": "09e54e368d4794f72038e51e2865f12532fe5bed338b87fe1b91d256e8a9eb12",
+      "tests/invoice/test_invoice_real_evaluation.py": "ca1ad1c7db567f22f707df0a7839c733a091f251406c0a6d892dfab0093cc13f",
+      "tests/invoice/test_invoice_historical_evidence.py": "7a926fe1ad1b30474286b479b41016a342d38fdee9431626f4ebeb7de1112194",
+      "tests/invoice/invoice_history_fixtures.py": "04ea3dd912cf6806112633646a3f5236509ab2660c91b3d755aaa487474ee531",
+      "tests/invoice/test_invoice_execution_context.py": "ff74064b6041c3478d20329956ae9de24fba37a3d5ebe4f6f2ae4fb6ab8da708",
+      "tests/invoice/invoice_context_fixtures.py": "84e45c5037c43ea46160255fa92524d6f55637e0a4d27bed51d730dbebad138e",
+      "tests/invoice/test_invoice_environment.py": "c820c145bcb6aaa1a7c3048cc6acd36dda31b6a353ffc4d48d759a269cd22eee"
+    },
+    "line_endings_note": "Hashes identify exact working-tree bytes, not normalized Git blobs; recheck after checkout or formatting."
+  },
+  "pre_access_sha256": {
+    "data/processed/train_features.parquet": "41cfbb25baa62c1c201ce5bbc310589fd41656efae9c1d51684716cea0d6e72b",
+    "data/processed/val_features.parquet": "564d399b84c01650dfe48c3e99b06bdf88fff686eeb7dd492e568f4cd5be12d2",
+    "ml/models/isolation_forest.joblib": "c9c0f51a9c962fac5ea6b34db5e0b74f09c120896bf9e7bf3a87418df2adba1b",
+    "ml/models/model_metadata.json": "ba07485e8dda458e45376b6edc4bd164926efe2c6ca8385cde32f7309db86595"
+  },
+  "pre_access_verification": {
+    "method": "SHA-256 of the four explicitly allowed separate files",
+    "matches_historical_pins": true,
+    "parquet_deserialized": false,
+    "model_deserialized": false,
+    "scoring_performed": false,
+    "verified_at": "2026-10-12T00:38:39.684926+00:00"
+  },
+  "historical_evidence_sha256": {
+    "ml/experiments/invoice_validation_v1.json": "1218ed395095c69dd8d3439e27b7e1416dfeba68b8f1d9d83328e2c2f27e12f9",
+    "ml/experiments/invoice_triage_validation_v1.json": "ff218d45c54c2376d43b0be46bfda93ba8eb438c8ebd72c395e67fe7cfbdfb3d",
+    "ml/experiments/invoice_value_comparison_v1.json": "9f47cdb9d70ca0cded04aef63cf4e8c1794118b84533fc880f1cba44ab59beea"
+  },
+  "historical_validation_ids_sha256": "e8667d99df1dd9f43e8c369fa20188d1f1a5cce916dac0fe5db22287747df640",
+  "historical_verification": {
+    "exact_bytes_checked": true,
+    "internal_references_checked": true,
+    "configuration_compatible": true,
+    "metrics_recomputed": false,
+    "training_provenance_certified": false,
+    "verified_at": "2026-10-12T00:38:39.684926+00:00"
+  },
+  "provenance": {
+    "source_reconciled": false,
+    "legacy_training_provenance_certified": false,
+    "raw_independence_certified": false
+  },
+  "supplier_notebooks_scope": "Preexisting local changes preserved; excluded from Invoice executable sources and any future staging unless separately authorized. Historical Supplier hashes were not rewritten.",
+  "required_report_metrics": [
+    "rows",
+    "k",
+    "known_positives",
+    "precision_at_k",
+    "positive_capture",
+    "lift",
+    "fraud_type_composition_and_concentration",
+    "common_and_exclusive_cases",
+    "exclusive_positives",
+    "overlap",
+    "jaccard",
+    "net_positive_gain",
+    "confusion_matrix_and_by_fraud_type_at_each_global_k"
+  ],
+  "known_limitations": [
+    "Legacy model hash identifies current bytes; it does not certify training inputs, original environment or exclusion of TEST from the historical fit.",
+    "Shared raw Parquets contain one row group each; row filters do not isolate TEST. A later source_rows_consistent=true must never promote source_reconciled to true.",
+    "is_fraud and fraud_type are imperfect evaluation references, not certified business fraud.",
+    "Historical TRAIN aggregates are not point-in-time features; previous validation mostly concerns already-known suppliers.",
+    "The top 1% is strongly concentrated in INFLATED; IF does not uniformly dominate invoice-value ranking.",
+    "No validated human review, operational utility, financial return or causal effect has been established. Simulated reviewers are excluded.",
+    "Hashes verify byte integrity, not human identity or authorization authenticity.",
+    "Exclusive local markers prevent accidental replay/overwrite, not deliberate privileged filesystem/code manipulation.",
+    "Windows symlink-dependent test cases remain skipped on this host; they were not counted as passing.",
+    "Bundle verification checks hashes, bindings and limited metric invariants; it does not independently recompute or exhaustively audit every scientific metric."
+  ],
+  "required_before_any_real_access": [
+    "Review this non-executable preparation; do not rename it or feed it to any real runner.",
+    "Review and issue a separate exclusive portable freeze and its bound context using current code/environment in a later authorized preparation stage; do not rename this inventory.",
+    "Obtain a real approval identity/reference and trusted authorization hashes from the responsible person through an independent channel; no approval is generated here.",
+    "Explicit approval must acknowledge unresolved legacy provenance and physical shared-raw access scope.",
+    "Do not run input validation as a rehearsal: any real input-only attempt consumes the attempt and cannot be resumed as final evaluation.",
+    "Only after formal freeze and independent permission may the future one-shot runner read/hash the deferred inputs. This artifact grants no permission."
+  ],
+  "previous_preparation_sha256": "036021fd68d98e9c93ceb0a6fcf31910dc14ae436b48067c103007f6e0ae7563",
+  "previous_prepared_at": "2026-10-06T13:41:01.0512349+00:00",
+  "formal_context": false,
+  "human_authorization_created": false,
+  "contracts": {
+    "portable_freeze": "invoice-portable-freeze/1.1",
+    "execution_context": "invoice-execution-context/1.0",
+    "authorization": "invoice-real-authorization/1.3",
+    "authorization_claim": "invoice-real-authorization-claim/1.2",
+    "configuration": "invoice-real-configuration/1.0",
+    "manifest": "invoice-real-manifest/1.2",
+    "publication_completion": "invoice-real-publication/1.0"
+  },
+  "deferred_access": {
+    "test": {
+      "sha256": null,
+      "content_accessed": false,
+      "paths_in_inventory": false,
+      "status": "closed_until_separate_independent_authorization"
+    },
+    "shared_raw": {
+      "sha256": null,
+      "content_accessed": false,
+      "paths_in_inventory": false,
+      "status": "closed_until_separate_independent_authorization"
+    }
+  },
+  "protected_notebooks_preserved_sha256": {
+    "ml/notebooks/01_invoice_eda.ipynb": "c2bfb6cadf51559a1603741b14a3eb557d5ce0e8c3cf411f72b4674a72379c8e",
+    "ml/supplier_risk/notebooks/01_supplier_risk_eda.ipynb": "f750a05c83637f09faa9c9fce357c8f0448bc98f47f1d3e0bfc150e6f2f83e3f",
+    "ml/supplier_risk/notebooks/02_supplier_risk_baseline_models.ipynb": "8c31090637683cc0391075e5211b78ee3772cbf98a6b8a0ba479c0b1283dcc46",
+    "ml/supplier_risk/notebooks/03_supplier_risk_validation_analysis.ipynb": "90076cca3fe20421305faf135c366abde76a19b2f873766ef938ed3cdfe02754"
+  },
+  "publication_guarantees": {
+    "failure_marker_rejects_publication": true,
+    "completion_receipt_required": true,
+    "manifest_pin_from_generated_bytes": true,
+    "checks_before_and_after_promotion": true,
+    "staging_directory_identity_checked": true,
+    "completion_uses_pinned_authorization": true,
+    "permission_rechecked_after_destination_verification": true,
+    "global_filesystem_atomicity_claimed": false,
+    "privileged_writer_protection_claimed": false,
+    "note": "Local cooperative-filesystem checks and exclusive markers; external custody remains necessary"
+  },
+  "audit_scope": {
+    "protected_access_attempts_outside_allowlist": 0,
+    "datasets_deserialized": false,
+    "models_deserialized": false,
+    "notebooks_executed": false,
+    "scientific_metrics_recomputed": false
+  },
+  "qa": {
+    "synthetic_only": true,
+    "focused_runs": [
+      {
+        "scope": "publication_and_inputs",
+        "passed": 162,
+        "failed": 0,
+        "skipped": 0,
+        "seconds": 253.31
+      },
+      {
+        "scope": "environment_context_authorization",
+        "passed": 195,
+        "failed": 0,
+        "skipped": 0,
+        "seconds": 24.48
+      },
+      {
+        "scope": "shared_synthetic_executor",
+        "passed": 70,
+        "failed": 0,
+        "skipped": 1,
+        "seconds": 15.26
+      },
+      {
+        "scope": "final_review_regressions_and_replay",
+        "passed": 6,
+        "failed": 0,
+        "skipped": 0,
+        "seconds": 16.82
+      }
+    ],
+    "invoice_before_final_review_fixes": {
+      "passed": 727,
+      "failed": 0,
+      "skipped": 8,
+      "seconds": 416.09
+    },
+    "final_regression_including_invoice": {
+      "passed": 955,
+      "failed": 0,
+      "skipped": 8,
+      "seconds": 456.7
+    },
+    "excluded": {
+      "module": "tests/invoice/test_invoice_eda.py",
+      "count": 26,
+      "reason": "Would execute notebook cells; only collection performed"
+    },
+    "skip_reason": "Windows symlink privileges unavailable: adapter 5, synthetic executor 1, history 1, legacy boundary 1",
+    "real_project_data_access_attempts": 0,
+    "guard_scope": "Temporary Python audit hook plus pandas/joblib wrappers deny real project data, DataBase, models and experiment paths during tests; not an OS sandbox",
+    "ruff": "passed: seven involved Python files",
+    "git_diff_check": "passed; existing LF/CRLF conversion notices only",
+    "review": {
+      "independent": true,
+      "mode": "static",
+      "findings_fixed": [
+        "pinned authorization reused for completion time",
+        "permission and clock rechecked after promoted bundle verification",
+        "preparation JSON preserves max_features as float 1.0, verified by strict canonical comparison"
+      ],
+      "remaining_blockers": [],
+      "reviewer_executed_tests": false
+    },
+    "count_note": "Runs overlap and must not be summed as unique tests"
+  }
+}

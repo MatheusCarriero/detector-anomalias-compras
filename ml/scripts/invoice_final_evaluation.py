@@ -11,19 +11,22 @@ import math
 import platform
 import warnings
 from datetime import datetime, timezone
-from importlib.metadata import version
+from importlib.metadata import PackageNotFoundError, version
 from io import BytesIO
 from pathlib import Path
 
 import joblib
 import numpy as np
 import pandas as pd
+from packaging.requirements import Requirement
+from packaging.utils import canonicalize_name
 from sklearn.ensemble import IsolationForest
 from sklearn.exceptions import InconsistentVersionWarning
 from sklearn.utils.validation import check_is_fitted
 
 from ml.scripts import comparar_triagem_invoice as comparison
 from ml.scripts import diagnosticar_triagem_invoice as triage
+from ml.scripts import invoice_historical_evidence as history
 from ml.scripts.avaliar_invoice import (
     validate_ids,
     validate_target,
@@ -48,6 +51,10 @@ SOURCE_NAMES = (
     "ml/scripts/comparar_triagem_invoice.py", "ml/scripts/diagnosticar_triagem_invoice.py",
     "ml/scripts/treinar_modelo.py", "docs/invoice_academic_evaluation_protocol.md",
 )
+REAL_SOURCE_NAMES = (*SOURCE_NAMES, "ml/scripts/invoice_data_adapter.py",
+                     "ml/scripts/invoice_real_inputs.py", "ml/scripts/invoice_historical_evidence.py",
+                     "ml/scripts/invoice_real_evaluation.py", "ml/scripts/invoice_execution_context.py",
+                     "requirements.txt", "requirements-dev.txt", ".python-version")
 FRAME_COLUMNS = ["invoice_id", "split", "is_fraud", "fraud_type", *ORDERED_FEATURES]
 
 
@@ -106,10 +113,44 @@ def _fixture_path(root, name):
     return path
 
 
+def _pinned_versions():
+    """Read only dependency descriptors; never import the pinned distributions."""
+    python = (PROJECT_ROOT / ".python-version").read_text(encoding="utf-8").strip()
+    if len(python.split(".")) != 3 or not all(part.isdecimal() for part in python.split(".")):
+        raise ValueError("Versao Python fixa invalida")
+    pins, declared = {"python": python}, set()
+    for source in ("requirements.txt", "requirements-dev.txt"):
+        included = False
+        for line in (PROJECT_ROOT / source).read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            if line == "-r requirements.txt" and source == "requirements-dev.txt" and not included:
+                included = True
+                continue
+            requirement = Requirement(line)
+            specifiers = list(requirement.specifier)
+            name = canonicalize_name(requirement.name)
+            if (requirement.url or requirement.extras or len(specifiers) != 1
+                    or specifiers[0].operator != "==" or "*" in specifiers[0].version
+                    or name == "python" or name in declared):
+                raise ValueError("Dependencia deve possuir uma unica versao exata")
+            declared.add(name)
+            if requirement.marker is None or requirement.marker.evaluate():
+                pins[name] = specifiers[0].version
+        if source == "requirements-dev.txt" and not included:
+            raise ValueError("requirements-dev.txt deve incluir requirements.txt")
+    return pins
+
+
 def _versions():
-    return {"python": platform.python_version(), **{
-        name: version(name) for name in ("numpy", "pandas", "scikit-learn", "joblib", "pyarrow")
-    }}
+    pins = _pinned_versions()
+    try:
+        return {"python": platform.python_version(), **{
+            name: version(name) for name in pins if name != "python"
+        }}
+    except PackageNotFoundError as error:
+        raise ValueError("Ambiente sem dependencia fixada") from error
 
 
 def configuration_contract(offset):
@@ -242,6 +283,15 @@ def evaluate_frame(model, frame, configuration):
     _validate_configuration(configuration)
     _frame(frame, configuration)
     _model(model, configuration)
+    return _evaluate_validated_frame(model, frame, configuration)
+
+
+def _evaluate_validated_frame(model, frame, configuration):
+    """Shared calculation, internal to synthetic or explicitly authorized runners.
+
+    No I/O or permission issuance. Callers must validate authority and inputs;
+    the public synthetic evaluator retains its original synthetic-only gate.
+    """
     frame = frame.sort_values("invoice_id").reset_index(drop=True)
     state = joblib.hash(model)
     scores = -np.asarray(model.score_samples(frame[list(ORDERED_FEATURES)]), dtype=float)
@@ -322,11 +372,12 @@ def _load_inputs(root, freeze):
 
 
 def _check_sources(freeze):
-    if freeze["versions"] != _versions():
-        raise ValueError("Ambiente diverge do congelamento")
     for name, expected in freeze["source_sha256"].items():
         if sha256(PROJECT_ROOT / name) != _digest(expected):
             raise ValueError("Codigo/protocolo diverge do congelamento")
+    installed = _versions()
+    if freeze["versions"] != installed or installed != _pinned_versions():
+        raise ValueError("Ambiente diverge do congelamento ou das dependencias fixadas")
 
 
 def _publish_results(run_dir, record):
@@ -464,102 +515,59 @@ def _gate_absolute_path(value):
     return path
 
 
-def _validate_real_freeze(freeze, path):
-    keys = {"schema", "created_at", "run_dir", "project_root", "configuration", "versions",
-            "source_sha256", "pre_access_sha256", "input_paths", "access_scope"}
-    if (not isinstance(freeze, dict) or set(freeze) != keys
-            or freeze["schema"] != "invoice-real-preregistration/1.1"
-            or freeze["access_scope"] != "processed_test_and_physical_shared_raw_for_consistency_only"):
-        raise ValueError("Schema do congelamento real incompativel")
-    created_at = _gate_time(freeze["created_at"])
-    run_dir = _external(_gate_absolute_path(freeze["run_dir"]))
-    if path != run_dir / "freeze.json":
-        raise ValueError("Destino diverge do congelamento real; copia nao autoriza tentativa")
-    config = freeze["configuration"]
-    if not isinstance(config, dict):
-        raise TypeError("Configuracao real deve ser objeto JSON")
-    normalized = config.copy()
-    for key in ("model_sha256", "model_metadata_sha256"):
-        normalized[key] = _digest(config.get(key))
-    if _canonical(normalized) != _canonical(real_configuration_contract()):
-        raise ValueError("Configuracao real incompativel com protocolo legado")
-    # These are declared identities, not a claim that data bytes were verified here.
-    names = ("data/processed/train_features.parquet", "data/processed/val_features.parquet",
-             "ml/models/isolation_forest.joblib", "ml/models/model_metadata.json")
-    hashes = freeze["pre_access_sha256"]
-    if not isinstance(hashes, dict) or set(hashes) != set(names):
-        raise ValueError("Hashes pre-acesso incompatíveis; nenhum hash TEST e permitido")
-    hashes = {key: _digest(value) for key, value in hashes.items()}
-    if (hashes[names[2]] != normalized["model_sha256"]
-            or hashes[names[3]] != normalized["model_metadata_sha256"]):
-        raise ValueError("Identidade do modelo/metadata diverge da configuracao")
-    project = _gate_absolute_path(freeze["project_root"])
-    # Do NOT resolve, stat, hash or read any declared data path, including TEST.
-    after_access = ("data/processed/test_features.parquet", "data/raw/splits.parquet",
-                    "data/raw/labels.parquet", "data/raw/invoices.parquet")
-    expected_paths = {name: str(project / name) for name in (*names, *after_access)}
-    if _canonical(freeze["input_paths"]) != _canonical(expected_paths):
-        raise ValueError("Allowlist de caminhos de entrada incompativel")
-    sources = freeze["source_sha256"]
-    if (not isinstance(sources, dict)
-            or set(sources) != {*SOURCE_NAMES, "ml/scripts/invoice_data_adapter.py",
-                               "ml/scripts/invoice_real_inputs.py"}):
-        raise ValueError("Conjunto de hashes de codigo/protocolo incompativel")
-    for digest in sources.values():
-        _digest(digest)
-    _check_sources(freeze)  # Exact code allowlist only; never data/model files.
-    return run_dir, created_at
+
+
+def _check_real_evidence(freeze):
+    return history.verify_historical_evidence(
+        freeze["project_root"], freeze["historical_evidence_sha256"],
+        freeze["configuration"], freeze["pre_access_sha256"],
+    )
 
 
 def _authorization_time(freeze, authorization, now):
     created_at = _gate_time(freeze["created_at"])
     issued_at = _gate_time(authorization["issued_at"])
     expires_at = _gate_time(authorization["expires_at"])
-    if not created_at <= issued_at <= now < expires_at:
+    context_at = _gate_time(freeze["context_created_at"])
+    if not created_at <= context_at <= issued_at <= now < expires_at:
         raise PermissionError("Autorizacao futura/expirada: congelamento <= emissao <= presente < expiracao")
 
 
 def _load_real_authorization(freeze_path, authorization_path=None, *,
-                             expected_freeze_sha256=None, expected_authorization_sha256=None):
-    """Revalidate pinned permission documents, without claiming or reading inputs."""
-    if (authorization_path is None or expected_freeze_sha256 is None
-            or expected_authorization_sha256 is None):
-        raise PermissionError("Autorizacao explicita e hashes externos obrigatorios; TEST bloqueado")
-    freeze_hash, auth_hash = _digest(expected_freeze_sha256), _digest(expected_authorization_sha256)
-    paths = (_external(freeze_path), _external(authorization_path))
-    if [path.name for path in paths] != ["freeze.json", "authorization.json"]:
-        raise ValueError("Somente documentos freeze.json e authorization.json sao aceitos")
-    contents = [path.read_bytes() for path in paths]
-    if [hashlib.sha256(content).hexdigest() for content in contents] != [freeze_hash, auth_hash]:
-        raise ValueError("Hash externo do congelamento/autorizacao divergente")
-    freeze, authorization = [_json(content) for content in contents]
-    run_dir, _ = _validate_real_freeze(freeze, paths[0])
-    keys = {"schema", "decision", "authorized_by", "authorization_reference", "issued_at",
-            "freeze_sha256", "configuration_sha256", "run_dir", "split", "purpose",
-            "provenance_acknowledged", "expires_at", "access_scope"}
-    if not isinstance(authorization, dict) or set(authorization) != keys:
-        raise ValueError("Schema da autorizacao incompativel")
-    config = freeze["configuration"]
-    config_hash = hashlib.sha256(_canonical(config)).hexdigest()
-    if (authorization["schema"] != "invoice-real-authorization/1.1"
-            or authorization["decision"] != "approve_once"
-            or _digest(authorization["freeze_sha256"]) != freeze_hash
-            or _digest(authorization["configuration_sha256"]) != config_hash
-            or authorization["run_dir"] != str(run_dir)
-            or authorization["split"] != "test"
-            or authorization["purpose"] != config["purpose"]
-            or authorization["access_scope"] != freeze["access_scope"]
-            or _canonical(authorization["provenance_acknowledged"]) != _canonical(config["provenance"])):
-        raise PermissionError("Autorizacao nao corresponde ao congelamento/escopo/limitacoes")
-    _gate_text(authorization["authorized_by"])
-    _gate_text(authorization["authorization_reference"])
+                             expected_freeze_sha256=None, expected_authorization_sha256=None,
+                             context_path=None, expected_context_sha256=None):
+    """Validate three pinned metadata documents BEFORE any input access."""
+    from ml.scripts import invoice_execution_context as binding
+
+    if (authorization_path is None or context_path is None or expected_freeze_sha256 is None
+            or expected_authorization_sha256 is None or expected_context_sha256 is None):
+        raise PermissionError("Autorizacao, contexto e hashes externos obrigatorios; TEST bloqueado")
+    hashes = tuple(_digest(v) for v in (
+        expected_freeze_sha256, expected_authorization_sha256, expected_context_sha256,
+    ))
+    candidates = tuple(Path(p) for p in (freeze_path, authorization_path, context_path))
+    if [p.name for p in candidates] != ["freeze.json", "authorization.json", "context.json"]:
+        raise ValueError("Somente documentos freeze.json, authorization.json e context.json sao aceitos")
+    paths = tuple(_external(p) for p in candidates)
+    if any(str(p.absolute()) != str(resolved) for p, resolved in zip(candidates, paths, strict=True)):
+        raise ValueError("Redirecionamento dos documentos de autorizacao invalido")
+    contents = [p.read_bytes() for p in paths]
+    if tuple(hashlib.sha256(b).hexdigest() for b in contents) != hashes:
+        raise ValueError("Hash externo do congelamento/autorizacao/contexto divergente")
+    portable, authorization, context = [_json(b) for b in contents]
+    freeze = binding.bind(portable, context, freeze_path=paths[0], context_path=paths[2],
+                          freeze_hash=hashes[0], context_hash=hashes[2])
+    binding.validate_authorization(freeze, authorization, hashes[0])
     now = datetime.now(timezone.utc)
     _authorization_time(freeze, authorization, now)
-    return freeze, authorization, paths, (freeze_hash, auth_hash), now
+    _check_sources(freeze)
+    _check_real_evidence(freeze)
+    return freeze, authorization, paths, hashes, now
 
 
 def _ensure_real_unused(run_dir, *, include_claim=True):
-    names = ("execution_started.json", "failure.json", "inputs_validated.json", "results.pending", "results")
+    names = ("execution_started.json", "failure.json", "inputs_validated.json",
+             "evaluation_started.json", "results.pending", "results", "publication_complete.json")
     for name in (("authorization_claim.json", *names) if include_claim else names):
         marker = run_dir / name
         if marker.exists() or marker.is_symlink():
@@ -569,19 +577,23 @@ def _ensure_real_unused(run_dir, *, include_claim=True):
 def _claim_record(freeze, authorization, freeze_hash, auth_hash, created_at):
     config = freeze["configuration"]
     return {
-        "schema": "invoice-real-authorization-claim/1.0",
+        "schema": "invoice-real-authorization-claim/1.2",
+        "context_sha256": freeze["context_sha256"], "destination": freeze["destination"],
         "created_at": created_at, "run_dir": freeze["run_dir"],
         "freeze_sha256": freeze_hash, "authorization_sha256": auth_hash,
         "configuration_sha256": hashlib.sha256(_canonical(config)).hexdigest(), "configuration": config,
         "provenance": config["provenance"], "source_reconciled": False,
         "authorization": authorization, "test_used": False, "data_access_performed": False,
-        "real_execution_available": False, "input_hashes_verified": False,
+        "real_execution_available": True, "evaluation_started": False, "input_hashes_verified": False,
+        "authorized_operation": freeze["authorized_operation"],
+        "historical_evidence_sha256": freeze["historical_evidence_sha256"],
         "model_fits": 0, "score_calls": 0,
     }
 
 
 def claim_real_evaluation_authorization(freeze_path, authorization_path=None, *,
-                                      expected_freeze_sha256=None, expected_authorization_sha256=None):
+                                      expected_freeze_sha256=None, expected_authorization_sha256=None,
+                                      context_path=None, expected_context_sha256=None):
     """Validate external permission; create a one-use metadata-only receipt.
 
     Pins verify bytes, not human identity. This API has no data loader or scoring
@@ -590,15 +602,17 @@ def claim_real_evaluation_authorization(freeze_path, authorization_path=None, *,
     freeze, authorization, paths, hashes, _ = _load_real_authorization(
         freeze_path, authorization_path, expected_freeze_sha256=expected_freeze_sha256,
         expected_authorization_sha256=expected_authorization_sha256,
+        context_path=context_path, expected_context_sha256=expected_context_sha256,
     )
-    run_dir = paths[0].parent
+    run_dir = Path(freeze["run_dir"])
     _ensure_real_unused(run_dir)
     _check_sources(freeze)
+    _check_real_evidence(freeze)
     if [sha256(path) for path in paths] != list(hashes):
         raise ValueError("Contrato alterado durante validacao; autorizacao nao consumida")
     now = datetime.now(timezone.utc)
     _authorization_time(freeze, authorization, now)
-    claim = _claim_record(freeze, authorization, *hashes, now.isoformat())
+    claim = _claim_record(freeze, authorization, *hashes[:2], now.isoformat())
     destination = run_dir / "authorization_claim.json"
     _write_json(destination, claim)  # Exclusive xb; partial failure consumes the attempt.
     return destination
