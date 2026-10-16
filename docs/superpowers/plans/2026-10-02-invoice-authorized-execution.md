@@ -1,5 +1,7 @@
 # Invoice authorized execution — implementation plan
 
+> **Historical — superseded on 2026-10-13.** This completed plan records prior technical work and QA, not active implementation instructions. The current academic flow is documented in [the evaluation protocol](../../invoice_academic_evaluation_protocol.md) and [the evaluator documentation](../../invoice_final_executor.md). Contractual execution steps below must not be rebuilt or treated as pending tasks.
+
 > **For agentic workers:** use `superpowers:executing-plans`, TDD and a fresh independent final review. User requested autonomous execution; no commits, push or real data execution.
 
 **Goal:** close historical-evidence binding and the authorized input → scoring → publication handoff, tested only with generated fixtures.

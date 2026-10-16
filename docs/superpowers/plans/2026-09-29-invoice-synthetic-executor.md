@@ -1,5 +1,7 @@
 # Invoice synthetic final executor — implementation plan
 
+> **Historical — superseded on 2026-10-13.** This completed plan records prior technical work and QA, not active implementation instructions. The current academic flow is documented in [the evaluation protocol](../../invoice_academic_evaluation_protocol.md) and [the evaluator documentation](../../invoice_final_executor.md). Contractual execution steps below must not be rebuilt or treated as pending tasks.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans. Steps use checkboxes; no commits or real-data execution in this task.
 
 **Goal:** validar o contrato de execução única Invoice exclusivamente com fixtures sintéticas.

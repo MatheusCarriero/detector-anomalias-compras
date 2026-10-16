@@ -1,8 +1,4 @@
-"""Synthetic adapter/executor handoff; development rows never become holdout.
-
-Legacy adapter metadata and exact executor metadata are deliberately different
-contracts. Only these test fixtures construct both representations.
-"""
+"""Synthetic adapter/evaluator handoff; development rows never become holdout."""
 
 import hashlib
 import json
@@ -16,6 +12,8 @@ from sklearn.ensemble import IsolationForest
 
 from ml.scripts import invoice_data_adapter as adapter
 from ml.scripts import invoice_final_evaluation as executor
+from ml.scripts import invoice_real_evaluation as runner
+from ml.scripts import invoice_real_inputs as inputs
 from ml.scripts.treinar_modelo import FEATURES
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -136,29 +134,17 @@ def adapt_development(root, model, monkeypatch):
         ) for split in ("train", "val")}
 
 
-def executor_fixture(tmp_path, adapted, holdout):
-    """Test-only fixture creation, never a production metadata converter."""
-    root = tmp_path / "synthetic-executor"
-    root.mkdir()
-    development_ids = pd.concat([
-        adapted[split].frame[["invoice_id", "split"]] for split in ("train", "val")
-    ], ignore_index=True)
-    development_ids.to_parquet(root / "development_ids.parquet", index=False)
-    holdout.to_parquet(root / "holdout.parquet", index=False)
-    pd.concat([development_ids, holdout[["invoice_id", "split"]]], ignore_index=True).to_parquet(
-        root / "splits.parquet", index=False)
-    holdout[["invoice_id", "is_fraud", "fraud_type"]].iloc[::-1].to_parquet(
-        root / "labels.parquet", index=False)
-    holdout[["invoice_id", "invoice_amount"]].assign(currency="SYN").iloc[::-1].to_parquet(
-        root / "amounts.parquet", index=False)
-    model = adapted["train"].model
-    joblib.dump(model, root / "model.joblib")
-    write_json(root / "model_metadata.json", {
-        "algorithm": "IsolationForest", "feature_count": int(model.n_features_in_),
-        "features": model.feature_names_in_.tolist(), "parameters": model.get_params(),
-        "offset": float(model.offset_),
-    })
-    return root, tmp_path / "synthetic-run"
+def evaluation_tables(adapted, holdout):
+    """All rows are generated fixtures; labels/amounts deliberately reverse order."""
+    frames = {split: adapted[split].frame for split in ("train", "val")}
+    frames["test"] = holdout.assign(split="test")
+    all_rows = pd.concat(list(frames.values()), ignore_index=True)
+    return {
+        "frames": frames,
+        "splits": all_rows[["invoice_id", "split"]],
+        "labels": all_rows[["invoice_id", "is_fraud", "fraud_type"]].iloc[::-1],
+        "amounts": all_rows[["invoice_id", "invoice_amount"]].assign(currency="SYN").iloc[::-1],
+    }
 
 
 def test_adapted_model_and_unchanged_development_ids_complete_synthetic_lifecycle(
@@ -200,71 +186,60 @@ def test_adapted_model_and_unchanged_development_ids_complete_synthetic_lifecycl
         assert record["model_fits"] == record["score_calls"] == 0
         assert record["test_used"] is record["scientific_evidence"] is False
 
-    holdout = synthetic_frames["synthetic_holdout"]
-    source, run_dir = executor_fixture(tmp_path, adapted, holdout)
-    expected_dev = pd.concat([synthetic_frames[s][["invoice_id", "split"]]
-                              for s in ("train", "val")], ignore_index=True)
-    pd.testing.assert_frame_equal(pd.read_parquet(source / "development_ids.parquet"), expected_dev)
-    assert set(expected_dev["invoice_id"]).isdisjoint(holdout["invoice_id"])
-    assert (source / "holdout.parquet").resolve() not in {
-        (development_files / name).resolve() for name in ADAPTER_INPUTS[:2]}
-    configuration = executor.configuration_contract(float(adapted["train"].model.offset_))
-    expected_configuration = {
-        "schema": "invoice-synthetic-freeze/1.0", "mode": "synthetic_only",
-        "protocol_version": "invoice-academic-evaluation-1.0", "split": "synthetic_holdout",
-        "features": FEATURES, "parameters": PARAMETERS,
-        "legacy_offset": float(fitted_synthetic_model.offset_), "budget_percentages": [1, 5, 10],
-        "decision_rule": "selection_at_k", "test_authorized": False,
-    }
-    assert configuration == expected_configuration
+    holdout_path = tmp_path / "generated-holdout.parquet"
+    synthetic_frames["synthetic_holdout"].to_parquet(holdout_path, index=False)
+    holdout = pd.read_parquet(holdout_path)
+    for split in ("train", "val"):
+        assert set(adapted[split].frame["invoice_id"]).isdisjoint(holdout["invoice_id"])
+    assert holdout_path not in {development_files / name for name in ADAPTER_INPUTS[:2]}
+    configuration = executor.configuration_contract(float(adapted["train"].model.offset_), split="test")
+    metadata = json.loads((development_files / ADAPTER_INPUTS[3]).read_text())
+    checked = inputs.validate_frames(
+        **evaluation_tables(adapted, holdout), model=adapted["train"].model,
+        metadata=metadata, configuration=configuration,
+    )
+    assert checked.technical_record["source_reconciled"] is False
+    assert checked.technical_record["source_rows_consistent"] is True
+    assert checked.technical_record["currency"] == "SYN"
     actual_score = IsolationForest.score_samples
     scored_models = []
 
     def score_independent_holdout(model, features):
         pd.testing.assert_frame_equal(features, holdout[FEATURES])
-        assert model is loaded_states[-1][0]
-        assert joblib.hash(model) == loaded_states[-1][1]
+        assert model is loaded_states[0][0]
+        assert joblib.hash(model) == loaded_states[0][1]
         assert_fitted_state_preserved(model, adapted["train"].model)
         scored_models.append(model)
         return actual_score(model, features)
 
     monkeypatch.setattr(IsolationForest, "score_samples", score_independent_holdout)
-    frozen_path = executor.freeze_configuration(source, run_dir, configuration)
-    frozen_hash = digest(frozen_path)
-    frozen = executor.load_frozen_configuration(frozen_path, frozen_hash)
-    assert frozen["pre_access_sha256"] == {
-        name: digest(source / name)
-        for name in ("model.joblib", "model_metadata.json", "development_ids.parquet")}
-    results = executor.run_synthetic_evaluation(frozen_path, expected_freeze_sha256=frozen_hash)
-    evidence = executor.verify_bundle(
-        results, expected_manifest_sha256=digest(results / "manifest.json"),
-        expected_freeze_sha256=frozen_hash)
+    results = runner.run_final_evaluation(
+        tmp_path / "synthetic-result.json", **evaluation_tables(adapted, holdout),
+        model=adapted["train"].model, metadata=metadata,
+        configuration=configuration, evaluation_id="generated-fixture-only",
+    )
+    evidence = json.loads(results.read_text(encoding="utf-8"))
     assert len(scored_models) == 1
-    assert len(loaded_states) == 3
+    assert len(loaded_states) == 2
     for model, state in loaded_states:
         assert joblib.hash(model) == state
     assert joblib.hash(fitted_synthetic_model) == original_state
-    assert evidence["configuration"] == expected_configuration
-    assert evidence["schema"] == "invoice-synthetic-evidence/1.0"
-    assert evidence["synthetic"] is True
-    assert evidence["scientific_evidence"] is evidence["test_used"] is False
+    assert evidence["configuration"] == configuration
+    assert evidence["features"] == FEATURES
+    assert evidence["source_reconciled"] is False
+    assert evidence["legacy_training_provenance_certified"] is False
     assert evidence["model_fits_in_executor"] == 0
-    assert evidence["freeze_sha256"] == frozen_hash
-    assert evidence["currency"] == "SYN"
     assert evidence["metrics"]["isolation_forest"]["rows"] == 100
     assert [item["k"] for item in evidence["metrics"]["comparisons"]] == [1, 5, 10]
-    expected_ids_bytes = json.dumps(holdout["invoice_id"].tolist(), separators=(",", ":")).encode()
-    assert evidence["ids_sha256"] == hashlib.sha256(expected_ids_bytes).hexdigest()
-    assert evidence["input_hashes_sha256"] == {
-        name: digest(source / name) for name in (
-            "holdout.parquet", "development_ids.parquet", "splits.parquet", "labels.parquet",
-            "amounts.parquet", "model.joblib", "model_metadata.json")}
     assert {name: digest(development_files / name) for name in ADAPTER_INPUTS} == original_hashes
-    published_hash = digest(results / "evidence.json")
+    published_hash = digest(results)
     monkeypatch.setattr(IsolationForest, "score_samples", forbidden_operation)
     with pytest.raises(FileExistsError):
-        executor.run_synthetic_evaluation(frozen_path, expected_freeze_sha256=frozen_hash)
-    assert digest(results / "evidence.json") == published_hash
+        runner.run_final_evaluation(
+            results, **evaluation_tables(adapted, holdout), model=adapted["train"].model,
+            metadata=metadata, configuration=configuration, evaluation_id="generated-fixture-only",
+        )
+    assert digest(results) == published_hash
 
 
 @pytest.mark.parametrize("split", ["train", "val"])
@@ -274,21 +249,23 @@ def test_adapter_development_frame_is_deliberately_rejected_before_scoring(
     adapted = adapt_development(development_files, fitted_synthetic_model, monkeypatch)[split]
     before = adapted.frame.copy(deep=True)
     monkeypatch.setattr(IsolationForest, "score_samples", forbidden_operation)
-    with pytest.raises(ValueError, match="synthetic_holdout"):
+    with pytest.raises(ValueError, match="Particao"):
         executor.evaluate_frame(adapted.model, adapted.frame,
                                 executor.configuration_contract(float(adapted.model.offset_)))
     pd.testing.assert_frame_equal(adapted.frame, before)
 
 
-@pytest.mark.parametrize("fault", ["train", "val", "test", "real", "authorization"])
-def test_configuration_cannot_expand_adapter_handoff_to_development_or_real_evaluation(
+@pytest.mark.parametrize("fault", ["features", "parameters", "budget_percentages", "decision_rule"])
+def test_incompatible_configuration_rejected_before_scoring(
     development_files, fitted_synthetic_model, synthetic_frames, monkeypatch, fault
 ):
     adapted = adapt_development(development_files, fitted_synthetic_model, monkeypatch)["train"]
     configuration = executor.configuration_contract(float(adapted.model.offset_))
-    key, value = (("mode", "real") if fault == "real" else
-                  ("test_authorized", True) if fault == "authorization" else ("split", fault))
-    configuration[key] = value
+    replacements = {
+        "features": FEATURES[::-1], "parameters": {**PARAMETERS, "contamination": 0.1},
+        "budget_percentages": [5], "decision_rule": "new_threshold",
+    }
+    configuration[fault] = replacements[fault]
     monkeypatch.setattr(IsolationForest, "score_samples", forbidden_operation)
     with pytest.raises(ValueError, match="Configuracao"):
         executor.evaluate_frame(adapted.model, synthetic_frames["synthetic_holdout"], configuration)
@@ -301,28 +278,29 @@ def test_collision_with_unchanged_adapter_development_id_fails_before_scoring(
     adapted = adapt_development(development_files, fitted_synthetic_model, monkeypatch)
     holdout = synthetic_frames["synthetic_holdout"].copy(deep=True)
     holdout.loc[0, "invoice_id"] = adapted[split].frame.loc[0, "invoice_id"]
-    source, run_dir = executor_fixture(tmp_path, adapted, holdout)
-    # Unique official IDs let the combined development/holdout gate detect the collision.
-    official = pd.read_parquet(source / "splits.parquet").drop_duplicates("invoice_id")
-    official.to_parquet(source / "splits.parquet", index=False)
+    tables = evaluation_tables(adapted, holdout)
+    tables["splits"] = tables["splits"].drop_duplicates("invoice_id")
     monkeypatch.setattr(IsolationForest, "score_samples", forbidden_operation)
-    frozen = executor.freeze_configuration(source, run_dir,
-        executor.configuration_contract(float(adapted["train"].model.offset_)))
-    with pytest.raises(ValueError, match="separacao train/val/holdout"):
-        executor.run_synthetic_evaluation(frozen, expected_freeze_sha256=digest(frozen))
-    assert (run_dir / "failure.json").is_file()
-    assert not (run_dir / "results").exists()
+    with pytest.raises(ValueError, match="Sobreposicao"):
+        inputs.validate_frames(
+            **tables, model=adapted["train"].model,
+            metadata=json.loads((development_files / ADAPTER_INPUTS[3]).read_text()),
+            configuration=executor.configuration_contract(float(adapted["train"].model.offset_)),
+        )
+    assert not (tmp_path / "synthetic-result.json").exists()
 
 
-def test_legacy_adapter_metadata_is_not_an_executor_metadata_converter(
+def test_incompatible_metadata_is_rejected_without_conversion(
     development_files, fitted_synthetic_model, synthetic_frames, tmp_path, monkeypatch
 ):
     adapted = adapt_development(development_files, fitted_synthetic_model, monkeypatch)
-    source, run_dir = executor_fixture(tmp_path, adapted, synthetic_frames["synthetic_holdout"])
-    (source / "model_metadata.json").write_bytes((development_files / ADAPTER_INPUTS[3]).read_bytes())
+    metadata = json.loads((development_files / ADAPTER_INPUTS[3]).read_text())
+    metadata["features"] = FEATURES[::-1]
     monkeypatch.setattr(IsolationForest, "score_samples", forbidden_operation)
-    frozen = executor.freeze_configuration(source, run_dir,
-        executor.configuration_contract(float(adapted["train"].model.offset_)))
     with pytest.raises(ValueError, match="Metadata"):
-        executor.run_synthetic_evaluation(frozen, expected_freeze_sha256=digest(frozen))
-    assert not (run_dir / "results").exists()
+        inputs.validate_frames(
+            **evaluation_tables(adapted, synthetic_frames["synthetic_holdout"]),
+            model=adapted["train"].model, metadata=metadata,
+            configuration=executor.configuration_contract(float(adapted["train"].model.offset_)),
+        )
+    assert not (tmp_path / "synthetic-result.json").exists()

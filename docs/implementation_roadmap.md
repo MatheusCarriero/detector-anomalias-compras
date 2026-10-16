@@ -1,28 +1,26 @@
 # Roadmap de implementação
 
-## Estado vigente — integração técnica pré-TEST de 05/10/2026
+## Estado vigente — simplificação acadêmica de 13/10/2026
 
-Invoice possui executor sintético, adaptador TRAIN/VALIDATION, gate bloqueado
-por padrão e rota separada de validação de inputs autorizados. A integração
-explícita até scoring/publicação e a verificação dos bytes dos três JSONs
-históricos foram implementadas com fixtures sintéticas. A referência técnica
-vigente é [o contrato do executor](invoice_final_executor.md), sem avaliação real.
-O próximo marco exige congelamento formal e autorização humana independente;
-a implementação não os substitui. Não iniciar a rota real somente para conferir
-inputs: ela já consome a tentativa de acesso e não admite retomada para scoring.
+Invoice mantém 19 features, modelo e resultados históricos de VALIDATION.
+O fluxo é dados → preparação → EDA → features → treinamento → validação →
+avaliação final → resultados. O avaliador recebe dados/modelo explicitamente,
+valida inputs e grava um JSON novo sem sobrescrever resultados. A verificação
+histórica é independente da avaliação normal. Consulte o
+[protocolo acadêmico](invoice_academic_evaluation_protocol.md) e a
+[documentação técnica](invoice_final_executor.md).
 
-As rotas históricas que leem raw compartilhado agora recusam o checkout real,
-inclusive com destino alternativo; filtros de linhas não isolam TEST.
-`source_reconciled=false`, procedência do fit legado não certificada e ausência
-de utilidade operacional comprovada permanecem explícitos. TEST Invoice fechado.
-Nesta integração há testes sintéticos e Ruff; não houve avaliação científica,
-inferência real, leitura de TEST ou execução de notebook.
+A avaliação final continua pendente e só ocorrerá em tarefa futura explícita.
+TEST não participa de exploração, desenvolvimento, tuning ou seleção.
+`source_reconciled=false` e as limitações de procedência do fit legado,
+labels, temporalidade e utilidade humana permanecem. Nenhum resultado
+científico foi recalculado por esta refatoração; TEST/raw permanecem fechados.
 
-Supplier concluiu sua avaliação final acadêmica; não repetir. A nota de
-rastreabilidade do seu relatório distingue notebooks locais de bytes congelados,
-sem alterar ambos. Purchase, backend e frontend permanecem fora deste incremento.
-As atualizações datadas e gates originais abaixo são histórico de planejamento,
-não ordens para repetir etapas nem autorizações de leitura de dados.
+Supplier concluiu sua avaliação final acadêmica; não repetir. Purchase mantém
+suas decisões metodológicas pendentes. Backend/frontend seguem fora desta etapa.
+As atualizações datadas e planos abaixo são históricos; não são tarefas a
+repetir nem exigem reconstruir a antiga infraestrutura de execução Invoice.
+As decisões independentes de Supplier/Purchase continuam válidas.
 
 ## Atualização de execução — 28/09/2026
 
@@ -38,13 +36,10 @@ simulados devem permanecer fora do repositório. A [preparação original](invoi
 foi preservada; não houve revisão humana válida e uma eventual etapa real segue
 separada, sem ser substituída pela simulação.
 
-**Próximo gate Invoice:** o [contrato acadêmico](invoice_academic_evaluation_protocol.md)
-separa benchmark retrospectivo de adoção operacional. Implementar/revisar somente
-o executor mínimo e seus testes sintéticos antes de qualquer avaliação final.
-TEST permanece fechado até autorização registrada e congelamento pré-acesso;
-nenhum retreino, mudança de algoritmo, features, labels ou percentuais. Custos,
-capacidade e avaliação humana reais continuam necessários para alegar utilidade
-operacional, não podem ser inferidos do benchmark ou da simulação.
+**Nota histórica:** a etapa seguinte então previa uma estrutura técnica de
+execução. A arquitetura atual e a avaliação final pendente estão descritas
+no estado vigente acima. Custos, capacidade e avaliação humana reais continuam
+necessários para alegar utilidade operacional.
 
 As atualizações datadas abaixo preservam o histórico, não redefinem o próximo
 passo vigente. Supplier/Purchase e suas decisões permanecem fora desta etapa.
@@ -108,11 +103,11 @@ Regras que atravessam todas as fases:
 
 - os três domínios permanecem independentes e com saídas auditáveis;
 - Procurement KPI é auxiliar e não treina Invoice, Supplier ou Purchase;
-- TRAIN serve para exploração, ajuste e treino; VALIDATION para comparação/seleção; TEST somente para uma avaliação final autorizada após congelamento explícito;
+- TRAIN serve para exploração, ajuste e treino; VALIDATION para comparação/seleção; TEST somente para avaliação final explicitamente solicitada, após definição prévia da metodologia; as decisões Supplier concluídas permanecem preservadas;
 - o protocolo Supplier atual não permite refit em `TRAIN + VALIDATION`;
 - métricas Supplier medem reprodução de `Risk_Level`, não risco empresarial real;
 - datasets de origem permanecem imutáveis;
-- decisões de negócio, custos de erro e autorização de TEST precisam ser registradas, não inferidas de métricas.
+- decisões de negócio, custos de erro e escopo da avaliação final precisam ser registrados, não inferidos de métricas.
 
 ## 2. Estado de partida histórico — anterior à avaliação final Supplier
 
@@ -223,11 +218,19 @@ Mesmo um resultado favorável não supre validação externa/temporal nem prova 
 
 **CONCLUÍDO:** avaliação consolidada/por `fraud_type`, auditoria metodológica, diagnóstico de triagem e comparação IF versus valor em VALIDATION nos orçamentos 1%/5%/10%, preservando 19 features e a configuração (`IsolationForest`, 200 árvores, `contamination=0.22`, `random_state=42`, `n_jobs=-1`). Sem retreino, tuning ou seleção de threshold. O objetivo vigente é priorização de faturas incomuns para auditoria humana. Teste técnico da revisão cega encerrado e excluído da evidência acadêmica; nenhuma revisão humana válida realizada.
 
-**IMPLEMENTADO — técnico:** executor sintético, adaptador, gate, rota de inputs, integração explícita até publicação e vínculo aos bytes das evidências anteriores; testes somente sintéticos. **PENDENTE — acadêmico:** congelamento formal e autorização humana segundo o [contrato](invoice_academic_evaluation_protocol.md). Eventual avaliação final única compara as duas estratégias em todos os orçamentos, sem retreino ou ajuste condicionado a TEST. A procedência parcial do fit e a validade não comprovada da referência permanecem explícitas.
+**IMPLEMENTADO — técnico:** avaliador acadêmico e validações de inputs/modelo
+com fixtures sintéticas; JSON normal com proteção contra sobrescrita e
+verificação histórica independente. **PENDENTE — acadêmico:** avaliação final
+em tarefa futura explícita conforme o [protocolo](invoice_academic_evaluation_protocol.md).
+Comparar as duas estratégias em todos os orçamentos, sem retreino ou ajuste
+condicionado a TEST. Registrar partição, configuração, features, métricas,
+resultados, limitações e timestamp, mantendo `source_reconciled=false`.
 
-**Gate acadêmico:** configuração, métricas e conclusões admissíveis registradas antes do acesso; revisão técnica, autorização explícita e evidência de execução única, sem alegar certificação retroativa do treinamento legado. Este gate não foi executado/liberado nesta etapa. O score não é probabilidade de fraude.
-
-**Gate operacional separado:** evidência humana real, contexto disponível, capacidade/custos e eventual regra operacional pré-definida. Se um threshold vier a ser necessário, sua seleção/congelamento exige protocolo próprio em validação; não é necessário inventá-lo para o ranking retrospectivo. Sem evidência operacional, não liberar produção, mesmo com benchmark favorável. Mudanças metodológicas exigem nova versão, não alteração silenciosa do artefato existente.
+**Utilidade operacional separada:** exige evidência humana real, contexto
+disponível, capacidade/custos e eventual regra operacional pré-definida.
+Se um threshold vier a ser necessário, selecioná-lo em validação sob protocolo
+próprio. Não inventar um threshold para o ranking retrospectivo.
+Score não é probabilidade de fraude; benchmark favorável não libera produção.
 
 ## 9. Fase 7 — decisão formal do Purchase
 

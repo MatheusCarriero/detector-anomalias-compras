@@ -12,7 +12,7 @@ As fontes representam populações diferentes, sem chaves reais comuns para inte
 
 | Domínio | Concluído | Pendente |
 |---|---|---|
-| Invoice Anomaly | 19 features, auditoria, triagem e comparação IF × valor em VALIDATION; adaptador, gate e integração inputs → cálculo → publicação com testes sintéticos e vínculo aos três JSONs históricos | Congelamento formal e autorização humana independente antes de eventual avaliação única. TEST fechado; `source_reconciled=false`, procedência e utilidade humana limitadas |
+| Invoice Anomaly | 19 features, auditoria, triagem e comparação IF × valor em VALIDATION; avaliador acadêmico e validações de inputs com fixtures sintéticas | Avaliação final em tarefa futura explícita. TEST fechado; `source_reconciled=false`, procedência e utilidade humana limitadas |
 | Supplier Risk | Preparação, EDA TRAIN, baselines/ablações, CV exploratória, configuração LR/C congelada e avaliação final única documentada | Procedência da label/índice, validade externa e eventual uso operacional; não reabrir TEST |
 | Purchase Risk | Dataset analisado, granularidade da fonte em linha de pedido e fronteira pré-aprovação documentadas | Escolher anomalia ou desfecho específico; feature engineering, modelagem e avaliação |
 
@@ -84,14 +84,14 @@ if ($LASTEXITCODE -ne 0) { throw "Falha na instalação das dependências." }
 
 Não utilizar `--system-site-packages`. A instalação foi comprovada usando wheels do PyPI e pip 25.3, sem cache, em venv nova com `include-system-site-packages=false`. Foi verificado que os pacotes instalados pertencem à venv, que o user-site está desabilitado e que `pip check` não identifica conflitos. Os 113 testes sintéticos e o Ruff passaram nesse ambiente.
 
-**Ambiente principal preservado:** a `.venv` antiga não foi substituída nem atualizada; continua usando Python 3.14.3 e pandas 2.2.2 com pacotes externos à venv. Ela não corresponde aos requisitos corrigidos. A validação utilizou uma venv temporária separada; para o trabalho futuro, criar um ambiente novo a partir dos requisitos atuais, sem instalar sobre o ambiente legado automaticamente.
+**Ambiente principal preservado — conferência em 14/10/2026:** a `.venv` existente usa Python 3.14.3 e pandas 2.3.3, conforme os requisitos atuais, mas mantém `include-system-site-packages=true` e depende de pacotes do user-site. As versões coincidem com os pins quando esses pacotes externos estão disponíveis; isso não comprova isolamento. As referências a pandas 2.2.2 na tabela abaixo descrevem o ambiente histórico de setembro, não o estado vigente. Preserve essa `.venv` e use um ambiente novo e isolado para validação, sem instalar sobre o ambiente legado automaticamente.
 
 ### Combinações verificadas e histórico
 
 | Interpretador / ambiente | Verificação | Resultado / limite |
 |---|---|---|
 | Python 3.14.3, Windows x64, venv nova e isolada, pandas 2.3.3 e demais pins atuais | Instalação completa por wheels, isolamento, pip check, Ruff e pytest | **Aprovado em 2026-09-16: 113 testes**, sem datasets externos |
-| Python 3.14.3 na `.venv` principal antiga, pandas 2.2.2 | Pins anteriores, pip check e suíte sintética | Funcional, mas reutiliza pacotes externos; preservada, não é a instalação limpa |
+| Registro histórico de setembro/2026: Python 3.14.3 na `.venv` principal antiga, pandas 2.2.2 | Pins anteriores, pip check e suíte sintética | Funcional naquele registro, mas reutilizava pacotes externos; não descreve o ambiente vigente nem uma instalação limpa |
 | Python 3.14.3 em venv temporária com os requisitos antigos | Resolução limpa por wheels em 14–15/09/2026 | Falhou em pandas 2.2.2; combinação substituída |
 | Python 3.13.14 em venv temporária com os requisitos antigos | Mesma sondagem de resolução por wheels | Falhou em pandas 2.2.2; requisitos atuais e suíte não testados nessa versão |
 | Python 3.14.4 registrado no launcher | Somente versão/executável consultados | Projeto não validado nessa versão |
@@ -118,7 +118,7 @@ pytest -q
 
 ```text
 tests/
-├── invoice/        # contratos, limites de leitura, gate e rota de inputs
+├── invoice/        # schema, features, IDs, rankings, métricas e inputs
 └── supplier_risk/  # preparação, splits, ML-Ready e evidência experimental/final
 ```
 
@@ -256,7 +256,7 @@ O [protocolo experimental do Supplier](docs/supplier_risk_model.md#13-protocolo-
 
 **Evidência:** o [contrato de registros experimentais](docs/supplier_risk_experiment_records.md) separa desenvolvimento TRAIN/VALIDATION da API final, já utilizada pelo executor Supplier. As predições individuais das primeiras rodadas não foram fabricadas retroativamente; a avaliação final tem seus próprios registros. Os notebooks locais 01/02 têm alterações preexistentes apenas no nome exibido do kernel, preservadas fora deste escopo. A [nota de rastreabilidade](docs/supplier_risk_final_evaluation.md#nota-de-rastreabilidade-do-checkout) distingue esses bytes atuais dos congelados; não autoriza reexecução.
 
-O [roadmap de implementação](docs/implementation_roadmap.md) preserva os gates Supplier já concluídos e organiza as pendências: fechamento técnico pré-TEST Invoice, procedência, decisão formal Purchase, publicação transacional dos produtores ainda sequenciais e, posteriormente, contratos de inferência, aplicação, segurança e monitoramento.
+O [roadmap de implementação](docs/implementation_roadmap.md) preserva as etapas Supplier já concluídas e organiza as pendências: avaliação final Invoice, procedência, decisão formal Purchase, publicação transacional dos produtores ainda sequenciais e, posteriormente, contratos de inferência, aplicação, segurança e monitoramento.
 
 **Purchase — somente documentação:** o Vocabulary & Notes define PO_Number como linha de pedido, Lead_Time_Days como pós-entrega, ESG como simulado e valores em moedas locais sem câmbio. Falta escolher anomalia ou desfecho específico e confirmar dados pré-aprovação; anomalia não será chamada automaticamente de risco. Ver [contrato Purchase](docs/purchase_risk_model.md).
 
@@ -326,15 +326,15 @@ métricas ou decisões. ZIPs simulados devem permanecer fora do repositório. A
 [preparação original](docs/invoice_blind_review_preparation.md) foi preservada;
 **não houve revisão humana válida** e a utilidade operacional continua pendente.
 
-O [contrato acadêmico Invoice](docs/invoice_academic_evaluation_protocol.md)
-define o recorte retrospectivo, a comparação futura e seus limites. O executor
-sintético, o adaptador TRAIN/VALIDATION, o gate bloqueado por padrão e a rota de
-validação de inputs autorizados já existem. **Validar inputs não executa avaliação.**
-A API pública sintética ainda exige `synthetic_holdout`. A integração separada
-`invoice_real_evaluation.py` liga autorização, inputs, cálculo e publicação, com
-vínculo verificável aos bytes dos três JSONs históricos. Foi exercitada somente
-com fixtures. Ver [contrato técnico](docs/invoice_final_executor.md). Ainda faltam
-congelamento formal e autorização humana por canal independente.
+O [protocolo acadêmico Invoice](docs/invoice_academic_evaluation_protocol.md)
+define o recorte retrospectivo, a comparação futura e seus limites. O fluxo é
+dados → preparação → EDA → features → treinamento → validação → avaliação final
+→ resultados. O avaliador recebe inputs e modelo explicitamente, preserva as
+validações científicas e grava um JSON novo com proteção contra sobrescrita.
+A ferramenta de verificação histórica é independente da avaliação normal.
+Ver [documentação técnica](docs/invoice_final_executor.md). A avaliação final
+permanece pendente e exige uma tarefa futura explícita; não usar TEST para
+debugging, exploração, tuning ou seleção.
 `source_reconciled=false` permanece obrigatório:
 consistência de linhas não certifica procedência do fit legado. **TEST permanece
 fechado**, sem retreino, novas features, tuning ou mudança de threshold.

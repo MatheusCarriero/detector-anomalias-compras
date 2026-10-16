@@ -104,7 +104,7 @@ def _processed_frame(frame, split):
         raise ValueError("supplier_frequency negativa")
 
 
-def _metadata(content):
+def _metadata(content, offset=None):
     value = _json(content)
     required = {"algorithm": "IsolationForest", "feature_count": 19,
                 "features": list(ORDERED_FEATURES),
@@ -118,6 +118,11 @@ def _metadata(content):
     for key in PARAMETERS.keys() & value.keys():
         if _canonical(value[key]) != _canonical(PARAMETERS[key]):
             raise ValueError("Parametro do metadata diverge do protocolo")
+    if "parameters" in value and _canonical(value["parameters"]) != _canonical(PARAMETERS):
+        raise ValueError("Parametros do metadata divergem do protocolo")
+    if (offset is not None and "offset" in value
+            and _canonical(value["offset"]) != _canonical(offset)):
+        raise ValueError("Offset do metadata diverge do modelo")
 
 
 def _load_model(content, offset):
@@ -134,7 +139,7 @@ def _load_model(content, offset):
     if _canonical(model.get_params()) != _canonical(PARAMETERS):
         raise ValueError("Parametros do IsolationForest divergem do protocolo")
     if not np.isfinite(model.offset_) or float(model.offset_) != offset:
-        raise ValueError("Offset diverge da referencia congelada")
+        raise ValueError("Offset diverge da referencia informada")
     return model
 
 
@@ -157,12 +162,12 @@ def _processed(root, split, expected_hashes, expected_offset):
         _processed_frame(frame, name)
     if set(frames["train"]["invoice_id"]) & set(frames["val"]["invoice_id"]):
         raise ValueError("Sobreposicao de IDs entre TRAIN e VALIDATION")
-    _metadata(content[METADATA])
+    _metadata(content[METADATA], offset)
     model = _load_model(content[MODEL], offset)
     _check_hashes(paths, hashes)
     record = {
         "schema": "invoice-development-adapter/1.0",
-        "protocol_version": "invoice-academic-evaluation-1.0",
+        "protocol_version": "invoice-academic-evaluation-1.1",
         "scientific_evidence": False, "final_evaluation": False,
         "test_used": False, "test_authorized": False,
         "source_reconciled": False, "model_fits": 0, "score_calls": 0,

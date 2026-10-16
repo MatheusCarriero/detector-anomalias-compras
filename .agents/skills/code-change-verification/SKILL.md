@@ -11,7 +11,7 @@ Conclusão exige evidência atual, não aparência de correção. Verificação 
 
 Consulte [README](../../../README.md), [CI](../../../.github/workflows/quality.yml), [pytest.ini](../../../pytest.ini), [requirements](../../../requirements.txt) e [requirements-dev](../../../requirements-dev.txt); preserve os comandos vigentes quando aplicáveis.
 
-Para Invoice pré-TEST, **use obrigatoriamente $invoice-pretest-guard** em [SKILL.md](../invoice-pretest-guard/SKILL.md). Identifique o gate vigente. Não acessar, hashear ou avaliar TEST Invoice para verificar código; não executar a rota real como ensaio. Esta skill não substitui nem relaxa aquela proteção.
+Para Invoice pré-TEST, **use obrigatoriamente $invoice-pretest-guard** em [SKILL.md](../invoice-pretest-guard/SKILL.md). Identifique a etapa vigente. Não acessar, hashear ou avaliar TEST Invoice para verificar código; não executar a rota real como ensaio. O fluxo acadêmico não exige reconstruir Freeze, Contexto, recibos ou autorização formal. A avaliação final precisa de uma tarefa explícita e separada, não de um ensaio de desenvolvimento.
 
 ## Sequência de verificação
 

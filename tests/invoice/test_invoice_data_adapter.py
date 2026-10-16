@@ -133,6 +133,7 @@ def test_safe_loader_never_touches_mixed_raw_files(api, source, fitted_model, mo
     result = load(api, source, fitted_model, method=method, split=split, expected_hashes=expected_hashes)
     pd.testing.assert_frame_equal(result.frame, synthetic_frame(split, 12 if split == "train" else 6))
     assert result.technical_record["source_reconciled"] is False
+    assert result.technical_record["protocol_version"] == "invoice-academic-evaluation-1.1"
     assert result.technical_record["accessed_files"] == list(HASHED_PATHS)
 
 
@@ -507,6 +508,7 @@ def test_model_identity_fitted_state_and_prior_offset_are_required(api, source, 
 @pytest.mark.parametrize("key,value", [
     ("features", FEATURES[::-1]), ("feature_count", 18), ("n_estimators", 199),
     ("algorithm", "OtherAlgorithm"), ("n_jobs", 1),
+    ("parameters", {"n_estimators": 199}), ("offset", 999.0),
 ])
 def test_legacy_metadata_and_present_optional_parameters_must_match(api, source, fitted_model, key, value):
     path = source / HASHED_PATHS[3]
