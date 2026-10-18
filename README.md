@@ -39,6 +39,44 @@ Tecnologias planejadas para etapas posteriores:
 
 O backend, o banco de dados e o frontend ainda não fazem parte da implementação atual.
 
+## Diagrama de Tecnologias
+
+Os caminhos de Invoice e Supplier usam fontes separadas. O diagrama resume as tecnologias do estudo acadêmico; não representa um serviço em produção nem uma instrução para repetir os experimentos.
+
+```mermaid
+flowchart TD
+    subgraph atual["ATUAL — estudo acadêmico"]
+        di["Dados Invoice"] --> pi["Preparação Invoice: Python, Pandas, NumPy e PyArrow"]
+        pi --> mi["scikit-learn: Isolation Forest existente"]
+        mi --> ri["Rankings e comparação com valor: JSON e relatórios VALIDATION"]
+        ds["Dados Supplier"] --> ps["Preparação Supplier: Python, Pandas, NumPy e PyArrow"]
+        ps --> ms["scikit-learn: classificação Supplier"]
+        ms --> rs["Resultados acadêmicos Supplier: JSON e relatórios"]
+        j["Jupyter: EDA e experimentos registrados"] -.-> pi
+        j -.-> ps
+        q["pytest e Ruff: testes sintéticos e qualidade"] -.-> pi
+        q -.-> ps
+    end
+    subgraph futuro["PLANEJADO — aplicação não implementada"]
+        ui["React e TypeScript: interface"] -.-> api["FastAPI: backend"]
+        api -.-> db["PostgreSQL: persistência"]
+        purchase["Purchase: problema e modelagem pendentes"]
+    end
+```
+
+Python executa os scripts; Pandas e NumPy apoiam a preparação tabular e os cálculos; PyArrow permite trabalhar com Parquet. Scikit-learn fornece os estimadores e transformações. Jupyter reúne as análises acadêmicas, enquanto pytest e Ruff verificam o código, sem representar etapas de avaliação científica. As setas pontilhadas indicam apoio técnico ou relações planejadas.
+
+Invoice tem comparação em VALIDATION concluída e avaliação final pendente. Supplier já concluiu sua avaliação final, sem modelo de produção. Purchase ainda não possui pipeline de modelagem. FastAPI, PostgreSQL, React e TypeScript pertencem à evolução descrita no [roadmap](docs/implementation_roadmap.md); a integração com os modelos depende de contratos futuros. Procurement KPI permanece auxiliar e não entra nos fluxos de treinamento.
+
+## Materiais acadêmicos
+
+Os [requisitos funcionais e não funcionais](docs/requisitos.md) consolidam funcionalidades existentes e extensões planejadas. Os benchmarks experimentais permanecem nos relatórios de cada domínio:
+
+- **Supplier Risk:** [comparação com baseline majoritária, Logistic Regression, Random Forest e ablações](docs/supplier_risk_baseline_models.md), complementada pela [avaliação final já concluída](docs/supplier_risk_final_evaluation.md).
+- **Invoice:** [comparação do Isolation Forest com priorização por valor](docs/invoice_value_comparison_results.md), segundo o [protocolo histórico](docs/invoice_value_comparison_protocol.md), exclusivamente em VALIDATION.
+
+Esses benchmarks comparam abordagens de ML, não produtos comerciais. Métricas de domínios diferentes não são diretamente comparáveis; resultados e limitações ficam nos relatórios originais, sem duplicação aqui.
+
 ## Machine Learning
 
 O Invoice utiliza Isolation Forest, um algoritmo não supervisionado para detecção de anomalias. Seus labels não entram como features; `is_fraud` é reservado à avaliação e `fraud_type` às análises complementares. Modelo e metadata já existem em `ml/models/` no ambiente com os dados locais.
