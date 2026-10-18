@@ -4,13 +4,13 @@
 
 O projeto **Detector Inteligente de Anomalias em Compras** adota **3 domínios → 3 modelos especializados**. Cada componente usa sua própria fonte e mantém resultados independentes. As populações dos datasets são diferentes e não possuem chaves reais comuns para integração: não haverá merge direto de suas features. Uma eventual camada futura de integração de scores precisará de contexto verificável, avaliação própria e rastreabilidade, sem assumir que IDs semelhantes representam a mesma entidade.
 
-A fase inicial criou a estrutura dos domínios externos. O Supplier Risk concluiu preparação, experimentos e avaliação final acadêmica única com Logistic Regression cenário C, conforme [registro final](supplier_risk_final_evaluation.md); não há modelo de produção nem autorização para reutilizar TEST. Purchase continua com auditoria/estratégia e implementação pendente. Invoice permanece independente, com avaliação final pendente.
+A fase inicial criou a estrutura dos domínios externos. O Supplier Risk concluiu preparação, experimentos e avaliação final acadêmica única com Logistic Regression cenário C, conforme [registro final](supplier_risk_final_evaluation.md); não há modelo de produção nem autorização para reutilizar TEST. Purchase continua com auditoria/estratégia e implementação pendente. Invoice permanece independente e concluiu sua avaliação final única em TEST, sem novo fit ou tuning.
 
 ## 2. Arquitetura dos modelos
 
 | Modelo | Unidade de análise | Fonte principal | Momento de scoring | Saída planejada | Estado |
 | --- | --- | --- | --- | --- | --- |
-| Invoice Anomaly Model | Fatura | Procurement Invoice Fraud Dataset | Lote retrospectivo preparado; uso online não validado | `invoice_anomaly_score` | Triagem/comparação VALIDATION concluídas; avaliador e validações com fixtures; avaliação final pendente |
+| Invoice Anomaly Model | Fatura | Procurement Invoice Fraud Dataset | Lote retrospectivo preparado; uso online não validado | `invoice_anomaly_score` | Triagem/comparação VALIDATION e avaliação final única em TEST concluídas; sem uso operacional validado |
 | Supplier Risk Model | Fornecedor | Supplier Risk Assessment Dataset | Classificação do perfil representado no dataset, sem previsão temporal | Classe 0/1 e, quando compatível, probabilidade estimada da classe 1 | Avaliação final acadêmica LR/C concluída; sem uso operacional validado |
 | Purchase Risk Model | Linha de pedido na fonte; agregação por pedido não comprovada | Purchase Orders & Supplier Performance Dataset | Antes da aprovação | Significado pendente: anomalia ou desfecho específico; `purchase_risk_score` é nome histórico | Somente auditoria/documentação; features/modelo não criados |
 
@@ -50,11 +50,13 @@ O objetivo vigente, formalizado em 27/09/2026, é **priorizar faturas de comport
 
 **IMPLEMENTADO:** avaliador acadêmico, adaptador e validações de inputs, com dados e modelo explícitos e resultado JSON protegido contra sobrescrita. A verificação dos três JSONs históricos permanece uma ferramenta independente de rastreabilidade. Os testes usam somente fixtures sintéticas; as responsabilidades estão descritas na [documentação técnica](invoice_final_executor.md).
 
-**PENDENTE:** a avaliação final depende de uma tarefa futura explícita, conforme o [protocolo acadêmico](invoice_academic_evaluation_protocol.md), sem uso de TEST para desenvolvimento, tuning ou seleção. Não executar a rota real como ensaio.
+**CONCLUÍDO em 18/10/2026:** a avaliação final retrospectiva/descritiva utilizou o modelo existente com configuração previamente fixada e as mesmas 19 features, em 60.000 registros de TEST. Houve uma única chamada de scoring, sem fit, tuning ou ajuste de threshold. O resultado oficial é [invoice_test_final_v1.json](../ml/experiments/invoice_test_final_v1.json), separado dos registros históricos de VALIDATION, seguindo a comparação prevista no [protocolo acadêmico](invoice_academic_evaluation_protocol.md). Não repetir a avaliação nem usar TEST para desenvolvimento, tuning ou seleção.
+
+O ranking por valor apresentou maior Precision@K e captura no top 1%. No top 5%, os resultados foram próximos, com pequena vantagem do Isolation Forest; no top 10%, o ranking do Isolation Forest apresentou maior Precision@K e captura. Não houve superioridade uniforme, e o resultado não estabelece sozinho uma política operacional de auditoria.
 
 Antes do uso operacional, será necessário validar separadamente a utilidade humana, a capacidade, os custos e a disponibilidade de informações.
 
-**LIMITAÇÕES:** as estatísticas usam todo o TRAIN, sem reconstrução ponto-a-ponto. A avaliação anterior abrange fornecedores conhecidos e períodos parciais; a referência é ambígua e a procedência histórica permanece incompleta. `source_reconciled=false` permanece explícito; consistência de linhas não certifica o fit legado. Enriquecimento de INFLATED no top 1% e ganho condicionado ao orçamento não comprovam detecção geral de fraude. TEST continua fechado; nenhum threshold operacional é necessário para este benchmark retrospectivo.
+**LIMITAÇÕES:** as estatísticas usam todo o TRAIN, sem reconstrução ponto-a-ponto. A avaliação anterior abrange fornecedores conhecidos e períodos parciais; a referência é ambígua e a procedência histórica permanece incompleta. `source_reconciled=false` permanece explícito; consistência de linhas não certifica o fit legado. Enriquecimento de INFLATED no top 1% e ganho condicionado ao orçamento não comprovam detecção geral de fraude. A avaliação final não comprova generalização para outras populações ou períodos nem eficácia empresarial; nenhum threshold operacional foi escolhido para este benchmark retrospectivo.
 
 ### 4.2. Supplier Risk Model
 

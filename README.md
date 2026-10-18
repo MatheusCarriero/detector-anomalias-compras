@@ -1,6 +1,6 @@
 # Detector Inteligente de Anomalias em Compras
 
-Projeto acadêmico de Machine Learning com três domínios independentes: anomalias em faturas, classificação de risco de fornecedores e risco de pedidos de compra. O Invoice possui um Isolation Forest treinado e primeira avaliação em VALIDATION concluída. A avaliação final acadêmica Supplier Risk foi concluída, sem modelo de produção; seu TEST não será reutilizado. Backend e frontend ainda não estão implementados.
+Projeto acadêmico de Machine Learning com três domínios independentes: anomalias em faturas, classificação de risco de fornecedores e risco de pedidos de compra. O Invoice possui um Isolation Forest treinado, avaliações históricas em VALIDATION e avaliação final única em TEST concluída. A avaliação final acadêmica Supplier Risk foi concluída, sem modelo de produção; seu TEST não será reutilizado. Backend e frontend ainda não estão implementados.
 
 ## Objetivo
 
@@ -12,7 +12,7 @@ As fontes representam populações diferentes, sem chaves reais comuns para inte
 
 | Domínio | Concluído | Pendente |
 |---|---|---|
-| Invoice Anomaly | 19 features, auditoria, triagem e comparação IF × valor em VALIDATION; avaliador acadêmico e validações de inputs com fixtures sintéticas | Avaliação final em tarefa futura explícita. TEST fechado; `source_reconciled=false`, procedência e utilidade humana limitadas |
+| Invoice Anomaly | 19 features, auditoria, triagem e comparação IF × valor em VALIDATION; avaliação final única em TEST concluída, com validação das fontes e sem fit | Procedência e utilidade humana limitadas; `source_reconciled=false`. Não repetir TEST |
 | Supplier Risk | Preparação, EDA TRAIN, baselines/ablações, CV exploratória, configuração LR/C congelada e avaliação final única documentada | Procedência da label/índice, validade externa e eventual uso operacional; não reabrir TEST |
 | Purchase Risk | Dataset analisado, granularidade da fonte em linha de pedido e fronteira pré-aprovação documentadas | Escolher anomalia ou desfecho específico; feature engineering, modelagem e avaliação |
 
@@ -48,7 +48,7 @@ flowchart TD
     subgraph atual["ATUAL — estudo acadêmico"]
         di["Dados Invoice"] --> pi["Preparação Invoice: Python, Pandas, NumPy e PyArrow"]
         pi --> mi["scikit-learn: Isolation Forest existente"]
-        mi --> ri["Rankings e comparação com valor: JSON e relatórios VALIDATION"]
+        mi --> ri["Rankings e comparação com valor: registros VALIDATION e TEST"]
         ds["Dados Supplier"] --> ps["Preparação Supplier: Python, Pandas, NumPy e PyArrow"]
         ps --> ms["scikit-learn: classificação Supplier"]
         ms --> rs["Resultados acadêmicos Supplier: JSON e relatórios"]
@@ -66,14 +66,14 @@ flowchart TD
 
 Python executa os scripts; Pandas e NumPy apoiam a preparação tabular e os cálculos; PyArrow permite trabalhar com Parquet. Scikit-learn fornece os estimadores e transformações. Jupyter reúne as análises acadêmicas, enquanto pytest e Ruff verificam o código, sem representar etapas de avaliação científica. As setas pontilhadas indicam apoio técnico ou relações planejadas.
 
-Invoice tem comparação em VALIDATION concluída e avaliação final pendente. Supplier já concluiu sua avaliação final, sem modelo de produção. Purchase ainda não possui pipeline de modelagem. FastAPI, PostgreSQL, React e TypeScript pertencem à evolução descrita no [roadmap](docs/implementation_roadmap.md); a integração com os modelos depende de contratos futuros. Procurement KPI permanece auxiliar e não entra nos fluxos de treinamento.
+Invoice concluiu a comparação em VALIDATION e a avaliação final em TEST. Supplier já concluiu sua avaliação final, sem modelo de produção. Purchase ainda não possui pipeline de modelagem. FastAPI, PostgreSQL, React e TypeScript pertencem à evolução descrita no [roadmap](docs/implementation_roadmap.md); a integração com os modelos depende de contratos futuros. Procurement KPI permanece auxiliar e não entra nos fluxos de treinamento.
 
 ## Materiais acadêmicos
 
 Os [requisitos funcionais e não funcionais](docs/requisitos.md) consolidam funcionalidades existentes e extensões planejadas. Os benchmarks experimentais permanecem nos relatórios de cada domínio:
 
 - **Supplier Risk:** [comparação com baseline majoritária, Logistic Regression, Random Forest e ablações](docs/supplier_risk_baseline_models.md), complementada pela [avaliação final já concluída](docs/supplier_risk_final_evaluation.md).
-- **Invoice:** [comparação do Isolation Forest com priorização por valor](docs/invoice_value_comparison_results.md), segundo o [protocolo histórico](docs/invoice_value_comparison_protocol.md), exclusivamente em VALIDATION.
+- **Invoice:** [comparação histórica do Isolation Forest com priorização por valor](docs/invoice_value_comparison_results.md), segundo o [protocolo histórico](docs/invoice_value_comparison_protocol.md), exclusivamente em VALIDATION; a [avaliação final em TEST](ml/experiments/invoice_test_final_v1.json) tem registro separado.
 
 Esses benchmarks comparam abordagens de ML, não produtos comerciais. Métricas de domínios diferentes não são diretamente comparáveis; resultados e limitações ficam nos relatórios originais, sem duplicação aqui.
 
@@ -81,7 +81,11 @@ Esses benchmarks comparam abordagens de ML, não produtos comerciais. Métricas 
 
 O Invoice utiliza Isolation Forest, um algoritmo não supervisionado para detecção de anomalias. Seus labels não entram como features; `is_fraud` é reservado à avaliação e `fraud_type` às análises complementares. Modelo e metadata já existem em `ml/models/` no ambiente com os dados locais.
 
-Para evitar data leakage entre partições, campos derivados do risco conhecido (`supplier_risk_score` e `blacklisted_flag`), labels e explicações não entram nas features. As estatísticas de fornecedores, departamentos, países e relações fornecedor/departamento são calculadas exclusivamente no conjunto de treino, mas **não são ponto-a-ponto temporais dentro do TRAIN**: usam todo o período de treino, inclusive a própria observação. `contamination=0.22` é configuração inicial, não desempenho comprovado. A avaliação consolidada e por `fraud_type` em VALIDATION está registrada em docs/invoice_validation_results.md; a amostra avaliou apenas fornecedores já observados no TRAIN. A avaliação final permanece pendente. O ranking retrospectivo usa orçamentos fixos e não exige selecionar threshold operacional; caso este seja necessário futuramente, exigirá protocolo em validação, nunca em TEST. **IMPLEMENTADO no fechamento de engenharia:** validação explícita das 19 features e `main` guard para tornar a importação do comando de treino inerte. Metodologia, features, parâmetros, caminhos, metadata e modelo Invoice foram preservados; nenhum treino real, retraining ou uso de TEST foi executado naquele fechamento.
+Para evitar data leakage entre partições, campos derivados do risco conhecido (`supplier_risk_score` e `blacklisted_flag`), labels e explicações não entram nas features. As estatísticas de fornecedores, departamentos, países e relações fornecedor/departamento são calculadas exclusivamente no conjunto de treino, mas **não são ponto-a-ponto temporais dentro do TRAIN**: usam todo o período de treino, inclusive a própria observação.
+
+`contamination=0.22` é configuração inicial, não desempenho comprovado. A avaliação consolidada e por `fraud_type` em VALIDATION está registrada em docs/invoice_validation_results.md. A amostra incluiu apenas fornecedores já observados no TRAIN. A avaliação final em TEST foi concluída separadamente, com o modelo existente e sem novo fit.
+
+O ranking retrospectivo usa orçamentos fixos e não exige selecionar threshold operacional. Se um threshold operacional for necessário futuramente, sua escolha exigirá protocolo em validação, nunca em TEST.
 
 No Supplier Risk, `Risk_Level` é o **target supervisionado**, nunca uma feature. A convenção adotada no projeto é `0 = menor risco`, `1 = maior risco`. Para modelos compatíveis, a saída poderá incluir a **probabilidade estimada de pertencimento à classe de risco**, não a probabilidade real de ocorrer um problema. A origem/regra da label não foi comprovada; resultados deverão ser interpretados como capacidade de reproduzir padrões associados à classificação fornecida pelo dataset. Ver [objetivo e limitações](docs/supplier_risk_model.md).
 
@@ -294,13 +298,13 @@ O [protocolo experimental do Supplier](docs/supplier_risk_model.md#13-protocolo-
 
 **Evidência:** o [contrato de registros experimentais](docs/supplier_risk_experiment_records.md) separa desenvolvimento TRAIN/VALIDATION da API final, já utilizada pelo executor Supplier. As predições individuais das primeiras rodadas não foram fabricadas retroativamente; a avaliação final tem seus próprios registros. Os notebooks locais 01/02 têm alterações preexistentes apenas no nome exibido do kernel, preservadas fora deste escopo. A [nota de rastreabilidade](docs/supplier_risk_final_evaluation.md#nota-de-rastreabilidade-do-checkout) distingue esses bytes atuais dos congelados; não autoriza reexecução.
 
-O [roadmap de implementação](docs/implementation_roadmap.md) preserva as etapas Supplier já concluídas e organiza as pendências: avaliação final Invoice, procedência, decisão formal Purchase, publicação transacional dos produtores ainda sequenciais e, posteriormente, contratos de inferência, aplicação, segurança e monitoramento.
+O [roadmap de implementação](docs/implementation_roadmap.md) preserva as etapas Supplier já concluídas e o planejamento anterior à avaliação final Invoice, agora concluída. Permanecem as pendências de procedência, decisão formal Purchase, publicação transacional dos produtores ainda sequenciais e, posteriormente, contratos de inferência, aplicação, segurança e monitoramento.
 
 **Purchase — somente documentação:** o Vocabulary & Notes define PO_Number como linha de pedido, Lead_Time_Days como pós-entrega, ESG como simulado e valores em moedas locais sem câmbio. Falta escolher anomalia ou desfecho específico e confirmar dados pré-aprovação; anomalia não será chamada automaticamente de risco. Ver [contrato Purchase](docs/purchase_risk_model.md).
 
-O projeto ainda não possui aplicação backend/frontend ou banco integrado. Supplier possui avaliação final acadêmica; Invoice e Purchase não devem ser apresentados com a mesma maturidade. Os detalhes e decisões históricas estão em [Estratégia de Dados](docs/data_strategy.md), [Estratégia de Modelos](docs/model_strategy.md) e [Supplier Risk](docs/supplier_risk_model.md).
+O projeto ainda não possui aplicação backend/frontend ou banco integrado. Supplier e Invoice possuem avaliação final acadêmica, sem uso operacional validado; Purchase permanece sem modelagem. Os detalhes e decisões históricas estão em [Estratégia de Dados](docs/data_strategy.md), [Estratégia de Modelos](docs/model_strategy.md) e [Supplier Risk](docs/supplier_risk_model.md).
 
-## Invoice Anomaly — avaliação histórica concluída
+## Invoice Anomaly — avaliações registradas
 
 A [EDA acadêmica Invoice](docs/invoice_eda.md), com
 [notebook executado](ml/notebooks/01_invoice_eda.ipynb), descreve exclusivamente
@@ -333,7 +337,7 @@ positivos e 40,92% de alertas, sem retreino ou ajuste de threshold. Há 446 labe
 de fraude com tipo NONE e 140 labels normais com tipo diferente de NONE na
 fonte. A [auditoria metodológica](docs/invoice_methodological_audit.md) confirmou
 as limitações da referência e da procedência, sem corrigir labels ou alterar
-features. Invoice TEST permanece fechado.
+features. Naquela etapa, a avaliação final em TEST ainda não havia sido realizada.
 
 ### Invoice como triagem — diagnóstico de 27/09/2026
 
@@ -365,14 +369,33 @@ métricas ou decisões. ZIPs simulados devem permanecer fora do repositório. A
 **não houve revisão humana válida** e a utilidade operacional continua pendente.
 
 O [protocolo acadêmico Invoice](docs/invoice_academic_evaluation_protocol.md)
-define o recorte retrospectivo, a comparação futura e seus limites. O fluxo é
+define o recorte retrospectivo, a comparação prevista antes da execução e seus limites. O fluxo é
 dados → preparação → EDA → features → treinamento → validação → avaliação final
 → resultados. O avaliador recebe inputs e modelo explicitamente, preserva as
 validações científicas e grava um JSON novo com proteção contra sobrescrita.
 A ferramenta de verificação histórica é independente da avaliação normal.
 Ver [documentação técnica](docs/invoice_final_executor.md). A avaliação final
-permanece pendente e exige uma tarefa futura explícita; não usar TEST para
-debugging, exploração, tuning ou seleção.
+foi concluída em 18/10/2026, conforme o registro abaixo. Não repetir TEST nem
+usá-lo para debugging, exploração, tuning ou seleção.
 `source_reconciled=false` permanece obrigatório:
-consistência de linhas não certifica procedência do fit legado. **TEST permanece
-fechado**, sem retreino, novas features, tuning ou mudança de threshold.
+consistência de linhas não certifica procedência do fit legado. A avaliação
+preservou o modelo, sem retreino, novas features, tuning ou mudança de threshold.
+
+### Avaliação final em TEST (18/10/2026)
+
+A execução única avaliou 60.000 faturas com as 19 features existentes, sem fit ou tuning. A prevalência da referência `is_fraud` foi de 22,5167%. Os resultados detalhados, incluindo matrizes por tipo, estão em [invoice_test_final_v1.json](ml/experiments/invoice_test_final_v1.json), separados do histórico de VALIDATION.
+
+| Orçamento | Estratégia | Precision@K | Captura | Lift |
+|---|---|---:|---:|---:|
+| 1% | Isolation Forest | 83,00% | 3,69% | 3,6862 |
+| 1% | Valor da fatura | 97,83% | 4,34% | 4,3449 |
+| 5% | Isolation Forest | 42,77% | 9,50% | 1,8993 |
+| 5% | Valor da fatura | 42,37% | 9,41% | 1,8816 |
+| 10% | Isolation Forest | 31,97% | 14,20% | 1,4197 |
+| 10% | Valor da fatura | 25,02% | 11,11% | 1,1110 |
+
+Valores arredondados para apresentação; o JSON preserva a precisão registrada. Precision@K mede a proporção de positivos da referência entre os selecionados; captura mede a parcela dos positivos totais recuperada; lift compara a concentração com a prevalência da referência.
+
+No top 1%, o ranking por valor apresentou maior Precision@K e captura. No top 5%, os resultados foram próximos, com pequena vantagem do Isolation Forest; no top 10%, o ranking do Isolation Forest apresentou maior Precision@K e captura. Não houve superioridade uniforme entre as estratégias, e o resultado não define sozinho uma política operacional de auditoria.
+
+A comparação é retrospectiva e descritiva. `is_fraud` não é verdade empresarial certificada, e o score representa anomalia, não probabilidade de fraude ou detecção automática de fraude. As limitações de procedência, temporalidade e utilidade humana permanecem.

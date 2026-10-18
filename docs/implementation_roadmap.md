@@ -1,6 +1,6 @@
 # Roadmap de implementação
 
-## Estado vigente — simplificação acadêmica de 13/10/2026
+## Estado vigente — fechamento da avaliação Invoice em 18/10/2026
 
 Invoice mantém 19 features, modelo e resultados históricos de VALIDATION.
 O fluxo é dados → preparação → EDA → features → treinamento → validação →
@@ -10,11 +10,18 @@ histórica é independente da avaliação normal. Consulte o
 [protocolo acadêmico](invoice_academic_evaluation_protocol.md) e a
 [documentação técnica](invoice_final_executor.md).
 
-A avaliação final continua pendente e só ocorrerá em tarefa futura explícita.
-TEST não participa de exploração, desenvolvimento, tuning ou seleção.
+A avaliação final em TEST foi concluída em execução única, com 60.000 faturas
+e as mesmas 19 features, sem fit, tuning ou alteração do modelo. O resultado
+oficial está em [invoice_test_final_v1.json](../ml/experiments/invoice_test_final_v1.json),
+separado dos resultados históricos de VALIDATION. Não repetir a avaliação nem
+usar TEST para exploração, desenvolvimento, tuning ou seleção.
 `source_reconciled=false` e as limitações de procedência do fit legado,
-labels, temporalidade e utilidade humana permanecem. Nenhum resultado
-científico foi recalculado por esta refatoração; TEST/raw permanecem fechados.
+labels, temporalidade e utilidade humana permanecem; a comparação retrospectiva
+não comprova eficácia empresarial.
+
+Na simplificação acadêmica de 13/10/2026, a avaliação final ainda estava pendente,
+TEST/raw permaneceram fechados e nenhum resultado científico foi recalculado
+pela refatoração. Esse era o estado anterior à execução final.
 
 Supplier concluiu sua avaliação final acadêmica; não repetir. Purchase mantém
 suas decisões metodológicas pendentes. Backend/frontend seguem fora desta etapa.
@@ -37,8 +44,8 @@ foi preservada; não houve revisão humana válida e uma eventual etapa real seg
 separada, sem ser substituída pela simulação.
 
 **Nota histórica:** a etapa seguinte então previa uma estrutura técnica de
-execução. A arquitetura atual e a avaliação final pendente estão descritas
-no estado vigente acima. Custos, capacidade e avaliação humana reais continuam
+execução, com avaliação final então pendente. A arquitetura e o estado atual
+da avaliação estão descritos acima. Custos, capacidade e avaliação humana reais continuam
 necessários para alegar utilidade operacional.
 
 As atualizações datadas abaixo preservam o histórico, não redefinem o próximo
@@ -220,11 +227,12 @@ Mesmo um resultado favorável não supre validação externa/temporal nem prova 
 
 **IMPLEMENTADO — técnico:** avaliador acadêmico e validações de inputs/modelo
 com fixtures sintéticas; JSON normal com proteção contra sobrescrita e
-verificação histórica independente. **PENDENTE — acadêmico:** avaliação final
-em tarefa futura explícita conforme o [protocolo](invoice_academic_evaluation_protocol.md).
-Comparar as duas estratégias em todos os orçamentos, sem retreino ou ajuste
-condicionado a TEST. Registrar partição, configuração, features, métricas,
-resultados, limitações e timestamp, mantendo `source_reconciled=false`.
+verificação histórica independente. **CONCLUÍDO — avaliação final acadêmica:**
+execução única em TEST conforme o [protocolo](invoice_academic_evaluation_protocol.md),
+registrada em [invoice_test_final_v1.json](../ml/experiments/invoice_test_final_v1.json).
+As duas estratégias foram comparadas nos orçamentos previstos, sem retreino,
+tuning ou ajuste condicionado a TEST. O registro mantém partição, configuração,
+features, métricas, resultados, limitações, timestamp e `source_reconciled=false`.
 
 **Utilidade operacional separada:** exige evidência humana real, contexto
 disponível, capacidade/custos e eventual regra operacional pré-definida.

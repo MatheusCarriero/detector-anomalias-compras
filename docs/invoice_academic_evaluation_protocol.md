@@ -1,8 +1,13 @@
 # Invoice — protocolo acadêmico de avaliação
 
 **Versão:** invoice-academic-evaluation-1.1. **Atualização estrutural:** 13/10/2026.
-**Estado:** escopo acadêmico documentado; TEST fechado. Não é registro de uma
-execução final. TEST será usado somente em uma tarefa futura explicitamente destinada à avaliação final.
+**Estado de execução atualizado em 18/10/2026:** protocolo aplicado à avaliação
+final única em TEST, com 60.000 faturas e as mesmas 19 features, sem fit, tuning
+ou novo threshold. O resultado oficial está em
+[invoice_test_final_v1.json](../ml/experiments/invoice_test_final_v1.json), separado
+do histórico de VALIDATION. Este documento permanece a referência metodológica;
+seus critérios não foram alterados em função dos resultados. Em 13/10/2026,
+TEST ainda estava fechado e a avaliação dependia de uma tarefa futura explícita.
 
 ## 1. Decisão e fronteira do estudo
 
@@ -16,14 +21,14 @@ O fechamento acadêmico e a adoção operacional têm requisitos diferentes:
 
 | Finalidade | Evidência admissível | Estado atual |
 |---|---|---|
-| Benchmark acadêmico retrospectivo | Enriquecimento e recuperação da referência `is_fraud`, composição por tipo e complementaridade das filas | Análises TRAIN/VALIDATION concluídas; avaliação final ainda não executada |
+| Benchmark acadêmico retrospectivo | Enriquecimento e recuperação da referência `is_fraud`, composição por tipo e complementaridade das filas | Análises TRAIN/VALIDATION e avaliação final única em TEST concluídas, com registros separados |
 | Utilidade para auditoria humana | Julgamentos de pessoas reais independentes, contexto suficiente, capacidade e custo de investigação | Não demonstrada; simulações não satisfazem esse requisito |
 | Produção | Validação do uso, disponibilidade temporal, contrato de inferência, segurança e monitoramento | Fora deste incremento; sem liberação |
 
 Aceita-se estudar **o artefato legado identificado**, com suas limitações
 declaradas, sem inventar a procedência do fit ou reconstruí-la por um novo treino.
 Esse recorte não certifica que os bytes/IDs usados no treinamento original sejam
-os atuais. Nem uma avaliação futura comprovará retrospectivamente que o fit nunca
+os atuais. A avaliação final não comprova retrospectivamente que o fit nunca
 viu determinada linha. A limitação deve acompanhar qualquer resultado final.
 
 ## 2. Encerramento do teste técnico da revisão cega
@@ -51,7 +56,7 @@ abertura de labels. Não se presume cegamento de alguém exposto à simulação.
 
 ## 3. Evidência científica preservada
 
-As conclusões válidas continuam sendo exclusivamente as já registradas:
+As evidências históricas anteriores à avaliação final permanecem preservadas:
 
 | Etapa | Referência | Limite da conclusão |
 |---|---|---|
@@ -60,7 +65,7 @@ As conclusões válidas continuam sendo exclusivamente as já registradas:
 | Triagem e diagnóstico temporal | [Resultados](invoice_triage_results.md) | Enriquecimento do topo; diferenças temporais descritivas |
 | IF versus valor | [Comparação](invoice_value_comparison_results.md) | Ganho incremental condicionado ao orçamento; sem superioridade uniforme |
 
-Na comparação já registrada, o ganho líquido de positivos do IF foi **−40, +7
+Na comparação histórica em VALIDATION, o ganho líquido de positivos do IF foi **−40, +7
 e +192**, respectivamente, em 1%, 5% e 10%. Esses números não foram recalculados
 nem influenciados pela simulação. Não justificam escolher 10% para implantação.
 
@@ -79,12 +84,15 @@ e o [roadmap atualizado](implementation_roadmap.md).
 `test_used=false` nos registros históricos descreve ausência de avaliação/decisão
 em TEST, não certificação de ausência de leitura física dos raw compartilhados.
 Os carregadores antigos usavam filtros lógicos; essa limitação não deve ser
-apagada nem corrigida retrospectivamente nos JSONs. Nesta auditoria pré-TEST
+apagada nem corrigida retrospectivamente nos JSONs. Na auditoria pré-TEST
 não houve leitura, hashing ou avaliação de TEST.
 
 ## 4. Especificação prévia para eventual avaliação final
 
-**PLANEJADO, não executado:** verificar em uma partição ainda não analisada nesta
+**Especificação anterior à execução, preservada:** quando este plano foi definido,
+a avaliação estava planejada, não executada. Foi aplicada em 18/10/2026 sem
+revisão dos critérios abaixo. O objetivo previamente definido era verificar
+em uma partição ainda não analisada nesta
 sequência se o ranking do artefato legado apresenta enriquecimento e diferença
 descritiva em relação à regra de valor. Não selecionar um novo modelo ou declarar
 um vencedor operacional.
@@ -109,7 +117,7 @@ um vencedor operacional.
   difíceis nem inferir uma label substituta.
 - **População:** split oficial, estudo retrospectivo na fonte; a hipótese de
   generalização não abrange automaticamente fornecedores novos, outros sistemas
-  ou novos ciclos temporais. O perfil de TEST continua desconhecido nesta etapa.
+  ou novos ciclos temporais. O perfil de TEST era desconhecido na definição deste plano.
 
 Identidade do modelo: `c9c0f51a9c962fac5ea6b34db5e0b74f09c120896bf9e7bf3a87418df2adba1b`.
 Metadata: `ba07485e8dda458e45376b6edc4bd164926efe2c6ca8385cde32f7309db86595`.
@@ -158,14 +166,15 @@ ou intervalos que suponham faturas/top-k independentes.
 Não alegar fraude comprovada, causalidade, probabilidade de fraude, retorno
 financeiro, operação online validada ou prontidão de produção.
 
-## 7. Fluxo acadêmico e avaliação final pendente
+## 7. Fluxo acadêmico e avaliação final concluída
 
 O fluxo é dados → preparação → EDA → features → treinamento → validação →
 avaliação final → resultados. A simplificação estrutural não repete as etapas
 científicas concluídas nem muda configuração, features, labels ou resultados.
 
-TEST permanece fechado nesta refatoração. Seu uso exige uma tarefa futura
-explícita de avaliação final, seguindo as decisões dos itens 4 e 5. Não usar
+TEST permaneceu fechado durante a refatoração de 13/10/2026; sua avaliação
+ocorreu depois, em tarefa explícita, seguindo as decisões dos itens 4 e 5.
+A execução final foi única e não deve ser repetida. Não usar
 TEST para EDA, debugging, tuning, escolha de features, threshold ou orçamento.
 Não executar a rota real para conferir seu funcionamento.
 
@@ -183,7 +192,7 @@ de rastreabilidade, não requisito para executar uma avaliação normal.
 
 ## 8. Procedência e limites do artefato legado
 
-Os resultados futuros mantêm explicitamente:
+O resultado final mantém os indicadores previstos no protocolo:
 
 ```json
 {
@@ -204,6 +213,6 @@ acessá-los no desenvolvimento nem repetir avaliações históricas para verific
 a refatoração. O indicador histórico `test_used=false` descreve ausência de
 avaliação/decisão em TEST, sem certificar ausência de leitura física antiga.
 
-A avaliação final continua pendente. Revisão humana real, custos, capacidade
+A avaliação final foi concluída, sem eliminar estas limitações. Revisão humana real, custos, capacidade
 de investigação e adoção operacional permanecem uma trilha separada; nenhum
 resultado sintético ou benchmark retrospectivo supre essas evidências.

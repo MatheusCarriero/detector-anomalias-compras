@@ -1,8 +1,9 @@
 # Invoice — avaliador acadêmico
 
-**Estado em 13/10/2026:** arquitetura simplificada; avaliação final ainda não
-executada. Esta documentação descreve software e metodologia, não desempenho
-novo. TEST e raw não devem ser acessados durante desenvolvimento ou verificação.
+**Estado em 18/10/2026:** avaliação final única em TEST concluída com o executor
+da arquitetura simplificada. O modelo existente e as 19 features foram
+preservados, sem fit ou tuning. TEST e raw não devem ser acessados durante
+desenvolvimento ou verificação; esta atualização documental não repete a avaliação.
 
 ## Fluxo e responsabilidades
 
@@ -71,11 +72,24 @@ timestamp. A gravação cria um arquivo novo e recusa destino existente.
 Não sobrescrever resultados históricos nem executar novamente TEST em outro
 destino para contornar a proteção.
 
-Não é necessário preparar uma cadeia de documentos de execução. O chamador
-fornece explicitamente os dados/modelo e o destino. TEST só pode ser utilizado
-em tarefa futura explicitamente destinada à avaliação final; não para
-debugging, tuning ou exploração. Nenhuma execução real foi feita nesta
-refatoração.
+O chamador fornece explicitamente os dados/modelo e o destino. A avaliação final
+foi realizada em tarefa própria, após a refatoração, com validação das fontes
+concluída antes do scoring: schema, IDs, partições sem sobreposição, ordem das
+19 features, labels, valores/moeda e compatibilidade do modelo com a metadata.
+TRAIN e VALIDATION participaram das verificações de consistência e separação;
+somente os 60.000 registros de TEST foram pontuados. A moeda validada foi ZAR.
+
+O executor utilizou `ml/models/isolation_forest.joblib` e
+`ml/models/model_metadata.json`, sem alterar parâmetros ou offset. Houve uma
+única chamada de `score_samples`, nenhum fit, nenhum tuning e uma gravação
+exclusiva em [ml/experiments/invoice_test_final_v1.json](../ml/experiments/invoice_test_final_v1.json).
+
+- Identificação: `invoice_test_final_v1`.
+- SHA-256: `203e9ceb18c028c73eb0e3688eaaa24ead21129aa60d61daf0ae19468512b58a`.
+
+O arquivo contém a comparação IF × valor em 1%, 5% e 10%, matrizes de seleção
+globais e por tipo e limitações. Os JSONs históricos de VALIDATION foram
+preservados. Não repetir TEST nem usá-lo para debugging, tuning ou exploração.
 
 ## Evidência e limitações
 
