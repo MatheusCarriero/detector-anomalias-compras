@@ -23,8 +23,10 @@ Na simplificação acadêmica de 13/10/2026, a avaliação final ainda estava pe
 TEST/raw permaneceram fechados e nenhum resultado científico foi recalculado
 pela refatoração. Esse era o estado anterior à execução final.
 
-Supplier concluiu sua avaliação final acadêmica; não repetir. Purchase mantém
-suas decisões metodológicas pendentes. Backend/frontend seguem fora desta etapa.
+Supplier concluiu sua avaliação final acadêmica; não repetir. A auditoria Purchase
+concluiu pela decisão C: não implementar o modelo ainda, por insuficiência
+metodológica para demonstrar uso pré-aprovação. Purchase permanece na fase 7,
+sem iniciar feature engineering ou treinamento. Backend/frontend seguem fora desta etapa.
 As atualizações datadas e planos abaixo são históricos; não são tarefas a
 repetir nem exigem reconstruir a antiga infraestrutura de execução Invoice.
 As decisões independentes de Supplier/Purchase continuam válidas.
@@ -246,7 +248,9 @@ Score não é probabilidade de fraude; benchmark favorável não libera produç�
 
 **Responsáveis:** proprietário do processo de compras, especialista de domínio, dados e ML.
 
-**PLANEJADO:** escolher formalmente entre detecção de anomalias e previsão de um desfecho específico; confirmar unidade operacional, target/horizonte quando aplicável, instante pré-aprovação, disponibilidade das features e política para moedas. A fonte disponível representa linhas de pedido; agregação não será inventada.
+**Estado vigente:** decisão C, não implementar o modelo ainda. A auditoria confirmou 5.200 linhas de pedido e 57 colunas, mas não encontrou timestamp explícito de aprovação nem histórico de alterações/snapshots dos campos. Não há target ou conjunto de features pré-aprovação aprovado. Detecção de anomalias e supervisão continuam possibilidades, não decisões adotadas.
+
+**Próximo passo:** esclarecer a relação entre `PO Date` e aprovação, a existência de timestamp/snapshot pré-aprovação e a disponibilidade temporal das variáveis; validar semântica dos status e contratos e procedência das classificações. Se a supervisão vier a ser escolhida, definir população, horizonte de observação e target. Manter a política para as cinco moedas sem conversão pendente. As evidências, candidatos e limitações estão no [contrato Purchase](purchase_risk_model.md); agregação por pedido completo não será inventada.
 
 **Gate de saída:** contrato de problema aprovado com unidade, objetivo, população, instante de scoring, variáveis permitidas/proibidas, split, métricas, custo dos erros e semântica da saída. Sem esse gate não há autorização para feature engineering ou treino.
 

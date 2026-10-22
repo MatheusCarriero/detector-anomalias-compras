@@ -2,11 +2,11 @@
 
 ## 1. Objetivo
 
-O **Purchase Risk Model** permanece um domínio independente para análise pré-aprovação de compras. **PLANEJADO / decisão pendente:** escolher entre (A) detecção de anomalias, isto é, perfis estatisticamente incomuns, e (B) previsão de um desfecho específico, que exigirá target, horizonte e protocolo de avaliação próprios. Nenhuma dessas alternativas foi escolhida neste fechamento.
+O **Purchase Risk Model** permanece um domínio independente com uso pretendido pré-aprovação. **Decisão vigente da auditoria: C — não implementar o modelo ainda**, por insuficiência metodológica para demonstrar esse uso. Purchase permanece no gate metodológico, sem iniciar feature engineering ou treinamento.
 
-O nome histórico `purchase_risk_score` não estabelece o significado da saída. Anomalia não será chamada automaticamente de risco: pode representar uma compra legítima excepcional. Se a opção A for adotada, o score deverá ser apresentado como anomalia/prioridade de investigação; se a opção B for adotada, será necessário especificar qual desfecho ele estima. Os resultados continuarão separados dos demais domínios.
+O nome histórico `purchase_risk_score` não estabelece o significado da saída. A escolha anteriormente pendente entre detecção de anomalias e previsão de um desfecho específico continua sem aprovação. Se a detecção de anomalias vier a ser escolhida, o score deverá representar anomalia/prioridade de investigação: um perfil incomum pode ser uma compra legítima excepcional, não risco ou fraude comprovados. A alternativa supervisionada exigirá desfecho, população, horizonte e protocolo de avaliação próprios. Os resultados continuarão separados dos demais domínios.
 
-Esta etapa documenta somente o contrato arquitetural. Nenhum modelo ou feature é criado.
+Este documento registra a auditoria e as condições para um eventual pipeline. Nenhum modelo, target ou conjunto de features foi aprovado.
 
 ## 2. Unidade de análise
 
@@ -16,9 +16,9 @@ A intenção histórica de modelar pedido completo não está comprovada pela gr
 
 ## 3. Momento de scoring
 
-O scoring futuro terá como fronteira **antes da aprovação do pedido de compra**, independentemente da alternativa de modelagem que vier a ser escolhida.
+O uso pretendido mantém a fronteira **antes da aprovação do pedido de compra**, independentemente da alternativa de modelagem que vier a ser escolhida. A fonte ainda não permite demonstrar esse instante: não há timestamp explícito de aprovação nem histórico de alterações ou snapshots dos campos.
 
-Essa decisão define a fronteira temporal do modelo: somente informações disponíveis até o instante anterior à aprovação poderão participar das features. Resultados de entrega, faturamento e pagamento não estarão disponíveis e deverão ser excluídos.
+`PO Date` não é uma data de aprovação comprovada. Sua relação com a aprovação precisa ser esclarecida, assim como a existência de um timestamp/snapshot pré-aprovação que permita reconstruir as informações disponíveis naquele instante. Somente essas informações poderão participar de futuras features. Resultados de entrega, faturamento e pagamento deverão ser excluídos.
 
 ## 4. Fonte de dados
 
@@ -58,6 +58,8 @@ As definições abaixo foram confirmadas no próprio `Vocabulary & Notes` na aud
 Não se conclui que a fonte inteira seja sintética apenas porque ESG é simulado. Fórmula de simulação, procedência de outras classificações e validade operacional continuam não comprovadas. A definição de `Local_International` tem referência ao Reino Unido, não a qualquer país de implantação. Não foi identificada uma coluna explícita de data/hora de aprovação na auditoria: a disponibilidade pré-decisão deverá ser comprovada antes de desenvolver o modelo.
 
 ## 5. Grupos de variáveis candidatas
+
+Os grupos abaixo são hipóteses anteriores preservadas para análise. Nenhuma variável desta lista está aprovada para uso pré-aprovação; a disponibilidade temporal deve ser demonstrada antes de qualquer seleção ou transformação.
 
 ### 5.1. Operação
 
@@ -118,6 +120,8 @@ Esses campos descrevem resultados posteriores à decisão e causariam data leaka
 
 Esses campos devem servir para rastreabilidade, junções ou agregações, não como valores nominais apresentados diretamente ao modelo.
 
+Isso não aprova junções nem uso temporal: `Approver Name` não comprova disponibilidade antes da aprovação. A interpretação de `Contract ID` e do marcador `NO-CONTRACT` ainda precisa ser esclarecida; sua presença, ausência ou preenchimento não certifica vínculo contratual válido nem irregularidade.
+
 ### 7.2. Classificações e resultados existentes
 
 Os campos abaixo devem ser excluídos inicialmente e reservados para análise ou avaliação até que sua origem seja auditada:
@@ -126,6 +130,10 @@ Os campos abaixo devem ser excluídos inicialmente e reservados para análise ou
 - `Supplier Status`;
 - `PO Status`;
 - `Maverick Spend`.
+
+`Supplier Risk` é uma classificação preexistente do workbook Purchase, não um desfecho comprovado nem a saída do modelo do domínio Supplier. A semântica e o instante de atribuição dos status administrativos e de `Maverick Spend` permanecem pendentes; não devem ser convertidos automaticamente em labels de risco ou fraude.
+
+`Days Late`, `On Time Delivery` e `Lead Time Days` são candidatos a desfechos de entrega, mas continuam proibidos como entradas pré-aprovação da própria linha. `Maverick Spend` é outro candidato a target, condicionado à comprovação da regra, procedência e momento de classificação. Nenhum deles é target aprovado. A falta de um target aprovado também não torna a detecção de anomalias uma decisão metodológica nem resolve o leakage temporal.
 
 ### 7.3. Campos calculados ou redundantes
 
@@ -154,7 +162,7 @@ Caso novos indicadores sejam incorporados, será necessário confirmar:
 
 ## 9. Preparação futura
 
-O pipeline de feature engineering deverá:
+As diretrizes abaixo só se aplicam depois de superar o gate metodológico. Não autorizam iniciar o pipeline de feature engineering, que deverá:
 
 - respeitar a unidade de linha confirmada pela fonte ou justificar agregação por chave real de pedido;
 - aplicar o corte temporal anterior à aprovação;
@@ -174,8 +182,10 @@ Possíveis conceitos futuros incluem desvio de orçamento, variação de preço,
 **Entrada:** planilha transacional `Data`, após validação.  
 **Unidade disponível:** linha de pedido; agregação por pedido completo ainda não comprovada.
 
-**Instante de scoring:** antes da aprovação.  
-**Features:** somente informações disponíveis até esse instante.  
+**Instante de scoring pretendido:** antes da aprovação, ainda não demonstrável pela fonte.
+
+**Features:** nenhuma lista aprovada; somente informações com disponibilidade comprovada até esse instante poderão ser escolhidas.
+
 **Saída planejada:** significado pendente da escolha entre anomalia e desfecho específico; `purchase_risk_score` é nome histórico, não validação de risco.
 
 **Artefatos futuros:** `ml/purchase_risk/models/`.
@@ -184,13 +194,14 @@ O pipeline deverá registrar a lista ordenada de features, a política temporal,
 
 ## 11. Critérios de prontidão
 
-O treinamento somente deverá começar depois que:
+Feature engineering e treinamento permanecem bloqueados até que:
 
-- a unidade de análise estiver confirmada;
-- a alternativa anomalia vs. desfecho específico estiver escolhida, com significado do score e avaliação definidos;
-- o instante de aprovação estiver representado ou metodologicamente definido;
-- todas as variáveis pós-evento estiverem excluídas;
-- moeda e datas tiverem tratamento documentado;
-- classificações existentes tiverem origem auditada;
-- a divisão entre treino, validação e teste estiver definida;
-- testes confirmarem ausência de data leakage temporal.
+- a linha de pedido confirmada seja mantida como unidade, ou uma agregação tenha chave e justificativa verificáveis;
+- a relação entre `PO Date` e aprovação seja esclarecida, com evidência de timestamp/snapshot pré-aprovação e disponibilidade temporal de cada variável;
+- a semântica dos status administrativos, de `Contract ID` e de `NO-CONTRACT` seja esclarecida;
+- a procedência, regra e momento de atribuição de `Supplier Risk`, `Maverick Spend` e demais classificadores sejam documentados;
+- a alternativa anomalia vs. desfecho específico seja escolhida, com significado da saída e avaliação definidos; no caso supervisionado, com população, horizonte de observação e target aprovados;
+- todas as variáveis pós-evento sejam excluídas das entradas, com controle de leakage temporal e semântico;
+- moeda, datas e divisão entre treino, validação e teste tenham tratamento documentado.
+
+Antes de treinar, testes deverão verificar as regras de prevenção de leakage definidas nesse contrato. Testes técnicos não substituem a evidência de disponibilidade temporal hoje ausente.

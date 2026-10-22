@@ -4,7 +4,11 @@ Projeto acadêmico de Machine Learning com três domínios independentes: anomal
 
 ## Objetivo
 
-O Invoice Anomaly Model prioriza faturas com comportamento incomum para auditoria humana, usando Isolation Forest; não classifica fraude automaticamente nem produz probabilidade de fraude. O Supplier Risk Model é uma classificação supervisionada de `Risk_Level`: estimar o pertencimento à classe de risco definida pelo dataset, não prever acontecimentos futuros. O Purchase mantém a fronteira pré-aprovação, mas ainda precisa escolher entre detecção de anomalias e previsão de um desfecho específico; sua fonte representa linhas de pedido.
+O Invoice Anomaly Model usa Isolation Forest para priorizar faturas com comportamento incomum para auditoria humana. Não classifica fraude automaticamente nem produz probabilidade de fraude.
+
+O Supplier Risk Model usa classificação supervisionada para estimar o pertencimento à classe de risco `Risk_Level` definida pelo dataset. Não prevê acontecimentos futuros.
+
+O Purchase mantém o uso pretendido pré-aprovação, mas a auditoria concluiu pela decisão C: não implementar o modelo ainda, por insuficiência metodológica para demonstrar esse uso. Sua fonte representa linhas de pedido; não há target nem features pré-aprovação aprovados.
 
 As fontes representam populações diferentes, sem chaves reais comuns para integração. Não há merge direto entre suas features. Uma eventual integração de scores seria uma etapa conceitual futura, com validação própria. O Procurement KPI é somente auxiliar.
 
@@ -14,7 +18,7 @@ As fontes representam populações diferentes, sem chaves reais comuns para inte
 |---|---|---|
 | Invoice Anomaly | 19 features, auditoria, triagem e comparação IF × valor em VALIDATION; avaliação final única em TEST concluída, com validação das fontes e sem fit | Procedência e utilidade humana limitadas; `source_reconciled=false`. Não repetir TEST |
 | Supplier Risk | Preparação, EDA TRAIN, baselines/ablações, CV exploratória, configuração LR/C congelada e avaliação final única documentada | Procedência da label/índice, validade externa e eventual uso operacional; não reabrir TEST |
-| Purchase Risk | Dataset analisado, granularidade da fonte em linha de pedido e fronteira pré-aprovação documentadas | Escolher anomalia ou desfecho específico; feature engineering, modelagem e avaliação |
+| Purchase Risk | Dataset auditado; unidade em linha de pedido confirmada; decisão C de não implementação registrada | Esclarecer disponibilidade pré-aprovação, semântica e procedência dos campos; feature engineering e modelagem bloqueados pelo gate metodológico |
 
 A consolidação anterior de qualidade não executou treinamento, EDA nem reprocessamento dos dados reais. Em 16/09/2026 foi concluída a [primeira EDA Supplier, somente TRAIN](docs/supplier_risk_eda.md), sem alterar datasets ou treinar modelos. Posteriormente, a [primeira rodada de baselines](docs/supplier_risk_baseline_models.md) ajustou classificadores experimentais em TRAIN e comparou VALIDATION. A [validação científica exploratória](docs/supplier_risk_validation_analysis.md) acrescentou CV de cinco folds A/D dentro de TRAIN, controle negativo e reprodução diagnóstica da LR A. Esses experimentos não exportaram modelo final nem abriram TEST. O artefato Invoice existente não foi modificado.
 
@@ -87,7 +91,11 @@ Para evitar data leakage entre partições, campos derivados do risco conhecido 
 
 O ranking retrospectivo usa orçamentos fixos e não exige selecionar threshold operacional. Se um threshold operacional for necessário futuramente, sua escolha exigirá protocolo em validação, nunca em TEST.
 
-No Supplier Risk, `Risk_Level` é o **target supervisionado**, nunca uma feature. A convenção adotada no projeto é `0 = menor risco`, `1 = maior risco`. Para modelos compatíveis, a saída poderá incluir a **probabilidade estimada de pertencimento à classe de risco**, não a probabilidade real de ocorrer um problema. A origem/regra da label não foi comprovada; resultados deverão ser interpretados como capacidade de reproduzir padrões associados à classificação fornecida pelo dataset. Ver [objetivo e limitações](docs/supplier_risk_model.md).
+**IMPLEMENTADO no fechamento de engenharia:** validação explícita das 19 features e `main` guard para impedir que a importação do comando de treino inicie sua execução. Metodologia, features, parâmetros, caminhos, metadata e modelo Invoice foram preservados; nenhum treino real, retraining ou uso de TEST foi executado naquele fechamento.
+
+No Supplier Risk, `Risk_Level` é o **target supervisionado**, nunca uma feature. A convenção adotada no projeto é `0 = menor risco`, `1 = maior risco`. Para modelos compatíveis, a saída poderá incluir a **probabilidade estimada de pertencimento à classe de risco**, não a probabilidade real de ocorrer um problema.
+
+A origem e a regra de construção da label não foram comprovadas. Os resultados deverão ser interpretados como capacidade de reproduzir padrões associados à classificação fornecida pelo dataset. Ver [objetivo e limitações](docs/supplier_risk_model.md).
 
 ## Dataset principal
 
@@ -126,7 +134,11 @@ if ($LASTEXITCODE -ne 0) { throw "Falha na instalação das dependências." }
 
 Não utilizar `--system-site-packages`. A instalação foi comprovada usando wheels do PyPI e pip 25.3, sem cache, em venv nova com `include-system-site-packages=false`. Foi verificado que os pacotes instalados pertencem à venv, que o user-site está desabilitado e que `pip check` não identifica conflitos. Os 113 testes sintéticos e o Ruff passaram nesse ambiente.
 
-**Ambiente principal preservado — conferência em 14/10/2026:** a `.venv` existente usa Python 3.14.3 e pandas 2.3.3, conforme os requisitos atuais, mas mantém `include-system-site-packages=true` e depende de pacotes do user-site. As versões coincidem com os pins quando esses pacotes externos estão disponíveis; isso não comprova isolamento. As referências a pandas 2.2.2 na tabela abaixo descrevem o ambiente histórico de setembro, não o estado vigente. Preserve essa `.venv` e use um ambiente novo e isolado para validação, sem instalar sobre o ambiente legado automaticamente.
+**Ambiente principal preservado — conferência em 14/10/2026:** a `.venv` existente usa Python 3.14.3 e pandas 2.3.3, conforme os requisitos atuais, mas mantém `include-system-site-packages=true` e depende de pacotes do user-site. As versões coincidem com os pins quando esses pacotes externos estão disponíveis; isso não comprova isolamento.
+
+As referências a pandas 2.2.2 na tabela abaixo descrevem o ambiente histórico de setembro, não o estado vigente.
+
+Preserve essa `.venv` e use um ambiente novo e isolado para validação, sem instalar sobre o ambiente legado automaticamente.
 
 ### Combinações verificadas e histórico
 
@@ -195,7 +207,7 @@ O arquivo de metadados `manifest.json` pode permanecer nessa pasta e é versiona
 data/auxiliary/dataset_auxiliar_kpi_compras.csv
 ```
 
-As fontes externas ficam em `data/external/supplier_risk/` (`supplier_risk_dataset.csv` e o CSV bruto de referência) e `data/external/purchase_orders/` (`Dataset_Procurement.xlsx`). Elas são necessárias para os respectivos pipelines reais, **não para os testes**.
+As fontes externas ficam em `data/external/supplier_risk/` (`supplier_risk_dataset.csv` e o CSV bruto de referência) e `data/external/purchase_orders/` (`Dataset_Procurement.xlsx`). A fonte Supplier pertence ao pipeline acadêmico existente; a fonte Purchase permanece candidata, sem pipeline de modelagem implementado. Essas fontes **não são necessárias para os testes**.
 
 Esses datasets não são enviados ao GitHub. Os scripts de extração são opcionais e servem apenas para a obtenção inicial dos dados. Caso necessário, coloque `archive.zip` em `data/raw/` e `dataset_auxiliar_kpi_compras.zip` em `data/auxiliary/`; ambos são ignorados pelo Git. Por compatibilidade, os scripts também reconhecem os ZIPs mantidos localmente na pasta legada `DataBase/`.
 
@@ -300,7 +312,7 @@ O [protocolo experimental do Supplier](docs/supplier_risk_model.md#13-protocolo-
 
 O [roadmap de implementação](docs/implementation_roadmap.md) preserva as etapas Supplier já concluídas e o planejamento anterior à avaliação final Invoice, agora concluída. Permanecem as pendências de procedência, decisão formal Purchase, publicação transacional dos produtores ainda sequenciais e, posteriormente, contratos de inferência, aplicação, segurança e monitoramento.
 
-**Purchase — somente documentação:** o Vocabulary & Notes define PO_Number como linha de pedido, Lead_Time_Days como pós-entrega, ESG como simulado e valores em moedas locais sem câmbio. Falta escolher anomalia ou desfecho específico e confirmar dados pré-aprovação; anomalia não será chamada automaticamente de risco. Ver [contrato Purchase](docs/purchase_risk_model.md).
+**Purchase — somente documentação:** o Vocabulary & Notes define PO_Number como linha de pedido, Lead_Time_Days como pós-entrega, ESG como simulado e valores em moedas locais sem câmbio. A ausência de timestamp explícito de aprovação e de histórico de alterações/snapshots impede demonstrar disponibilidade pré-aprovação. A decisão vigente é não implementar ainda; detecção de anomalias permanece uma possibilidade não escolhida e não comprova risco. Ver [contrato Purchase](docs/purchase_risk_model.md).
 
 O projeto ainda não possui aplicação backend/frontend ou banco integrado. Supplier e Invoice possuem avaliação final acadêmica, sem uso operacional validado; Purchase permanece sem modelagem. Os detalhes e decisões históricas estão em [Estratégia de Dados](docs/data_strategy.md), [Estratégia de Modelos](docs/model_strategy.md) e [Supplier Risk](docs/supplier_risk_model.md).
 
@@ -333,7 +345,9 @@ aplicável, disponibilidade pré-aprovação, moedas e estratégia de avaliaçã
 
 **Resultado Invoice observado:** 30.000 faturas val, AP 0,31607, ROC-AUC 0,57976,
 precision de alerta 0,27210 e recall de fraude 0,49313. Foram 8.935 falsos
-positivos e 40,92% de alertas, sem retreino ou ajuste de threshold. Há 446 labels
+positivos e 40,92% de alertas, sem retreino ou ajuste de threshold.
+
+Há 446 labels
 de fraude com tipo NONE e 140 labels normais com tipo diferente de NONE na
 fonte. A [auditoria metodológica](docs/invoice_methodological_audit.md) confirmou
 as limitações da referência e da procedência, sem corrigir labels ou alterar

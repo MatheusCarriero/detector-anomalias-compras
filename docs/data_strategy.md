@@ -8,9 +8,9 @@ Atualmente, o Invoice Anomaly Model utiliza exclusivamente o **Procurement Invoi
 
 | Domínio / fonte | Local | Responsabilidade | Situação atual |
 |---|---|---|---|
-| Invoice Dataset | `data/raw/` | Fonte principal do Invoice Anomaly Model: triagem de faturas para auditoria humana | Avaliações VALIDATION concluídas; avaliador acadêmico e validações preservadas; avaliação final pendente |
+| Invoice Dataset | `data/raw/` | Fonte principal do Invoice Anomaly Model: triagem de faturas para auditoria humana | Avaliações VALIDATION concluídas; avaliador acadêmico e validações preservadas; avaliação final única em TEST concluída; uso operacional pendente |
 | Supplier Risk Dataset | `data/external/supplier_risk/` | Fonte principal do Supplier Risk Model: classificação supervisionada de `Risk_Level` | Avaliação final acadêmica LR/C concluída; TEST não reutilizável, sem modelo de produção |
-| Purchase Orders Dataset | `data/external/purchase_orders/` | Fonte principal do Purchase: linhas de pedido; escolha entre anomalia e desfecho específico pendente | Somente auditoria/documentação; sem feature engineering/modelagem |
+| Purchase Orders Dataset | `data/external/purchase_orders/` | Fonte candidata do Purchase: linhas de pedido; disponibilidade pré-aprovação não comprovada | Decisão C: não implementar ainda; gate metodológico, sem feature engineering/modelagem |
 | Procurement KPI Dataset | `data/auxiliary/` | Referência complementar, exploração futura de KPIs, análises futuras e possível apoio ao dashboard | Auxiliar; não participa do treinamento dos três modelos principais |
 
 A independência dos três modelos é a estratégia atual. As fontes representam populações diferentes e não possuem chaves reais comuns para integração; identificadores semelhantes não comprovam identidade. Não será realizado merge direto das features desses datasets. Uma eventual camada futura de integração de **scores** exigirá contexto comum verificável, justificativa e avaliação próprias; não está implementada.
@@ -27,7 +27,7 @@ Os princípios que orientam a estratégia são:
 
 ## Arquitetura atual de dados
 
-A arquitetura separa domínios com maturidades distintas: Invoice avaliado em VALIDATION, Supplier com avaliação final acadêmica concluída e Purchase em definição metodológica.
+A arquitetura separa domínios com maturidades distintas: Invoice com avaliações em VALIDATION e avaliação final em TEST concluídas, Supplier com avaliação final acadêmica concluída e Purchase em definição metodológica.
 
 ### Fluxo Invoice com modelo existente
 
@@ -38,7 +38,7 @@ Procurement Invoice Fraud Dataset
                  ↓
           Isolation Forest
                  ↓
-Invoice Anomaly Score (triagem VALIDATION avaliada; TEST e uso operacional pendentes)
+Invoice Anomaly Score (triagem VALIDATION e avaliação final em TEST concluídas; uso operacional pendente)
 ```
 
 ### Fontes externas — estado por domínio
@@ -46,7 +46,7 @@ Invoice Anomaly Score (triagem VALIDATION avaliada; TEST e uso operacional pende
 ```text
 Purchase Orders Dataset
             ↓
-Features operacionais futuras
+Gate metodológico: disponibilidade pré-aprovação não comprovada
 
 Supplier Risk Dataset
             ↓
@@ -113,9 +113,9 @@ As estatísticas relacionadas a fornecedores, países, departamentos e relaçõe
 
 **IMPLEMENTADO:** Isolation Forest com `contamination=0.22` como configuração inicial, validação explícita das 19 features e `main` guard para importação inerte. A avaliação consolidada e por `fraud_type`, a triagem e a comparação IF × valor em VALIDATION foram concluídas. O protocolo atual mantém orçamentos 1%/5%/10%, sem escolha de threshold operacional ou novo treino. `contamination` não mede precisão nem probabilidade de fraude.
 
-**PENDENTE:** avaliação final em uma tarefa futura explícita; ver [protocolo](invoice_academic_evaluation_protocol.md). O avaliador já recebe dados e modelo explicitamente, preserva validações de schema, IDs, partições, features, labels, moeda e valores, e registra um JSON novo sem sobrescrita.
+**CONCLUÍDO:** avaliação final em TEST realizada em execução única, sem fit ou tuning, conforme o [protocolo](invoice_academic_evaluation_protocol.md). O resultado oficial está em [invoice_test_final_v1.json](../ml/experiments/invoice_test_final_v1.json), separado dos resultados históricos de VALIDATION. O avaliador já recebe dados e modelo explicitamente, preserva validações de schema, IDs, partições, features, labels, moeda e valores, e registra um JSON novo sem sobrescrita.
 
-Os raw compartilhados não isolam TEST por filtros. `source_reconciled=false` e a origem não certificada do fit legado devem acompanhar o resultado futuro.
+Os raw compartilhados não isolam TEST por filtros. `source_reconciled=false` e a origem não certificada do fit legado continuam acompanhando o resultado final.
 
 #### Justificativa de utilização
 
@@ -146,13 +146,15 @@ O dataset possui 5.200 linhas de pedido, 57 colunas e 15 fornecedores. Ele reún
 
 #### Papel no projeto
 
-Essa fonte permite estudar intenção de compra, limites orçamentários, condições negociadas e desempenho da entrega na sua própria população. A ideia anterior de adicionar esse contexto às faturas do outro dataset é apenas histórica: não existem chaves reais comuns que sustentem essa associação.
+Essa fonte permite descrever retrospectivamente valores de compra, orçamento, condições registradas e desempenho da entrega na sua própria população. Não comprova quais desses valores estavam disponíveis antes da aprovação. A ideia anterior de adicionar esse contexto às faturas do outro dataset é apenas histórica: não existem chaves reais comuns que sustentem essa associação.
 
-Na arquitetura vigente, essa fonte pertence ao **Purchase Risk Model independente**, mantendo a fronteira pré-aprovação e as exclusões já definidas. Ainda falta escolher entre (A) detecção de anomalias ou (B) previsão de um desfecho específico, com target/horizonte e avaliação próprios. Anomalia não será chamada automaticamente de risco.
+Na arquitetura vigente, essa fonte pertence ao **Purchase Risk Model independente**. A auditoria definiu **C: não implementar o modelo ainda**, por insuficiência metodológica para demonstrar o uso pré-aprovação pretendido. Não há timestamp explícito de aprovação nem histórico de alterações/snapshots; `PO Date` não comprova aprovação. O [contrato Purchase](purchase_risk_model.md) registra os esclarecimentos necessários antes de feature engineering ou treinamento.
+
+Não há target aprovado. `Days Late`, `On Time Delivery` e `Lead Time Days` são candidatos a desfechos pós-evento; `Maverick Spend` depende de comprovação de regra e procedência. `Supplier Risk` é classificação preexistente, não desfecho comprovado. A semântica de status, `Contract ID` e `NO-CONTRACT` continua pendente. Nenhuma lista de features pré-aprovação está aprovada, e detecção de anomalias permanece uma possibilidade não escolhida; anomalia não comprova risco ou fraude.
 
 A intenção histórica de modelar pedido completo exigiria uma chave de cabeçalho e agregação justificadas; a fonte confirma apenas linhas. Nenhuma junção direta de features entre domínios está planejada.
 
-Esse contexto pode ajudar a identificar situações como:
+As hipóteses anteriores de análise incluem situações como:
 
 - preços realizados muito acima do orçamento;
 - variações atípicas de preço para itens semelhantes;
@@ -170,7 +172,7 @@ Esse contexto pode ajudar a identificar situações como:
 - `lead_time_anomaly`: grau de desvio do lead time em relação ao comportamento histórico comparável;
 - `purchase_status_risk`: representação do risco associado ao status e ao fluxo do pedido de compra.
 
-Essas features são hipóteses de pesquisa. Suas fórmulas, janelas históricas e métodos de normalização deverão ser definidos e documentados antes de qualquer uso no modelo.
+Essas features são hipóteses históricas de pesquisa, não uma lista aprovada. Suas fórmulas, janelas históricas e métodos de normalização só poderão ser definidos para modelagem depois de esclarecer disponibilidade temporal e superar o gate metodológico.
 
 Hipóteses que dependem de entrega ou status pós-evento não integram as entradas pré-aprovação definidas em [Purchase Risk Model](purchase_risk_model.md). `delivery_delay_score` ou lead time realizado da própria linha não podem ser features nesse instante; seriam no máximo análises pós-evento ou possíveis desfechos futuros, mediante definição específica.
 
@@ -263,7 +265,7 @@ A ideia de enriquecer as faturas deste dataset com atributos dos fornecedores do
 
 A decisão arquitetural prevê pipelines e modelos independentes para os domínios externos. As possibilidades abaixo incluem a classificação Supplier já avaliada e trabalhos ainda futuros:
 
-- detecção de anomalias em pedidos de compra;
+- possível detecção de anomalias em linhas de pedido, sem escolha metodológica aprovada e condicionada ao gate Purchase;
 - classificação supervisionada da classe de risco fornecida pelo dataset de fornecedores, cuja avaliação acadêmica já foi concluída;
 - demonstrações adicionais do sistema;
 - comparação de diferentes conjuntos de features;
@@ -287,7 +289,7 @@ Essa organização permitiria manter os dados originais, registrar transformaç�
 
 ## 4. Estratégia de evolução do modelo
 
-A evolução ocorre por domínio, sem fusão das features das três fontes. Os cenários antigos V2/V3 foram substituídos. A preparação Supplier foi seguida por experimentos e avaliação final acadêmica LR/C, documentada sem recálculo dos datasets preparados. Invoice concluiu diagnósticos em VALIDATION; sua avaliação final ainda não foi executada.
+A evolução ocorre por domínio, sem fusão das features das três fontes. Os cenários antigos V2/V3 foram substituídos. A preparação Supplier foi seguida por experimentos e avaliação final acadêmica LR/C, documentada sem recálculo dos datasets preparados. Invoice concluiu os diagnósticos em VALIDATION e também a avaliação final única em TEST.
 
 As etapas abaixo preservam diretrizes de evolução e etapas já percorridas. Não são uma lista de tarefas a repetir nem autorizam tuning, reprocessamento ou novas consultas a TEST no fechamento atual.
 
@@ -326,7 +328,7 @@ As etapas abaixo preservam diretrizes de evolução e etapas já percorridas. N�
 O sistema poderá evoluir para combinar diferentes sinais:
 
 - anomalia transacional de faturas;
-- anomalia operacional de pedidos;
+- eventual sinal Purchase, cujo significado ainda depende do gate metodológico;
 - risco estrutural de fornecedores;
 - regras de negócio explicáveis;
 - priorização final de alertas.
