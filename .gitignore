@@ -73,3 +73,7 @@ frontend/dist/
 
 # Revisão cega Invoice: chave de coordenação e respostas humanas não são públicas.
 ml/experiments/invoice_blind_review_v1/
+
+# Backend build artifacts
+backend/dist/
+backend/*.tsbuildinfo
