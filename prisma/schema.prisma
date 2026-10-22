@@ -1,0 +1,283 @@
+// SQL migration additionally owns CHECKs, partial indexes, DEFERRABLE FKs,
+// triggers, transactional routines and grants. Do not replace it with db push.
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  schemas  = ["app"]
+}
+
+model Currency {
+  id        String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code      String @unique(map: "currencies_code_key") @db.VarChar(3)
+  name      String @db.Text
+  lines     PurchaseOrderLine[]
+  versions  RecordVersion[] @relation("VersionCurrency")
+
+  @@map("currencies")
+  @@schema("app")
+}
+
+model Department {
+  id               String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name             String @db.Text
+  code             String? @db.Text
+  currentVersionId String @map("current_version_id") @db.Uuid
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt        DateTime @default(now()) @map("updated_at") @db.Timestamptz(3)
+  currentVersion   RecordVersion @relation("DepartmentHead", fields: [currentVersionId, id], references: [id, departmentOwnerId], onDelete: NoAction, onUpdate: NoAction, map: "departments_head_fk")
+  versions         RecordVersion[] @relation("DepartmentOwner")
+  contextVersions  RecordVersion[] @relation("VersionDepartment")
+  lines            PurchaseOrderLine[]
+  users            User[]
+  identities       SourceIdentity[]
+
+  @@index([currentVersionId], map: "departments_head_idx")
+  @@map("departments")
+  @@schema("app")
+}
+
+model User {
+  id             String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  displayName    String @map("display_name") @db.Text
+  email          String? @db.Text
+  authIssuer     String? @map("auth_issuer") @db.Text
+  authSubject    String? @map("auth_subject") @db.Text
+  isActive       Boolean @default(true) @map("is_active")
+  departmentId   String? @map("department_id") @db.Uuid
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime @default(now()) @map("updated_at") @db.Timestamptz(3)
+  department     Department? @relation(fields: [departmentId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  events         AuditEvent[]
+  versions       RecordVersion[]
+  snapshots      DecisionSnapshot[]
+
+  @@unique([authIssuer, authSubject], map: "users_auth_identity_key")
+  @@index([departmentId], map: "users_department_idx")
+  @@map("users")
+  @@schema("app")
+}
+
+model Supplier {
+  id               String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name             String @db.Text
+  countryCode      String? @map("country_code") @db.VarChar(2)
+  status           String? @db.Text
+  tier             String? @db.Text
+  currentVersionId String @map("current_version_id") @db.Uuid
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt        DateTime @default(now()) @map("updated_at") @db.Timestamptz(3)
+  currentVersion   RecordVersion @relation("SupplierHead", fields: [currentVersionId, id], references: [id, supplierOwnerId], onDelete: NoAction, onUpdate: NoAction, map: "suppliers_head_fk")
+  versions         RecordVersion[] @relation("SupplierOwner")
+  contextVersions  RecordVersion[] @relation("VersionSupplier")
+  lines            PurchaseOrderLine[]
+  identities       SourceIdentity[]
+
+  @@index([currentVersionId], map: "suppliers_head_idx")
+  @@map("suppliers")
+  @@schema("app")
+}
+
+model PurchaseOrderLine {
+  id               String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  description      String? @db.Text
+  poDate           DateTime? @map("po_date") @db.Date
+  supplierId       String? @map("supplier_id") @db.Uuid
+  departmentId     String? @map("department_id") @db.Uuid
+  currencyId       String? @map("currency_id") @db.Uuid
+  quantity         Decimal? @db.Decimal(20, 6)
+  unitPrice        Decimal? @map("unit_price") @db.Decimal(24, 8)
+  amount           Decimal? @db.Decimal(24, 6)
+  currentVersionId String @map("current_version_id") @db.Uuid
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt        DateTime @default(now()) @map("updated_at") @db.Timestamptz(3)
+  supplier         Supplier? @relation(fields: [supplierId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  department       Department? @relation(fields: [departmentId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  currency         Currency? @relation(fields: [currencyId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  currentVersion   RecordVersion @relation("LineHead", fields: [currentVersionId, id], references: [id, purchaseLineOwnerId], onDelete: NoAction, onUpdate: NoAction, map: "purchase_order_lines_head_fk")
+  versions         RecordVersion[] @relation("LineOwner")
+  identities       SourceIdentity[]
+
+  @@index([currentVersionId], map: "purchase_order_lines_head_idx")
+  @@index([supplierId], map: "purchase_order_lines_supplier_idx")
+  @@index([departmentId], map: "purchase_order_lines_department_idx")
+  @@index([currencyId], map: "purchase_order_lines_currency_idx")
+  @@map("purchase_order_lines")
+  @@schema("app")
+}
+
+model SourceIdentity {
+  id                  String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sourceNamespace     String @map("source_namespace") @db.Text
+  sourceEntityKind    String @map("source_entity_kind") @db.Text
+  sourceId            String @map("source_id") @db.Text
+  supplierId          String? @map("supplier_id") @db.Uuid
+  departmentId        String? @map("department_id") @db.Uuid
+  purchaseOrderLineId String? @map("purchase_order_line_id") @db.Uuid
+  recordedAt          DateTime @default(now()) @map("recorded_at") @db.Timestamptz(3)
+  resolvedAt          DateTime? @map("resolved_at") @db.Timestamptz(3)
+  supplier            Supplier? @relation(fields: [supplierId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  department          Department? @relation(fields: [departmentId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  purchaseOrderLine   PurchaseOrderLine? @relation(fields: [purchaseOrderLineId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  references          SourceReference[]
+  events              AuditEvent[]
+
+  @@unique([sourceNamespace, sourceEntityKind, sourceId], map: "source_identities_canonical_key")
+  @@unique([id, sourceNamespace, sourceEntityKind], map: "source_identities_scope_key")
+  @@index([supplierId], map: "source_identities_supplier_idx")
+  @@index([departmentId], map: "source_identities_department_idx")
+  @@index([purchaseOrderLineId], map: "source_identities_line_idx")
+  @@map("source_identities")
+  @@schema("app")
+}
+
+model SourceReference {
+  id                 String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sourceIdentityId   String? @map("source_identity_id") @db.Uuid
+  sourceNamespace    String @map("source_namespace") @db.Text
+  sourceEntityKind   String @map("source_entity_kind") @db.Text
+  sourceVersion      String? @map("source_version") @db.Text
+  sourceRecordKey    String? @map("source_record_key") @db.Text
+  locator            String? @db.Text
+  contentHash        String? @map("content_hash") @db.VarChar(64)
+  originalContent    Json? @map("original_content") @db.JsonB
+  recordedAt         DateTime @default(now()) @map("recorded_at") @db.Timestamptz(3)
+  availableAt        DateTime? @map("available_at") @db.Timestamptz(3)
+  availabilityStatus String @default("unverified") @map("availability_status") @db.Text
+  identity           SourceIdentity? @relation(fields: [sourceIdentityId, sourceNamespace, sourceEntityKind], references: [id, sourceNamespace, sourceEntityKind], onDelete: Restrict, onUpdate: Restrict, map: "source_references_scope_fk")
+  versions           RecordVersion[]
+  events             AuditEvent[]
+
+  @@index([sourceIdentityId, recordedAt], map: "source_references_identity_time_idx")
+  @@map("source_references")
+  @@schema("app")
+}
+
+model RecordVersion {
+  id                  String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  supplierOwnerId     String? @map("supplier_owner_id") @db.Uuid
+  departmentOwnerId   String? @map("department_owner_id") @db.Uuid
+  purchaseLineOwnerId String? @map("purchase_line_owner_id") @db.Uuid
+  revisionNo          Int @map("revision_no")
+  supersedesVersionId String? @unique(map: "record_versions_predecessor_key") @map("supersedes_version_id") @db.Uuid
+  sourceReferenceId   String? @map("source_reference_id") @db.Uuid
+  actorUserId         String @map("actor_user_id") @db.Uuid
+  recordedAt          DateTime @default(now()) @map("recorded_at") @db.Timestamptz(3)
+  effectiveFrom       DateTime? @map("effective_from") @db.Timestamptz(3)
+  effectiveTo         DateTime? @map("effective_to") @db.Timestamptz(3)
+  payloadSchema       Int @default(1) @map("payload_schema")
+  payload             Json @db.JsonB
+  supplierId          String? @map("supplier_id") @db.Uuid
+  departmentId        String? @map("department_id") @db.Uuid
+  currencyId          String? @map("currency_id") @db.Uuid
+  supplierOwner       Supplier? @relation("SupplierOwner", fields: [supplierOwnerId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  departmentOwner     Department? @relation("DepartmentOwner", fields: [departmentOwnerId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  purchaseLineOwner   PurchaseOrderLine? @relation("LineOwner", fields: [purchaseLineOwnerId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  supersedes          RecordVersion? @relation("VersionChain", fields: [supersedesVersionId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  successor           RecordVersion? @relation("VersionChain")
+  sourceReference     SourceReference? @relation(fields: [sourceReferenceId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  actor               User @relation(fields: [actorUserId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  supplier            Supplier? @relation("VersionSupplier", fields: [supplierId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  department          Department? @relation("VersionDepartment", fields: [departmentId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  currency            Currency? @relation("VersionCurrency", fields: [currencyId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  supplierHeads       Supplier[] @relation("SupplierHead")
+  departmentHeads     Department[] @relation("DepartmentHead")
+  lineHeads           PurchaseOrderLine[] @relation("LineHead")
+  supplierMembers     SnapshotMember[] @relation("MemberSupplier")
+  departmentMembers   SnapshotMember[] @relation("MemberDepartment")
+  lineMembers         SnapshotMember[] @relation("MemberLine")
+  beforeEvents        AuditEvent[] @relation("AuditBefore")
+  afterEvents         AuditEvent[] @relation("AuditAfter")
+
+  @@unique([id, supplierOwnerId], map: "record_versions_supplier_pair")
+  @@unique([id, departmentOwnerId], map: "record_versions_department_pair")
+  @@unique([id, purchaseLineOwnerId], map: "record_versions_line_pair")
+  @@unique([supplierOwnerId, revisionNo], map: "record_versions_supplier_revision")
+  @@unique([departmentOwnerId, revisionNo], map: "record_versions_department_revision")
+  @@unique([purchaseLineOwnerId, revisionNo], map: "record_versions_line_revision")
+  @@index([sourceReferenceId], map: "record_versions_source_idx")
+  @@index([actorUserId], map: "record_versions_actor_idx")
+  @@index([supplierId], map: "record_versions_supplier_context_idx")
+  @@index([departmentId], map: "record_versions_department_context_idx")
+  @@index([currencyId], map: "record_versions_currency_context_idx")
+  @@map("record_versions")
+  @@schema("app")
+}
+
+model DecisionSnapshot {
+  id                  String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  purpose             String @default("record_capture") @db.Text
+  status              String @default("draft") @db.Text
+  rootRecordVersionId String @map("root_record_version_id") @db.Uuid
+  actorUserId         String @map("actor_user_id") @db.Uuid
+  knowledgeCutoffAt   DateTime @map("knowledge_cutoff_at") @db.Timestamptz(3)
+  capturedAt          DateTime @map("captured_at") @db.Timestamptz(3)
+  captureMode         String @default("contemporaneous") @map("capture_mode") @db.Text
+  availabilityStatus String @default("captured_now") @map("availability_status") @db.Text
+  hashFormat          String @default("snapshot/1") @map("hash_format") @db.Text
+  contentHash         String? @map("content_hash") @db.VarChar(64)
+  sealedAt            DateTime? @map("sealed_at") @db.Timestamptz(3)
+  actor               User @relation(fields: [actorUserId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  root                SnapshotMember @relation("SnapshotRoot", fields: [id, rootRecordVersionId], references: [snapshotId, recordVersionId], onDelete: NoAction, onUpdate: NoAction, map: "decision_snapshots_root_fk")
+  members             SnapshotMember[] @relation("SnapshotMembers")
+  events              AuditEvent[]
+
+  @@index([actorUserId], map: "decision_snapshots_actor_idx")
+  @@index([rootRecordVersionId], map: "decision_snapshots_root_idx")
+  @@map("decision_snapshots")
+  @@schema("app")
+}
+
+model SnapshotMember {
+  id                  String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  snapshotId          String @map("snapshot_id") @db.Uuid
+  recordVersionId     String @map("record_version_id") @db.Uuid
+  supplierOwnerId     String? @map("supplier_owner_id") @db.Uuid
+  departmentOwnerId   String? @map("department_owner_id") @db.Uuid
+  purchaseLineOwnerId String? @map("purchase_line_owner_id") @db.Uuid
+  role                String @db.Text
+  snapshot            DecisionSnapshot @relation("SnapshotMembers", fields: [snapshotId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  rootFor             DecisionSnapshot[] @relation("SnapshotRoot")
+  supplierVersion     RecordVersion? @relation("MemberSupplier", fields: [recordVersionId, supplierOwnerId], references: [id, supplierOwnerId], onDelete: Restrict, onUpdate: Restrict, map: "snapshot_members_supplier_fk")
+  departmentVersion   RecordVersion? @relation("MemberDepartment", fields: [recordVersionId, departmentOwnerId], references: [id, departmentOwnerId], onDelete: Restrict, onUpdate: Restrict, map: "snapshot_members_department_fk")
+  lineVersion         RecordVersion? @relation("MemberLine", fields: [recordVersionId, purchaseLineOwnerId], references: [id, purchaseLineOwnerId], onDelete: Restrict, onUpdate: Restrict, map: "snapshot_members_line_fk")
+
+  // Owner uniqueness is enforced by three partial SQL indexes.
+  @@unique([snapshotId, recordVersionId], map: "snapshot_members_version_key")
+  @@unique([snapshotId, role], map: "snapshot_members_role_key")
+  @@index([recordVersionId], map: "snapshot_members_version_idx")
+  @@map("snapshot_members")
+  @@schema("app")
+}
+
+model AuditEvent {
+  id                String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  actorUserId       String @map("actor_user_id") @db.Uuid
+  actorKind         String @default("user") @map("actor_kind") @db.Text
+  operation         String @db.Text
+  beforeVersionId   String? @map("before_version_id") @db.Uuid
+  afterVersionId    String? @unique(map: "audit_events_after_version_key") @map("after_version_id") @db.Uuid
+  sourceIdentityId  String? @map("source_identity_id") @db.Uuid
+  sourceReferenceId String? @map("source_reference_id") @db.Uuid
+  snapshotId        String? @map("snapshot_id") @db.Uuid
+  recordedAt        DateTime @default(now()) @map("recorded_at") @db.Timestamptz(3)
+  correlationId     String? @map("correlation_id") @db.Uuid
+  context           Json? @db.JsonB
+  actor             User @relation(fields: [actorUserId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  beforeVersion     RecordVersion? @relation("AuditBefore", fields: [beforeVersionId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  afterVersion      RecordVersion? @relation("AuditAfter", fields: [afterVersionId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  sourceIdentity    SourceIdentity? @relation(fields: [sourceIdentityId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  sourceReference   SourceReference? @relation(fields: [sourceReferenceId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  snapshot          DecisionSnapshot? @relation(fields: [snapshotId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@index([actorUserId, recordedAt], map: "audit_events_actor_time_idx")
+  @@index([beforeVersionId], map: "audit_events_before_idx")
+  @@index([sourceIdentityId], map: "audit_events_identity_idx")
+  @@index([sourceReferenceId], map: "audit_events_source_idx")
+  @@index([snapshotId], map: "audit_events_snapshot_idx")
+  @@map("audit_events")
+  @@schema("app")
+}

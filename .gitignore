@@ -64,6 +64,7 @@ ml/purchase_risk/models/*.pkl
 
 # Node
 node_modules/
+/generated/prisma/
 frontend/node_modules/
 frontend/dist/
 
