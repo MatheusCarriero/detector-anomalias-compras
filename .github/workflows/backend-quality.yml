@@ -1,0 +1,111 @@
+name: Backend Quality (offline)
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend-offline:
+    name: Windows / Node 24 / offline
+    runs-on: windows-2025
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: pwsh
+    env:
+      CI: 'true'
+      DATABASE_URL: ''
+      npm_config_ignore_scripts: 'true'
+      CHECKPOINT_DISABLE: '1'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24.20.0'
+          architecture: x64
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            backend/package-lock.json
+
+      - name: Pin npm
+        run: npm.cmd install --global --ignore-scripts --no-fund --no-audit npm@11.14.0
+
+      - name: Verify toolchain and offline environment
+        run: |
+          if ((node --version) -ne 'v24.20.0') { throw 'Unexpected Node version' }
+          if ((npm.cmd --version) -ne '11.14.0') { throw 'Unexpected npm version' }
+          $databaseSettings = @(Get-ChildItem Env: | Where-Object {
+            $_.Name -match '^(DATABASE_URL|DIRECT_URL|SHADOW_DATABASE_URL|DB_TEST_.*|PGHOST|PGPORT|PGDATABASE|PGUSER|PGPASSWORD|PGSERVICE|PGSERVICEFILE|PGPASSFILE|PGOPTIONS)$' -and $_.Value
+          })
+          if ($databaseSettings.Count -ne 0) {
+            throw 'Offline CI must not receive database configuration'
+          }
+
+      - name: Install root dependencies from lockfile
+        run: npm.cmd ci --ignore-scripts --no-fund --no-audit
+
+      - name: Install backend dependencies from lockfile
+        working-directory: backend
+        run: npm.cmd ci --ignore-scripts --no-fund --no-audit
+
+      - name: Check root dependency tree
+        run: npm.cmd ls --all
+
+      - name: Check backend dependency tree
+        working-directory: backend
+        run: npm.cmd ls --all
+
+      - name: Database contracts (static, no PostgreSQL)
+        run: npm.cmd test
+
+      - name: Validate Prisma schema (no PostgreSQL)
+        run: npm.cmd run db:validate
+
+      # Both generated client directories are absent from a clean checkout.
+      - name: Generate client, compile ESM and build NestJS
+        working-directory: backend
+        run: npm.cmd run build
+
+      - name: Unit tests (mocked database)
+        working-directory: backend
+        run: npm.cmd test
+
+      - name: E2E tests (isolated provider)
+        working-directory: backend
+        run: npm.cmd run test:e2e
+
+      - name: Prisma preparation and offline client tests
+        working-directory: backend
+        run: npm.cmd run prisma:test
+
+      - name: Lint application, tests and preparation script
+        working-directory: backend
+        run: npm.cmd run lint -- scripts/
+
+      - name: TypeScript check including tests
+        working-directory: backend
+        run: node node_modules/typescript/bin/tsc --project tsconfig.json --noEmit --incremental false
+
+      - name: Verify no versioned files or unignored artifacts changed
+        run: |
+          git diff --exit-code
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $untracked = @(git ls-files --others --exclude-standard)
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if ($untracked.Count -ne 0) {
+            throw 'Validation produced unignored files; inspect the generated paths'
+          }

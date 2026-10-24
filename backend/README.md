@@ -124,6 +124,35 @@ $ npm run start:prod
 
 ## Run tests
 
+### Offline CI
+
+[Backend Quality (offline)](../.github/workflows/backend-quality.yml) runs on
+pushes, pull requests and manual dispatches, independently of the existing
+Python `Quality` workflow. It uses Windows 2025, Node 24.20.0 and npm 11.14.0.
+
+Both root and backend dependencies are installed with `npm ci --ignore-scripts`
+from their lockfiles. Lifecycle hooks stay disabled throughout the job; optional
+native packages remain enabled. The cache contains npm downloads, not
+`node_modules` or generated clients.
+
+After dependency checks and the root's static database contracts/schema
+validation, the job builds the client and NestJS before running unit tests,
+isolated E2E tests, `prisma:test`, lint (including `scripts/`) and a no-emit
+TypeScript check including tests. It also rejects changes to versioned files
+or newly generated files that are not ignored.
+
+No PostgreSQL service, database credentials, migration, seed, academic dataset
+or ML evaluation is used. Downloads of Node/npm, packages and Prisma engine
+binaries still require network access: offline here means independent of the
+database and business data, not an air-gapped runner. E2E uses local HTTP with
+the database provider replaced.
+
+A clean checkout needs all integration sources/configuration and both updated
+lockfiles committed together with this workflow; ignored generated clients
+must not be committed. Local validation is not evidence of a successful
+GitHub Actions run. After publication, inspect the real run before requiring
+its check in branch protection.
+
 ```bash
 # unit tests
 $ npm run test
