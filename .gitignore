@@ -75,5 +75,6 @@ frontend/dist/
 ml/experiments/invoice_blind_review_v1/
 
 # Backend build artifacts
+backend/generated/prisma/
 backend/dist/
 backend/*.tsbuildinfo
