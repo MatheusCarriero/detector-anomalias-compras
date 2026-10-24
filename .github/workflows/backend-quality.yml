@@ -23,6 +23,9 @@ jobs:
     env:
       CI: 'true'
       DATABASE_URL: ''
+      # The hosted Windows image defines these; never inherit database credentials.
+      PGUSER: ''
+      PGPASSWORD: ''
       npm_config_ignore_scripts: 'true'
       CHECKPOINT_DISABLE: '1'
     steps:
