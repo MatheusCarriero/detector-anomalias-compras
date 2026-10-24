@@ -33,6 +33,84 @@ $ npm install
 
 ## Compile and run the project
 
+### Prisma Client preparation (no database connection)
+
+The Prisma CLI, schema and migrations remain in the repository root. Install
+the root and backend dependencies before preparing the client. From `backend/`:
+
+```powershell
+npm.cmd run prisma:prepare
+npm.cmd run prisma:test
+npm.cmd run build
+```
+
+`prisma:prepare` runs the root `db:generate` script with npm lifecycle hooks
+disabled, then uses the backend's TypeScript compiler and `tsconfig.prisma.json`.
+It compiles `../generated/prisma/` to ESM JavaScript and declarations in
+`backend/generated/prisma/`, rewriting relative `.ts` imports to `.js`.
+Only that compiled output is cleaned. Existing source and output directories
+are checked before generation; symbolic links/junctions, linked source children
+and unexpected generated assets cause preparation to fail. Neither generated directory is
+versioned. No `DATABASE_URL`, migration, seed or database connection is needed.
+
+Generation or source-validation failure leaves any previously compiled client
+untouched, but returns a failure and stops the build. Do not treat that retained
+client as the result of a successful new build. Compilation failure removes
+partial compiled output. Run preparation exclusively, without concurrent writes
+to either generated directory; these checks are not a filesystem sandbox.
+
+`build` prepares the client before compiling Nest. The compiled client remains
+outside `dist/`, so Nest's output cleanup does not remove it. A future deployment
+must include `generated/prisma/` alongside `dist/`, the backend package manifest
+and its runtime dependencies. Future services must import the compiled `.js`
+entry, not the root's generated TypeScript.
+
+`prisma:test` covers preparation with temporary synthetic fixtures, imports the
+real compiled client and checks its constructor with the real PostgreSQL adapter
+in separate Node processes. Socket connections are blocked; no `$connect` or
+query is executed. Run preparation before this test command.
+
+### Prisma runtime integration
+
+`AppModule` imports a non-global `PrismaModule`, which exports `PrismaService`.
+A replaceable `PRISMA_CLIENT` factory constructs the compiled client with
+`PrismaPg` and the explicit SQL schema `app`. The service owns the connection
+lifecycle; it does not expose domain CRUD or a public raw client. Future writes
+must use the authorized SQL functions documented in [the database guide](../prisma/README.md),
+not direct Prisma mutations of versioned entities.
+
+At runtime, supply `DATABASE_URL` through the process environment. This module
+does not load `.env` or import the root's `prisma.config.ts`. The URL must specify
+a PostgreSQL host, port, database, nonempty password and the user
+`detector_runtime`. Only the optional query parameter `schema=app` is accepted;
+other parameters and duplicates are rejected. The factory passes explicit
+connection fields to the adapter, with a fixed `search_path=app,pg_catalog`, so
+URL parameters and `PGOPTIONS` cannot replace the intended role or search path.
+Errors do not include the URL, password or original driver error.
+
+This checks the intended configuration, not the role's actual grants or the
+database identity. Those checks remain part of a later, explicitly controlled
+connection to the synthetic database. TLS deployment configuration is outside
+this initial increment; URL-based TLS options are not currently accepted.
+The provider does not set `ssl`, so `pg` inherits `PGSSLMODE` (or its default of
+no TLS). This includes the insecure `no-verify` mode if supplied externally.
+An explicit TLS/certificate policy is required before nonlocal deployment;
+the current URL validation does not establish that transport guarantee.
+
+`onModuleInit` awaits `$connect`; `onModuleDestroy` awaits `$disconnect`.
+Failed startup attempts cleanup without retrying, and bootstrap enables Nest
+shutdown hooks. If HTTP listening fails, bootstrap awaits application cleanup;
+a cleanup failure does not replace the original startup error. In this adapter
+version, `$connect` initializes a lazy pool;
+successful startup alone does not prove PostgreSQL connectivity or permissions.
+Starting the application enables its real database lifecycle, so do not use
+`start` as an offline verification. No migration or seed is run during bootstrap.
+
+Unit tests replace the adapter/client or the provider and block sockets; E2E
+replaces the provider before initialization and blocks real adapter construction.
+They need no real `DATABASE_URL`. Preparation, build and the validations for
+this increment do not start the real application or connect to PostgreSQL.
+
 ```bash
 # development
 $ npm run start
