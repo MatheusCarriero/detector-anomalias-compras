@@ -21,7 +21,11 @@
     "test:watch": "vitest",
     "test:cov": "vitest run --coverage",
     "test:debug": "vitest --inspect-brk --no-file-parallelism",
-    "test:e2e": "vitest run --config ./vitest.config.e2e.ts"
+    "test:e2e": "vitest run --config ./vitest.config.e2e.ts",
+    "test:connected:offline": "vitest run test/connected/",
+    "test:runtime:read": "node scripts/run-connected-tests.mjs identity-permissions",
+    "test:runtime:contracts": "node scripts/run-connected-tests.mjs sql-contracts",
+    "test:runtime:concurrency": "node scripts/run-connected-tests.mjs concurrency"
   },
   "dependencies": {
     "@nestjs/common": "^12.0.1",
