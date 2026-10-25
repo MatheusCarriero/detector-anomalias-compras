@@ -124,6 +124,88 @@ $ npm run start:prod
 
 ## Run tests
 
+### Controlled PostgreSQL validation — Stage 0
+
+Stage 0 prepares the connected test harness and verifies its protections offline.
+It does not validate a live database. Ordinary `test`, `test:e2e`, `prisma:test`
+and the offline CI do not collect `*.integration.test.ts`. The new guard tests
+run as unit tests, with synthetic configuration, mocked drivers/processes and
+blocked sockets. To run only those offline checks:
+
+```powershell
+npm.cmd run test:connected:offline
+```
+
+The separate `test:runtime:read` command is reserved for a later, explicitly
+approved connection. Do not run it as an offline check. Its runner validates
+configuration before launching Vitest; the connected configuration and harness
+check it again before constructing the existing `AppModule`/`PrismaModule`.
+There is no fallback to `DATABASE_URL`, `.env`, an owner role or a default target.
+The internal runner marker prevents accidental direct invocation; it is not an
+authorization token or a sandbox against deliberately modified test code.
+
+Required environment settings for that later stage are:
+
+| Setting | Requirement |
+|---|---|
+| `DB_TEST_CONFIRM` | `synthetic-only` |
+| `DB_TEST_HOST` | Literal loopback: `127.0.0.1` or `[::1]`; no DNS/remote host |
+| `DB_TEST_PORT` | Explicit port, 1–65535 |
+| `DB_TEST_DATABASE` | Exclusive, administrator-confirmed synthetic database; `synthetic_` prefix, at most 63 characters |
+| `DB_TEST_RUNTIME` | Exactly `detector_runtime` |
+| `DB_TEST_RUNTIME_URL` | Matching PostgreSQL URL, nonempty password, no query parameters or fragment |
+| `DB_TEST_TLS` | Explicit `local-plaintext` acknowledgement, for this loopback-only profile |
+| `DB_TEST_OPERATION` | Exactly `identity-read-only` |
+
+The prefix and flags validate intent, not the actual contents or ownership of a
+database. Confirm the target and the local transport policy with its administrator
+before Stage 1. Verified TLS/remote targets are not supported by this harness;
+they require a separately reviewed configuration. Ambient `PG*`, database URLs,
+owner credentials, debug/preload settings and CI execution are refused. The
+runner forwards only the required target and a small OS environment allowlist.
+Secrets are never command-line arguments. Do not print or commit them.
+
+The prepared identity test uses the real Nest provider, without overriding it,
+inside a read-only transaction. It checks `session_user`, `current_user`, database,
+server address/port, PostgreSQL 18, `search_path`, schema USAGE/CREATE, role flags
+and transport. It does not claim to validate the full table/column/function ACL,
+ownership or membership graph. Those checks remain part of the next stage,
+before any fixture or write. No HTTP server or endpoint is started.
+
+Only one harness invocation/worker is allowed at a time, without retries.
+The runtime provider's pool settings are unchanged (the installed `pg` default
+allows ten clients); this read-only test requests one transaction and does not
+exercise pool capacity. Prisma's acquisition `maxWait` is set to 3 seconds and
+transaction timeout to 10 seconds; server statements are limited to 5 seconds
+and locks to 2 seconds. Cleanup has a
+3-second deadline. A separate 45-second process deadline also bounds lazy
+connection/startup failures: Vitest uses a single thread worker, so terminating
+its owned Node process terminates that worker. `SIGINT`/`SIGTERM` use the same
+failure/termination path. Confirmation has a further 5-second
+limit; if the OS does not confirm termination, the runner detaches only its own
+child, fails and requests manual inspection. It cannot guarantee OS-level cleanup
+in that case. A timeout/failed termination is failure, never proof of graceful
+cleanup or rollback. A cleanup failure prevents
+reuse of the harness in that process. Node/Nest errors are sanitized, and the
+runner does not forward raw child output containing potential driver details.
+
+`test:runtime:contracts` and `test:runtime:concurrency` are separate reserved
+entry points that fail before spawning a process. They are not passing placeholder
+tests. Future cases belong respectively in `test/connected/sql-contracts/` and
+`test/connected/concurrency/`, with `*.integration.test.ts` names, after separate
+review/authorization. Writes must use the SQL functions in the database guide;
+no direct CRUD, seed, grants or fixture creation is introduced here.
+
+The offline-tested SQLSTATE helper supports exact PostgreSQL codes and the
+installed Prisma adapter's structured error shape. It refuses syntax errors,
+aborted-transaction errors and unexpected success as evidence of a legitimate
+rejection. Each future negative case uses its own savepoint, forces deferred
+constraints and rolls back/releases the savepoint before the next case. Propagate
+cleanup failures to the outer transaction. Actual Prisma error mapping, privileges,
+SQL invariants, concurrency and cleanup on a real server remain unverified by
+Stage 0. The legacy root `db:test` suite connects and can persist synthetic
+fixtures; it is not part of this offline workflow.
+
 ### Offline CI
 
 [Backend Quality (offline)](../.github/workflows/backend-quality.yml) runs on
