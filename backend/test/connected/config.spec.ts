@@ -1,5 +1,5 @@
 import { Socket } from 'node:net';
-import { readConnectedTarget } from './config.js';
+import { connectedTestOptions, readConnectedTarget, selectConnectedSuite } from './config.js';
 import { syntheticEnvironment as valid } from './fixtures.js';
 
 describe('connected test configuration (offline)', () => {
@@ -71,5 +71,25 @@ describe('connected test configuration (offline)', () => {
     expect(readConnectedTarget({ ...valid, DB_TEST_HOST: '[::1]',
       DB_TEST_RUNTIME_URL: valid.DB_TEST_RUNTIME_URL.replace('127.0.0.1', '[::1]'),
     })).toMatchObject({ host: '[::1]' });
+  });
+  it.each([
+    ['CONFIG_MISSING', { ...valid, DB_TEST_HOST: undefined }],
+    ['CONFIG_CONFLICT', { ...valid, PGPASSWORD: 'private-sentinel' }],
+    ['CONFIG_TARGET', { ...valid, DB_TEST_OPERATION: 'private-sentinel' }],
+    ['CONFIG_URL', { ...valid, DB_TEST_RUNTIME_URL: 'private-sentinel' }],
+  ])('identifies %s without reporting supplied values', (code, env) => {
+    let caught: unknown;
+    try { readConnectedTarget(env); } catch (error) { caught = error; }
+    expect(caught).toMatchObject({ diagnosticCode: code });
+    expect(String(caught)).not.toContain('private-sentinel');
+    expect(caught).not.toHaveProperty('cause');
+  });
+  it('distinguishes absent bounded runner from an unapproved suite', () => {
+    let runner: unknown;
+    let suite: unknown;
+    try { connectedTestOptions(valid); } catch (error) { runner = error; }
+    try { selectConnectedSuite('sql-contracts'); } catch (error) { suite = error; }
+    expect(runner).toMatchObject({ diagnosticCode: 'RUNNER_REQUIRED' });
+    expect(suite).toMatchObject({ diagnosticCode: 'SUITE_REFUSED' });
   });
 });

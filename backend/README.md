@@ -206,6 +206,84 @@ SQL invariants, concurrency and cleanup on a real server remain unverified by
 Stage 0. The legacy root `db:test` suite connects and can persist synthetic
 fixtures; it is not part of this offline workflow.
 
+#### Safe connected-test diagnostics
+
+The runner reports fixed categories instead of forwarding Vitest/driver output.
+Configuration failures distinguish `CONFIG_MISSING`, `CONFIG_CONFLICT`,
+`CONFIG_TARGET` and `CONFIG_URL`. Child failures identify module import/compilation,
+initialization, transaction boundaries/setup, identity query/validation and cleanup.
+For example, `IDENTITY_SCHEMA` means a schema check failed; it does not print the
+returned value. A primary failure and a cleanup failure are reported separately.
+
+`TRANSACTION_START` is the last boundary before the interactive callback, not proof
+of an acquisition failure. With Prisma 7.10 / adapter-pg, `$connect()` initializes
+the adapter/pool without necessarily opening a physical connection. The first
+`$transaction` then acquires a connection, sends `BEGIN` and sets the isolation
+level before invoking the callback. The public API does not expose separate
+hooks for these three operations; the harness does not patch driver internals.
+
+| Diagnostic stage | What has been reached |
+| --- | --- |
+| `TRANSACTION_START` | `$transaction` requested; callback not yet entered. Acquisition, `BEGIN`, isolation setup or a client-side startup failure remain possible. |
+| `TRANSACTION_CALLBACK` | Interactive callback entered. No harness SQL has run yet. |
+| `READ_ONLY_SETUP` | Awaiting `SET TRANSACTION READ ONLY`. |
+| `SESSION_TIMEOUT_SETUP` | Applying the three existing local SQL timeouts. |
+| `IDENTITY_QUERY` | Awaiting the identity query and its decoding. |
+| `TRANSACTION_FINISH` | Callback completed; awaiting transaction completion/release. |
+| `TRANSACTION_RESOLVED` | `$transaction` resolved; identity validation and module cleanup still follow. |
+
+A transaction rejection also reports an allowlisted `TX_ERROR_*` category from
+structured Prisma/adapter fields. This is separate from the stage. For example,
+`TX_ERROR_API` maps Prisma `P2028`, which covers multiple transaction API failures
+and is **not proof of a startup timeout**. `TX_ERROR_UNREACHABLE`,
+`TX_ERROR_AUTHENTICATION`, `TX_ERROR_CONNECTION_CLOSED` and `TX_ERROR_CONNECTION_LIMIT`
+are emitted only when the structured code/kind supports them. PostgreSQL `57014`
+maps to `TX_ERROR_CANCELLED` (not necessarily a timeout); `55P03` maps to
+`TX_ERROR_LOCK_UNAVAILABLE` (also possible with NOWAIT), `25006` to
+`TX_ERROR_READ_ONLY`, and `42601` to `TX_ERROR_SQL_SYNTAX`. Unknown errors remain
+`TX_ERROR_UNKNOWN`; their messages are never used to guess a cause. The classifier
+reads only own data properties, without invoking getters or copying error text.
+
+Limits remain unchanged: `maxWait=3000ms` covers adapter transaction startup
+(acquisition plus `BEGIN`/isolation), and `timeout=10000ms` covers the running
+interactive transaction. SQL statement/lock/idle-in-transaction limits are
+5s/2s/5s and take effect only after their `SET LOCAL` succeeds. They do not protect
+acquisition or `BEGIN`. The provider leaves pg's pool defaults unchanged
+(maximum 10 clients, 10s idle timeout, no explicit acquisition/connection timeout).
+The module cleanup bound is 3s, the Vitest test budget is 15s and the runner bound
+is 45s, followed by up to 5s to confirm forced termination. These are nested
+limits: 3s startup + 10s transaction + 3s cleanup already exceeds the test budget,
+before module initialization. They are not additive allowances or proof of the
+cause of a particular failure, and were not increased to mask this incident.
+
+An expired `maxWait` does not prove pg stopped acquiring a connection. Offline
+fixtures cover late acquisition followed by Prisma's rollback/release, as well
+as acquisition, `BEGIN`, isolation, read-only setup, query and commit failures.
+They use the real client/adapter with simulated pg I/O and blocked sockets.
+These tests do not establish what occurred in a real failed attempt or certify
+its cleanup. The harness still refuses reuse after an observed cleanup failure.
+
+Endpoint failures distinguish `IDENTITY_ADDRESS_TYPE` / `IDENTITY_PORT_TYPE`
+(unexpected JavaScript type, including null) from `IDENTITY_ADDRESS_VALUE` /
+`IDENTITY_PORT_VALUE` (a value that does not exactly match the approved target).
+The query uses `pg_catalog.host(inet_server_addr())`: PostgreSQL's explicit
+`inet::text` cast includes a netmask, whereas `host(inet)` returns the address
+alone ([PostgreSQL 18 reference](https://www.postgresql.org/docs/18/functions-net.html)).
+No returned value is printed or coerced; masked addresses, numeric strings,
+different addresses and different ports remain rejected.
+
+Only exact, allowlisted `DB_TEST_DIAGNOSTIC_V1` frames cross the stderr boundary;
+raw text, URLs, passwords, stack traces and malformed/oversized lines are discarded.
+`CHILD_BOOTSTRAP` means the process failed before emitting a recognized diagnostic,
+not proof of a particular loader error. Timeouts/signals include the last known
+safe stage when available. `CHILD_TERMINATION_UNCONFIRMED` still requires manual
+inspection; it is not proof that resources closed.
+
+These categories locate a failure but do not certify its underlying cause or
+authorize another connection. After a failed controlled run, share only the fixed
+codes, review the indicated stage and obtain authorization before retrying. Do not
+enable raw driver/debug output, relax identity checks or use an owner credential.
+
 ### Offline CI
 
 [Backend Quality (offline)](../.github/workflows/backend-quality.yml) runs on

@@ -4,6 +4,10 @@ import { syntheticEnvironment } from './fixtures.js';
 const fake = vi.hoisted(() => ({
   connect: vi.fn(), disconnect: vi.fn(), query: vi.fn(), execute: vi.fn(),
   transaction: vi.fn(), adapter: vi.fn(), client: vi.fn(),
+  write: vi.fn(),
+}));
+vi.mock('node:fs', async (importOriginal) => ({
+  ...await importOriginal<typeof import('node:fs')>(), writeSync: fake.write,
 }));
 vi.mock('@prisma/adapter-pg', () => ({ PrismaPg: class { constructor(...args: unknown[]) { fake.adapter(...args); } } }));
 vi.mock('../../generated/prisma/client.js', () => ({ PrismaClient: class {
@@ -87,6 +91,62 @@ describe('Nest connected harness, with mocked driver and blocked network', { tim
     expect(process.env.PGSSLMODE).toBeUndefined();
   });
   it.each([
+    { target: '127.0.0.1', address: '127.0.0.1', cast: '127.0.0.1/32' },
+    { target: '[::1]', address: '::1', cast: '::1/128' },
+  ])('requests host-only PostgreSQL text for $target, preserving strict equality', async ({ target, address, cast }) => {
+    vi.stubEnv('DB_TEST_HOST', target);
+    vi.stubEnv('DB_TEST_RUNTIME_URL', syntheticEnvironment.DB_TEST_RUNTIME_URL.replace('127.0.0.1', target));
+    // Documented PostgreSQL 18 semantics, not a live SQL execution:
+    // https://www.postgresql.org/docs/18/functions-net.html
+    // inet::text includes the mask; host(inet) returns only the address.
+    fake.query.mockImplementation(async (strings: TemplateStringsArray) => {
+      const sql = strings.join('?');
+      if (sql.includes('inet_server_addr()::text AS server_address')) {
+        return [{ ...identity, server_address: cast }];
+      }
+      if (sql.includes('pg_catalog.host(inet_server_addr()) AS server_address')) {
+        return [{ ...identity, server_address: address }];
+      }
+      throw new Error('Unexpected address projection in offline fixture');
+    });
+    const { inspectRuntimeIdentity } = await import('./harness.js');
+    await expect(inspectRuntimeIdentity()).resolves.toMatchObject({ runtimeRole: 'detector_runtime' });
+    expect(fake.query).toHaveBeenCalledOnce();
+    expect(fake.disconnect).toHaveBeenCalledOnce();
+  });
+  it.each([
+    ['server_address', null, 'IDENTITY_ADDRESS_TYPE'],
+    ['server_address', undefined, 'IDENTITY_ADDRESS_TYPE'],
+    ['server_address', 2130706433, 'IDENTITY_ADDRESS_TYPE'],
+    ['server_address', ['127.0.0.1'], 'IDENTITY_ADDRESS_TYPE'],
+    ['server_address', '127.0.0.1/32', 'IDENTITY_ADDRESS_VALUE'],
+    ['server_address', '127.0.0.1 ', 'IDENTITY_ADDRESS_VALUE'],
+    ['server_address', '127.0.0.2', 'IDENTITY_ADDRESS_VALUE'],
+    ['server_address', '::ffff:127.0.0.1', 'IDENTITY_ADDRESS_VALUE'],
+    ['server_address', 'localhost', 'IDENTITY_ADDRESS_VALUE'],
+    ['server_port', null, 'IDENTITY_PORT_TYPE'],
+    ['server_port', undefined, 'IDENTITY_PORT_TYPE'],
+    ['server_port', '5432', 'IDENTITY_PORT_TYPE'],
+    ['server_port', 5432n, 'IDENTITY_PORT_TYPE'],
+    ['server_port', true, 'IDENTITY_PORT_TYPE'],
+    ['server_port', NaN, 'IDENTITY_PORT_VALUE'],
+    ['server_port', Infinity, 'IDENTITY_PORT_VALUE'],
+    ['server_port', 5432.5, 'IDENTITY_PORT_VALUE'],
+    ['server_port', 0, 'IDENTITY_PORT_VALUE'],
+    ['server_port', 65536, 'IDENTITY_PORT_VALUE'],
+    ['server_port', 5433, 'IDENTITY_PORT_VALUE'],
+  ])('rejects incompatible endpoint types or values without coercion (case %#)', async (key, value, code) => {
+    fake.query.mockResolvedValue([{ ...identity, [key]: value }]);
+    const { inspectRuntimeIdentity } = await import('./harness.js');
+    await expect(inspectRuntimeIdentity()).rejects.toMatchObject({ diagnosticCode: code });
+    const frames = fake.write.mock.calls.map(([, frame]) => String(frame).trimStart()).join('');
+    expect(frames).toContain(`DB_TEST_DIAGNOSTIC_V1 failure ${code}\n`);
+    expect(frames).not.toMatch(/127\.0\.0\.|543[23]|FAKE-password|synthetic_stage0_fixture/);
+    expect(fake.disconnect).toHaveBeenCalledOnce();
+    expect(process.env.DATABASE_URL).toBeUndefined();
+    expect(process.env.PGSSLMODE).toBeUndefined();
+  });
+  it.each([
     ['database', 'another_database'], ['session_user', 'postgres'],
     ['current_user', 'detector_migrator'], ['server_version', 170000],
     ['server_address', '10.0.0.1'], ['server_port', 5433],
@@ -102,7 +162,7 @@ describe('Nest connected harness, with mocked driver and blocked network', { tim
   it('redacts driver errors, closes resources and does not retry', async () => {
     fake.query.mockRejectedValue(new Error(syntheticEnvironment.DB_TEST_RUNTIME_URL));
     const { inspectRuntimeIdentity } = await import('./harness.js');
-    await expect(inspectRuntimeIdentity()).rejects.toThrow(/^DB_TEST: identity inspection failed$/);
+    await expect(inspectRuntimeIdentity()).rejects.toMatchObject({ diagnosticCode: 'IDENTITY_QUERY' });
     expect(fake.query).toHaveBeenCalledOnce();
     expect(fake.disconnect).toHaveBeenCalledOnce();
     expect(process.env.DATABASE_URL).toBeUndefined();
@@ -110,15 +170,15 @@ describe('Nest connected harness, with mocked driver and blocked network', { tim
   it('reports cleanup failure rather than success', async () => {
     fake.disconnect.mockRejectedValue(new Error('secret'));
     const { inspectRuntimeIdentity } = await import('./harness.js');
-    await expect(inspectRuntimeIdentity()).rejects.toThrow(/^DB_TEST: resource cleanup failed$/);
-    await expect(inspectRuntimeIdentity()).rejects.toThrow(/^DB_TEST: harness unusable after cleanup failure$/);
+    await expect(inspectRuntimeIdentity()).rejects.toMatchObject({ diagnosticCode: 'RESOURCE_CLEANUP_HOOK' });
+    await expect(inspectRuntimeIdentity()).rejects.toMatchObject({ diagnosticCode: 'HARNESS_UNUSABLE' });
     expect(fake.connect).toHaveBeenCalledOnce();
   });
   it('closes after failed initialization and preserves the original sanitized failure', async () => {
     fake.connect.mockRejectedValue(new Error('secret'));
     fake.disconnect.mockRejectedValue(new Error('other-secret'));
     const { inspectRuntimeIdentity } = await import('./harness.js');
-    await expect(inspectRuntimeIdentity()).rejects.toThrow(/^DB_TEST: identity inspection failed$/);
+    await expect(inspectRuntimeIdentity()).rejects.toMatchObject({ diagnosticCode: 'MODULE_INIT' });
     expect(fake.query).not.toHaveBeenCalled();
     expect(fake.disconnect).toHaveBeenCalled();
   });
@@ -129,7 +189,7 @@ describe('Nest connected harness, with mocked driver and blocked network', { tim
     const first = inspectRuntimeIdentity();
     await vi.waitFor(() => expect(fake.connect).toHaveBeenCalledOnce());
     try {
-      await expect(inspectRuntimeIdentity()).rejects.toThrow(/^DB_TEST: concurrent harness use refused$/);
+      await expect(inspectRuntimeIdentity()).rejects.toMatchObject({ diagnosticCode: 'HARNESS_BUSY' });
       expect(fake.client).toHaveBeenCalledOnce();
     } finally { release(); }
     await expect(first).resolves.toMatchObject({ runtimeRole: 'detector_runtime' });
@@ -142,10 +202,160 @@ describe('Nest connected harness, with mocked driver and blocked network', { tim
     const result = inspectRuntimeIdentity().catch((error: unknown) => error);
     await vi.waitFor(() => expect(fake.disconnect).toHaveBeenCalledOnce());
     await vi.advanceTimersByTimeAsync(3000);
-    expect(String(await result)).toBe('Error: DB_TEST: resource cleanup failed');
+    expect(await result).toMatchObject({ diagnosticCode: 'RESOURCE_CLEANUP_TIMEOUT' });
     expect(process.env.DATABASE_URL).toBeUndefined();
     expect(process.env.PGSSLMODE).toBeUndefined();
-    await expect(inspectRuntimeIdentity()).rejects.toThrow(/^DB_TEST: harness unusable after cleanup failure$/);
+    await expect(inspectRuntimeIdentity()).rejects.toMatchObject({ diagnosticCode: 'HARNESS_UNUSABLE' });
     expect(fake.connect).toHaveBeenCalledOnce();
+  });
+
+  it.each([
+    ['provider', 'MODULE_COMPILE'], ['initialization', 'MODULE_INIT'],
+    ['before-callback', 'TRANSACTION_START'], ['read-only', 'READ_ONLY_SETUP'],
+    ['timeouts', 'SESSION_TIMEOUT_SETUP'], ['query', 'IDENTITY_QUERY'],
+    ['commit', 'TRANSACTION_FINISH'],
+  ])('identifies %s failure without exposing the original error', async (point, code) => {
+    const secret = new Error(syntheticEnvironment.DB_TEST_RUNTIME_URL);
+    secret.stack = 'PRIVATE_STACK_CANARY';
+    if (point === 'provider') fake.adapter.mockImplementation(() => { throw secret; });
+    if (point === 'initialization') fake.connect.mockRejectedValue(secret);
+    if (point === 'before-callback') fake.transaction.mockRejectedValue(secret);
+    if (point === 'read-only') fake.execute.mockRejectedValueOnce(secret);
+    if (point === 'timeouts') fake.execute.mockResolvedValueOnce(0).mockRejectedValueOnce(secret);
+    if (point === 'query') fake.query.mockRejectedValue(secret);
+    if (point === 'commit') fake.transaction.mockImplementation(async (body: (tx: unknown) => unknown) => {
+      await body({ $executeRaw: fake.execute, $queryRaw: fake.query });
+      throw secret;
+    });
+    const { inspectRuntimeIdentity } = await import('./harness.js');
+    const error = await inspectRuntimeIdentity().catch((failure: unknown) => failure);
+    expect(error).toMatchObject({ diagnosticCode: code });
+    expect(error).not.toHaveProperty('cause');
+    const frames = fake.write.mock.calls.map(([, frame]) => String(frame).trimStart());
+    expect(frames).toContain(`DB_TEST_DIAGNOSTIC_V1 failure ${code}\n`);
+    expect(frames).not.toContain('DB_TEST_DIAGNOSTIC_V1 stage HARNESS_OK\n');
+    expect(frames.join('')).not.toMatch(/FAKE-password|postgresql:\/\/|PRIVATE_STACK_CANARY/);
+  });
+
+  it.each([
+    ['P1001', 'TX_ERROR_UNREACHABLE'], ['P2028', 'TX_ERROR_API'],
+    ['PRIVATE_CODE', 'TX_ERROR_UNKNOWN'],
+  ])('reports pre-callback location separately from the structured error category (%s)', async (code, category) => {
+    fake.transaction.mockRejectedValue(Object.assign(new Error('PRIVATE_URL_AND_STACK'), { code }));
+    const { inspectRuntimeIdentity } = await import('./harness.js');
+    await expect(inspectRuntimeIdentity()).rejects.toMatchObject({ diagnosticCode: 'TRANSACTION_START' });
+    const frames = fake.write.mock.calls.map(([, frame]) => String(frame).trimStart());
+    expect(frames).toContain(`DB_TEST_DIAGNOSTIC_V1 failure ${category}\n`);
+    expect(frames).not.toContain('DB_TEST_DIAGNOSTIC_V1 stage TRANSACTION_CALLBACK\n');
+    expect(frames.join('')).not.toMatch(/PRIVATE_|FAKE-password|postgresql:\/\//);
+    expect(fake.execute).not.toHaveBeenCalled();
+    expect(fake.query).not.toHaveBeenCalled();
+    expect(fake.transaction).toHaveBeenCalledOnce();
+    expect(fake.disconnect).toHaveBeenCalledOnce();
+  });
+  it('marks callback entry and transaction resolution without claiming SQL success early', async () => {
+    const { inspectRuntimeIdentity } = await import('./harness.js');
+    await inspectRuntimeIdentity();
+    const stages = fake.write.mock.calls.map(([, frame]) => String(frame).trim());
+    const ordered = ['TRANSACTION_START', 'TRANSACTION_CALLBACK', 'READ_ONLY_SETUP',
+      'SESSION_TIMEOUT_SETUP', 'IDENTITY_QUERY', 'TRANSACTION_FINISH', 'TRANSACTION_RESOLVED',
+      'IDENTITY_RESULT_SHAPE', 'RESOURCE_CLEANUP', 'HARNESS_OK'];
+    const positions = ordered.map((stage) => stages.indexOf(`DB_TEST_DIAGNOSTIC_V1 stage ${stage}`));
+    expect(positions.every((position, index) => position >= 0 && (index === 0 || position > positions[index - 1]!))).toBe(true);
+  });
+  it.each(['read-only', 'commit'])('retains %s location and SQLSTATE category independently', async (point) => {
+    const cause = { kind: 'postgres', originalCode: '57014', originalMessage: 'PRIVATE_SENTINEL' };
+    if (point === 'read-only') fake.execute.mockRejectedValueOnce({ code: 'P2010', meta: { driverAdapterError: { cause } } });
+    else fake.transaction.mockImplementation(async (body: (tx: unknown) => unknown) => {
+      await body({ $executeRaw: fake.execute, $queryRaw: fake.query });
+      throw { name: 'DriverAdapterError', cause };
+    });
+    const { inspectRuntimeIdentity } = await import('./harness.js');
+    await expect(inspectRuntimeIdentity()).rejects.toMatchObject({ diagnosticCode: point === 'read-only' ? 'READ_ONLY_SETUP' : 'TRANSACTION_FINISH' });
+    const frames = fake.write.mock.calls.map(([, frame]) => String(frame).trimStart());
+    expect(frames).toContain('DB_TEST_DIAGNOSTIC_V1 failure TX_ERROR_CANCELLED\n');
+    expect(frames).not.toContain('DB_TEST_DIAGNOSTIC_V1 stage TRANSACTION_RESOLVED\n');
+    expect(frames.join('')).not.toContain('PRIVATE_SENTINEL');
+    expect(fake.disconnect).toHaveBeenCalledOnce();
+  });
+
+  it.each([
+    ['database', 'other', 'IDENTITY_DATABASE'],
+    ['session_user', 'other', 'IDENTITY_USER'],
+    ['current_user', 'other', 'IDENTITY_USER'],
+    ['server_address', '10.0.0.1', 'IDENTITY_ADDRESS_VALUE'],
+    ['server_port', '5432', 'IDENTITY_PORT_TYPE'],
+    ['schema_usage', false, 'IDENTITY_SCHEMA'],
+    ['schema_create', true, 'IDENTITY_SCHEMA'],
+    ['superuser', true, 'IDENTITY_PRIVILEGES'],
+    ['create_db', true, 'IDENTITY_PRIVILEGES'],
+    ['create_role', true, 'IDENTITY_PRIVILEGES'],
+    ['replication', true, 'IDENTITY_PRIVILEGES'],
+    ['bypass_rls', true, 'IDENTITY_PRIVILEGES'],
+    ['tls', true, 'IDENTITY_TRANSPORT'],
+    ['server_version', '180000', 'IDENTITY_VERSION'],
+    ['search_path', 'public', 'IDENTITY_SEARCH_PATH'],
+  ])('classifies identity mismatch for %s without leaking returned values', async (key, value, code) => {
+    fake.query.mockResolvedValue([{ ...identity, [key]: value, extra: 'PRIVATE_RESULT_CANARY' }]);
+    const { inspectRuntimeIdentity } = await import('./harness.js');
+    await expect(inspectRuntimeIdentity()).rejects.toMatchObject({ diagnosticCode: code });
+    expect(fake.write.mock.calls.map(([, frame]) => String(frame).trimStart()).join('')).not.toContain('PRIVATE_RESULT_CANARY');
+    expect(fake.disconnect).toHaveBeenCalledOnce();
+  });
+
+  it.each([null, {}, [], [null], [identity, identity]])('rejects malformed identity results with a fixed category (%j)', async (rows) => {
+    fake.query.mockResolvedValue(rows);
+    const { inspectRuntimeIdentity } = await import('./harness.js');
+    await expect(inspectRuntimeIdentity()).rejects.toMatchObject({ diagnosticCode: 'IDENTITY_RESULT_SHAPE' });
+  });
+
+  it('reports primary and cleanup failures independently without claiming success', async () => {
+    fake.query.mockRejectedValue(new Error('PRIVATE_QUERY_CANARY'));
+    fake.disconnect.mockRejectedValue(new Error('PRIVATE_CLEANUP_CANARY'));
+    const { inspectRuntimeIdentity } = await import('./harness.js');
+    await expect(inspectRuntimeIdentity()).rejects.toMatchObject({ diagnosticCode: 'IDENTITY_QUERY' });
+    const frames = fake.write.mock.calls.map(([, frame]) => String(frame).trimStart());
+    expect(frames).toContain('DB_TEST_DIAGNOSTIC_V1 failure IDENTITY_QUERY\n');
+    expect(frames).toContain('DB_TEST_DIAGNOSTIC_V1 failure RESOURCE_CLEANUP_HOOK\n');
+    expect(frames.join('')).not.toMatch(/PRIVATE_|HARNESS_OK/);
+    await expect(inspectRuntimeIdentity()).rejects.toMatchObject({ diagnosticCode: 'HARNESS_UNUSABLE' });
+  });
+
+  it('preserves a pre-callback failure and a failed cleanup as separate diagnostics', async () => {
+    fake.transaction.mockRejectedValue({ code: 'P2028', message: 'PRIVATE_TRANSACTION_CANARY' });
+    fake.disconnect.mockRejectedValue(new Error('PRIVATE_CLEANUP_CANARY'));
+    const { inspectRuntimeIdentity } = await import('./harness.js');
+    await expect(inspectRuntimeIdentity()).rejects.toMatchObject({ diagnosticCode: 'TRANSACTION_START' });
+    const frames = fake.write.mock.calls.map(([, frame]) => String(frame).trimStart());
+    expect(frames).toContain('DB_TEST_DIAGNOSTIC_V1 failure TRANSACTION_START\n');
+    expect(frames).toContain('DB_TEST_DIAGNOSTIC_V1 failure TX_ERROR_API\n');
+    expect(frames).toContain('DB_TEST_DIAGNOSTIC_V1 failure RESOURCE_CLEANUP_HOOK\n');
+    expect(frames.join('')).not.toMatch(/PRIVATE_|HARNESS_OK|TRANSACTION_CALLBACK/);
+    expect(fake.execute).not.toHaveBeenCalled();
+    expect(fake.transaction).toHaveBeenCalledOnce();
+    expect(process.env.DATABASE_URL).toBeUndefined();
+    expect(process.env.PGSSLMODE).toBeUndefined();
+    await expect(inspectRuntimeIdentity()).rejects.toMatchObject({ diagnosticCode: 'HARNESS_UNUSABLE' });
+  });
+
+  it('reports successful cleanup before harness completion', async () => {
+    const { inspectRuntimeIdentity } = await import('./harness.js');
+    await inspectRuntimeIdentity();
+    const frames = fake.write.mock.calls.map(([, frame]) => String(frame).trimStart());
+    expect(frames.at(-1)).toBe('DB_TEST_DIAGNOSTIC_V1 stage HARNESS_OK\n');
+    expect(frames).toContain('DB_TEST_DIAGNOSTIC_V1 stage RESOURCE_CLEANUP\n');
+    expect(frames.some((frame) => frame.includes(' failure '))).toBe(false);
+  });
+
+  it('does not ignore a Nest initialization error logged without rejection', async () => {
+    fake.connect.mockImplementationOnce(async () => {
+      const { Logger } = await import('@nestjs/common');
+      Logger.error('PRIVATE_LOG_CANARY');
+    });
+    const { inspectRuntimeIdentity } = await import('./harness.js');
+    await expect(inspectRuntimeIdentity()).rejects.toMatchObject({ diagnosticCode: 'MODULE_INIT' });
+    expect(fake.query).not.toHaveBeenCalled();
+    expect(fake.disconnect).toHaveBeenCalledOnce();
+    expect(fake.write.mock.calls.map(([, frame]) => String(frame).trimStart()).join('')).not.toContain('PRIVATE_LOG_CANARY');
   });
 });
