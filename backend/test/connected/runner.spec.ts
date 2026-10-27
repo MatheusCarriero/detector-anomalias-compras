@@ -33,6 +33,25 @@ describe('connected runner protections (offline)', () => {
     expect(log).toHaveBeenCalledWith('DB_TEST: CONFIG_MISSING');
     expect(spawn).not.toHaveBeenCalled();
   });
+  it.each([
+    ['catalog-permissions', 'identity-read-only'], ['identity-permissions', 'catalog-read-only'],
+  ])('refuses mismatched suite %s and operation %s before spawning', async (group, operation) => {
+    const { runConnectedTests } = await import('../../scripts/run-connected-tests.mjs');
+    expect(await runConnectedTests([group], { ...syntheticEnvironment, DB_TEST_OPERATION: operation })).toBe(1);
+    expect(spawn).not.toHaveBeenCalled();
+    expect(log).toHaveBeenCalledWith('DB_TEST: SUITE_REFUSED');
+  });
+  it('passes only the explicitly chosen catalog operation to the bounded child', async () => {
+    const { runConnectedTests } = await import('../../scripts/run-connected-tests.mjs');
+    const result = runConnectedTests(['catalog-permissions'], { ...syntheticEnvironment, DB_TEST_OPERATION: 'catalog-read-only' });
+    expect(spawn).toHaveBeenCalledOnce();
+    expect(vi.mocked(spawn).mock.calls[0][2]?.env?.DB_TEST_OPERATION).toBe('catalog-read-only');
+    child.stderr.write('DB_TEST_DIAGNOSTIC_V1 failure CATALOG_FUNCTIONS\n');
+    child.stderr.write('driver leaked secret_catalog\n');
+    child.emit('close', 1, null);
+    expect(await result).toBe(1);
+    expect(log.mock.calls).toEqual([['DB_TEST: CATALOG_FUNCTIONS']]);
+  });
   it('reports only allowlisted child diagnostics, including a secondary cleanup failure', async () => {
     const { runConnectedTests } = await import('../../scripts/run-connected-tests.mjs');
     const result = runConnectedTests(['identity-permissions'], syntheticEnvironment);

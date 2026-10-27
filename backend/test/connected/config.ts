@@ -21,7 +21,7 @@ export function readConnectedTarget(env: NodeJS.ProcessEnv) {
     const portText = env.DB_TEST_PORT!;
     if (
       env.DB_TEST_CONFIRM !== 'synthetic-only' ||
-      env.DB_TEST_OPERATION !== 'identity-read-only' ||
+      !['identity-read-only', 'catalog-read-only'].includes(env.DB_TEST_OPERATION!) ||
       env.DB_TEST_TLS !== 'local-plaintext' ||
       env.DB_TEST_RUNTIME !== 'detector_runtime' ||
       !['127.0.0.1', '[::1]'].includes(host) ||
@@ -42,7 +42,7 @@ export function readConnectedTarget(env: NodeJS.ProcessEnv) {
     return Object.freeze({
       host, port: Number(portText), database, runtimeUrl,
       runtimeRole: 'detector_runtime' as const,
-      operation: 'identity-read-only' as const,
+      operation: env.DB_TEST_OPERATION as 'identity-read-only' | 'catalog-read-only',
       tls: 'local-plaintext' as const,
     });
   } catch (error) {
@@ -53,20 +53,22 @@ export function readConnectedTarget(env: NodeJS.ProcessEnv) {
 
 export type ConnectedTarget = ReturnType<typeof readConnectedTarget>;
 
-export function selectConnectedSuite(group: string) {
-  if (group !== 'identity-permissions') {
+export function selectConnectedSuite(group: string, operation?: ConnectedTarget['operation']) {
+  const expected = group === 'identity-permissions' ? 'identity-read-only'
+    : group === 'catalog-permissions' ? 'catalog-read-only' : undefined;
+  if (!expected || (operation !== undefined && operation !== expected)) {
     throw diagnosticError('SUITE_REFUSED');
   }
-  return 'test/connected/identity-permissions/*.integration.test.ts';
+  return `test/connected/${group}/*.integration.test.ts`;
 }
 
 export function connectedTestOptions(env: NodeJS.ProcessEnv) {
-  readConnectedTarget(env);
+  const target = readConnectedTarget(env);
   if (env.CONNECTED_TEST_RUNNER !== 'bounded-v1') {
     throw diagnosticError('RUNNER_REQUIRED');
   }
   return {
-    include: [selectConnectedSuite('identity-permissions')],
+    include: [selectConnectedSuite(target.operation === 'catalog-read-only' ? 'catalog-permissions' : 'identity-permissions', target.operation)],
     pool: 'threads' as const, maxWorkers: 1, fileParallelism: false,
     retry: 0, passWithNoTests: false, testTimeout: 15000, hookTimeout: 5000,
   };

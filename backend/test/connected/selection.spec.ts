@@ -18,7 +18,7 @@ describe('connected suite isolation', () => {
   it.each(['sql-contracts', 'concurrency', '../src', '*'])('does not enable unreviewed group %s', (group) => {
     expect(() => selectConnectedSuite(group)).toThrow(/DB_TEST/);
   });
-  it.each(['identity-permissions', 'sql-contracts', 'concurrency'])(
+  it.each(['identity-permissions', 'catalog-permissions', 'sql-contracts', 'concurrency'])(
     'keeps future %s cases out of unit and E2E collection', (group) => {
       const file = `test/connected/${group}/case.integration.test.ts`;
       for (const config of [unitConfig, e2eConfig]) {

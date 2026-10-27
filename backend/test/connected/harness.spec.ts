@@ -1,10 +1,12 @@
 import { Socket } from 'node:net';
 import { syntheticEnvironment } from './fixtures.js';
+import { catalogChecks } from './catalog-checks.js';
+import { syntheticCatalog } from './catalog-fixtures.js';
 
 const fake = vi.hoisted(() => ({
   connect: vi.fn(), disconnect: vi.fn(), query: vi.fn(), execute: vi.fn(),
   transaction: vi.fn(), adapter: vi.fn(), client: vi.fn(),
-  write: vi.fn(),
+  write: vi.fn(), catalog: vi.fn(),
 }));
 vi.mock('node:fs', async (importOriginal) => ({
   ...await importOriginal<typeof import('node:fs')>(), writeSync: fake.write,
@@ -45,7 +47,7 @@ describe('Nest connected harness, with mocked driver and blocked network', { tim
     });
     fake.query.mockResolvedValue([identity]);
     fake.transaction.mockImplementation(async (body: (tx: unknown) => unknown) =>
-      body({ $executeRaw: fake.execute, $queryRaw: fake.query }));
+      body({ $executeRaw: fake.execute, $queryRaw: fake.query, $queryRawUnsafe: fake.catalog }));
   });
   afterEach(() => {
     try { expect(networkAttempts).toBe(0); }
@@ -56,6 +58,111 @@ describe('Nest connected harness, with mocked driver and blocked network', { tim
     await import('./harness.js');
     expect(fake.adapter).not.toHaveBeenCalled();
     expect(fake.connect).not.toHaveBeenCalled();
+  });
+  it('requires a separately selected catalog operation before constructing the adapter', async () => {
+    const { inspectRuntimeCatalog } = await import('./harness.js');
+    await expect(inspectRuntimeCatalog()).rejects.toMatchObject({ diagnosticCode: 'SUITE_REFUSED' });
+    expect(fake.adapter).not.toHaveBeenCalled();
+    expect(fake.catalog).not.toHaveBeenCalled();
+  });
+  it('validates identity before catalogs within the same bounded read-only transaction', async () => {
+    vi.stubEnv('DB_TEST_OPERATION', 'catalog-read-only');
+    const fixture = syntheticCatalog();
+    fake.catalog.mockImplementation(async (sql: string) => {
+      const check = catalogChecks.find((c) => c.sql === sql);
+      if (!check) throw new Error('Unexpected SQL');
+      expect(fake.query).toHaveBeenCalledOnce();
+      expect(fake.execute.mock.calls[0][0].join('')).toBe('SET TRANSACTION READ ONLY');
+      return fixture[check.code];
+    });
+    const { inspectRuntimeCatalog } = await import('./harness.js');
+    await expect(inspectRuntimeCatalog()).resolves.toMatchObject({ runtimeRole: 'detector_runtime' });
+    expect(fake.transaction).toHaveBeenCalledExactlyOnceWith(expect.any(Function), {
+      isolationLevel: 'ReadCommitted', maxWait: 3000, timeout: 10000,
+    });
+    expect(fake.catalog.mock.calls.map(([sql]) => sql)).toEqual(catalogChecks.map((c) => c.sql));
+    expect(fake.disconnect).toHaveBeenCalledOnce();
+    expect(process.env.DATABASE_URL).toBeUndefined();
+    expect(process.env.PGSSLMODE).toBeUndefined();
+  });
+  it('never inspects catalogs after a failed identity comparison', async () => {
+    vi.stubEnv('DB_TEST_OPERATION', 'catalog-read-only');
+    fake.query.mockResolvedValue([{ ...identity, current_user: 'postgres' }]);
+    const { inspectRuntimeCatalog } = await import('./harness.js');
+    await expect(inspectRuntimeCatalog()).rejects.toMatchObject({ diagnosticCode: 'IDENTITY_USER' });
+    expect(fake.catalog).not.toHaveBeenCalled();
+    expect(fake.disconnect).toHaveBeenCalledOnce();
+  });
+  it.each(catalogChecks)('sanitizes catalog query failures at $code, closes and does not continue', async (check) => {
+    vi.stubEnv('DB_TEST_OPERATION', 'catalog-read-only');
+    const fixture = syntheticCatalog();
+    fake.catalog.mockImplementation(async (sql: string) => {
+      const current = catalogChecks.find((c) => c.sql === sql)!;
+      if (current.code === check.code) throw new Error(`${syntheticEnvironment.DB_TEST_RUNTIME_URL} secret_catalog`);
+      return fixture[current.code];
+    });
+    const { inspectRuntimeCatalog } = await import('./harness.js');
+    await expect(inspectRuntimeCatalog()).rejects.toMatchObject({ diagnosticCode: check.code });
+    expect(fake.catalog).toHaveBeenCalledTimes(catalogChecks.indexOf(check) + 1);
+    expect(fake.disconnect).toHaveBeenCalledOnce();
+    const frames = fake.write.mock.calls.map(([, frame]) => String(frame)).join('');
+    expect(frames).not.toMatch(/secret_catalog|FAKE-password|synthetic_stage0_fixture/);
+    expect(frames).toContain('failure TX_ERROR_UNKNOWN');
+    expect(frames).not.toContain('stage HARNESS_OK');
+  });
+  it('rejects invalid catalog metadata and restores the environment', async () => {
+    vi.stubEnv('DB_TEST_OPERATION', 'catalog-read-only');
+    fake.catalog.mockResolvedValue([{ ...syntheticCatalog().CATALOG_ROLES[0], no_memberships: false }]);
+    const { inspectRuntimeCatalog } = await import('./harness.js');
+    await expect(inspectRuntimeCatalog()).rejects.toMatchObject({ diagnosticCode: 'CATALOG_ROLES' });
+    expect(fake.catalog).toHaveBeenCalledOnce();
+    expect(fake.disconnect).toHaveBeenCalledOnce();
+    expect(process.env.DATABASE_URL).toBeUndefined();
+    expect(process.env.PGSSLMODE).toBeUndefined();
+    const frames = fake.write.mock.calls.map(([, frame]) => String(frame)).join('');
+    expect(frames).not.toContain('failure TX_ERROR_UNKNOWN');
+  });
+  it('does not treat a catalog SQL syntax error as a legitimate permission rejection', async () => {
+    vi.stubEnv('DB_TEST_OPERATION', 'catalog-read-only');
+    fake.catalog.mockRejectedValue({ code: 'P2010', meta: { driverAdapterError: {
+      cause: { kind: 'postgres', originalCode: '42601', message: 'PRIVATE_QUERY_SENTINEL' },
+    } } });
+    const { inspectRuntimeCatalog } = await import('./harness.js');
+    await expect(inspectRuntimeCatalog()).rejects.toMatchObject({ diagnosticCode: 'CATALOG_ROLES' });
+    expect(fake.catalog).toHaveBeenCalledOnce();
+    expect(fake.disconnect).toHaveBeenCalledOnce();
+    const frames = fake.write.mock.calls.map(([, frame]) => String(frame)).join('');
+    expect(frames).toContain('failure TX_ERROR_SQL_SYNTAX');
+    expect(frames).not.toMatch(/PRIVATE_QUERY_SENTINEL|stage HARNESS_OK/);
+  });
+  it.each([false, true])('reports default ACL refusal without inventing a transaction error (cleanup failure: %s)', async (cleanupFails) => {
+    vi.stubEnv('DB_TEST_OPERATION', 'catalog-read-only');
+    const fixture = syntheticCatalog();
+    fixture.CATALOG_DEFAULT_ACL[0].functions_safe = false;
+    fake.catalog.mockImplementation(async (sql: string) => fixture[catalogChecks.find((c) => c.sql === sql)!.code]);
+    if (cleanupFails) fake.disconnect.mockRejectedValue(new Error('PRIVATE_CLEANUP_SENTINEL'));
+    const { inspectRuntimeCatalog } = await import('./harness.js');
+    await expect(inspectRuntimeCatalog()).rejects.toMatchObject({ diagnosticCode: 'CATALOG_DEFAULT_ACL_FUNCTIONS' });
+    const frames = fake.write.mock.calls.map(([, frame]) => String(frame)).join('');
+    expect(frames).toContain('failure CATALOG_DEFAULT_ACL_FUNCTIONS');
+    expect(frames).not.toMatch(/failure TX_ERROR_|stage HARNESS_OK|PRIVATE_|FAKE-password/);
+    expect(frames.includes('failure RESOURCE_CLEANUP_HOOK')).toBe(cleanupFails);
+    expect(fake.transaction).toHaveBeenCalledOnce();
+    expect(fake.disconnect).toHaveBeenCalledOnce();
+    expect(process.env.DATABASE_URL).toBeUndefined();
+    expect(process.env.PGSSLMODE).toBeUndefined();
+    if (cleanupFails) await expect(inspectRuntimeCatalog()).rejects.toMatchObject({ diagnosticCode: 'HARNESS_UNUSABLE' });
+  });
+  it('does not let a spoofed diagnostic field hide an unknown query failure', async () => {
+    vi.stubEnv('DB_TEST_OPERATION', 'catalog-read-only');
+    fake.catalog.mockRejectedValue(Object.assign(new Error('PRIVATE_SENTINEL'), {
+      diagnosticCode: 'CATALOG_DEFAULT_ACL_FUNCTIONS',
+    }));
+    const { inspectRuntimeCatalog } = await import('./harness.js');
+    await expect(inspectRuntimeCatalog()).rejects.toMatchObject({ diagnosticCode: 'CATALOG_ROLES' });
+    const frames = fake.write.mock.calls.map(([, frame]) => String(frame)).join('');
+    expect(frames).toContain('failure TX_ERROR_UNKNOWN');
+    expect(frames).not.toMatch(/failure CATALOG_DEFAULT_ACL_FUNCTIONS|PRIVATE_|stage HARNESS_OK/);
   });
   it('rejects missing configuration before constructing the Nest provider', async () => {
     vi.stubEnv('DB_TEST_CONFIRM', undefined);
@@ -101,10 +208,10 @@ describe('Nest connected harness, with mocked driver and blocked network', { tim
     // inet::text includes the mask; host(inet) returns only the address.
     fake.query.mockImplementation(async (strings: TemplateStringsArray) => {
       const sql = strings.join('?');
-      if (sql.includes('inet_server_addr()::text AS server_address')) {
+      if (sql.includes('pg_catalog.inet_server_addr()::text AS server_address')) {
         return [{ ...identity, server_address: cast }];
       }
-      if (sql.includes('pg_catalog.host(inet_server_addr()) AS server_address')) {
+      if (sql.includes('pg_catalog.host(pg_catalog.inet_server_addr()) AS server_address')) {
         return [{ ...identity, server_address: address }];
       }
       throw new Error('Unexpected address projection in offline fixture');

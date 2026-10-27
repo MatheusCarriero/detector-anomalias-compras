@@ -23,6 +23,13 @@ describe('connected test configuration (offline)', () => {
       operation: 'identity-read-only', tls: 'local-plaintext',
     });
   });
+  it('selects catalog inspection only with its distinct operation', () => {
+    const env = { ...valid, DB_TEST_OPERATION: 'catalog-read-only', CONNECTED_TEST_RUNNER: 'bounded-v1' };
+    expect(readConnectedTarget(env).operation).toBe('catalog-read-only');
+    expect(connectedTestOptions(env).include).toEqual(['test/connected/catalog-permissions/*.integration.test.ts']);
+    expect(() => selectConnectedSuite('catalog-permissions', 'identity-read-only')).toThrow('SUITE_REFUSED');
+    expect(() => selectConnectedSuite('identity-permissions', 'catalog-read-only')).toThrow('SUITE_REFUSED');
+  });
   it.each(Object.keys(valid))('requires %s without a fallback', (key) => {
     const env: NodeJS.ProcessEnv = { ...valid };
     delete env[key];

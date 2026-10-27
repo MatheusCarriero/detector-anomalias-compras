@@ -120,8 +120,10 @@ for (const scenario of [
     events: ['acquire'] },
   { point: 'late-acquire', category: 'TX_ERROR_API', callback: false,
     events: ['acquire', 'begin', 'isolation', 'rollback', 'release'] },
+  { point: 'validation', callback: true,
+    events: ['acquire', 'begin', 'isolation', 'callback', 'read-only', 'query', 'rollback', 'release'] },
 ]) {
-  test(`offline transaction boundary: ${scenario.point}/${scenario.kind ?? 'deadline'}`, () => {
+  test(`offline transaction boundary: ${scenario.point}/${scenario.kind ?? (scenario.point === 'validation' ? 'local-refusal' : 'deadline')}`, () => {
     const client = new URL('../generated/prisma/client.js', import.meta.url);
     assert.ok(existsSync(client), 'Run npm.cmd run prisma:prepare first');
     const env = {};
@@ -137,7 +139,8 @@ for (const scenario of [
       const { default: pg } = await import('pg');
       const { PrismaPg } = await import('@prisma/adapter-pg');
       const { PrismaClient } = await import(${JSON.stringify(client.href)});
-      const { transactionErrorCategory } = await import('./test/connected/diagnostics.mjs');
+      const { transactionErrorCategory, diagnosticError, isDiagnosticError } = await import('./test/connected/diagnostics.mjs');
+      const validationError = diagnosticError('CATALOG_DEFAULT_ACL_FUNCTIONS');
       const scenario = ${JSON.stringify(scenario)};
       const events = [];
       const pool = new pg.Pool({ user: 'detector_runtime', password: 'synthetic-password',
@@ -181,9 +184,16 @@ for (const scenario of [
           events.push('callback');
           await tx.$executeRawUnsafe('SET TRANSACTION READ ONLY');
           await tx.$executeRawUnsafe('SELECT 1');
+          if (scenario.point === 'validation') throw validationError;
         }, { isolationLevel: 'ReadCommitted', maxWait: scenario.point === 'late-acquire' ? 50 : 3000,
           timeout: 10000 }).then(() => { throw new Error('Expected fixture failure'); }, error => error);
-        assert.equal(transactionErrorCategory(error), scenario.category);
+        if (scenario.point === 'validation') {
+          assert.equal(error, validationError, 'Prisma must preserve the local error identity');
+          assert.equal(isDiagnosticError(error), true);
+        } else {
+          assert.equal(isDiagnosticError(error), false);
+          assert.equal(transactionErrorCategory(error), scenario.category);
+        }
         assert.equal(events.includes('callback'), scenario.callback);
         if (scenario.point === 'late-acquire') {
           assert.equal(error.code, 'P2028');

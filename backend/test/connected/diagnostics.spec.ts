@@ -37,6 +37,19 @@ describe('connected diagnostic boundary (offline)', () => {
     own.message = 'private-sentinel';
     expect(diagnosticCode(own, 'UNKNOWN')).toBe('MODULE_INIT');
   });
+  it('identifies local validation errors by identity, never by untrusted fields or getters', () => {
+    for (const code of ['CATALOG_DEFAULT_ACL_FUNCTIONS', 'UNKNOWN']) {
+      const own = diagnosticError(code);
+      expect(diagnostics.isDiagnosticError(own)).toBe(true);
+      expect(diagnostics.isDiagnosticError(Object.fromEntries(Object.entries(own)))).toBe(false);
+    }
+    const trap = () => { throw new Error('PRIVATE_SENTINEL'); };
+    for (const value of [null, undefined, 'PRIVATE_SENTINEL',
+      { diagnosticCode: 'CATALOG_DEFAULT_ACL_FUNCTIONS' },
+      Object.defineProperty({}, 'diagnosticCode', { get: trap }),
+      new Proxy({}, { get: trap, getOwnPropertyDescriptor: trap }),
+    ]) expect(diagnostics.isDiagnosticError(value)).toBe(false);
+  });
   it.each([
     ['P1000', 'TX_ERROR_AUTHENTICATION'], ['P1001', 'TX_ERROR_UNREACHABLE'],
     ['P1003', 'TX_ERROR_DATABASE_MISSING'], ['P1008', 'TX_ERROR_SOCKET_TIMEOUT'],
@@ -108,8 +121,9 @@ describe('connected diagnostic boundary (offline)', () => {
   ])('accepts exactly a known frame: %s', (line, expected) => {
     expect(parseDiagnostic(line)).toEqual(expected);
   });
-  it.each(['IDENTITY_ADDRESS_TYPE', 'IDENTITY_ADDRESS_VALUE', 'IDENTITY_PORT_TYPE', 'IDENTITY_PORT_VALUE'])(
-    'preserves the specific endpoint failure %s across the sanitized protocol', (code) => {
+  it.each(['IDENTITY_ADDRESS_TYPE', 'IDENTITY_ADDRESS_VALUE', 'IDENTITY_PORT_TYPE', 'IDENTITY_PORT_VALUE',
+    'CATALOG_DEFAULT_ACL_FUNCTIONS', 'CATALOG_DEFAULT_ACL_TABLES', 'CATALOG_DEFAULT_ACL_BOTH'])(
+    'preserves the specific failure %s across the sanitized protocol', (code) => {
       const error = diagnosticError(code);
       reportDiagnostic('failure', diagnosticCode(error, 'UNKNOWN'));
       const frame = String(vi.mocked(writeSync).mock.calls[0]![1]).trim();
