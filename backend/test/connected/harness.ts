@@ -1,7 +1,7 @@
 import type { TestingModule } from '@nestjs/testing';
 import type { PrismaClient } from '../../generated/prisma/client.js';
 import { connectedTestOptions, readConnectedTarget } from './config.js';
-import { diagnosticCode, diagnosticError, reportDiagnostic, transactionErrorCategory } from './diagnostics.mjs';
+import { diagnosticCode, diagnosticError, isDiagnosticError, reportDiagnostic, transactionErrorCategory } from './diagnostics.mjs';
 
 let active = false;
 let unusable = false;
@@ -21,12 +21,21 @@ async function closeModule(module: TestingModule) {
 // Importing this module does not construct a driver or open a Nest context.
 // Only the separately invoked connected runner may call this in a real environment.
 export async function inspectRuntimeIdentity() {
+  return inspectRuntime('identity-read-only');
+}
+
+export async function inspectRuntimeCatalog() {
+  return inspectRuntime('catalog-read-only');
+}
+
+async function inspectRuntime(operation: 'identity-read-only' | 'catalog-read-only') {
   let target: ReturnType<typeof readConnectedTarget>;
   try {
     if (unusable) throw diagnosticError('HARNESS_UNUSABLE');
     if (active) throw diagnosticError('HARNESS_BUSY');
     connectedTestOptions(process.env);
     target = readConnectedTarget(process.env);
+    if (target.operation !== operation) throw diagnosticError('SUITE_REFUSED');
   } catch (error) {
     const code = diagnosticCode(error, 'CONFIG_TARGET');
     reportDiagnostic('failure', code);
@@ -88,58 +97,41 @@ export async function inspectRuntimeIdentity() {
       await tx.$executeRaw`SET LOCAL idle_in_transaction_session_timeout = '5s'`;
       enter('IDENTITY_QUERY');
       const result = await tx.$queryRaw<Record<string, unknown>[]>`
-        SELECT current_database() AS database, session_user::text AS session_user,
+        SELECT pg_catalog.current_database() AS database, session_user::text AS session_user,
           current_user::text AS current_user,
-          current_setting('server_version_num')::int AS server_version,
-          pg_catalog.host(inet_server_addr()) AS server_address, inet_server_port() AS server_port,
-          current_setting('search_path') AS search_path,
-          has_schema_privilege(current_user, 'app', 'USAGE') AS schema_usage,
-          has_schema_privilege(current_user, 'app', 'CREATE') AS schema_create,
+          pg_catalog.current_setting('server_version_num')::int AS server_version,
+          pg_catalog.host(pg_catalog.inet_server_addr()) AS server_address, pg_catalog.inet_server_port() AS server_port,
+          pg_catalog.current_setting('search_path') AS search_path,
+          pg_catalog.has_schema_privilege(current_user, 'app', 'USAGE') AS schema_usage,
+          pg_catalog.has_schema_privilege(current_user, 'app', 'CREATE') AS schema_create,
           r.rolsuper AS superuser, r.rolcreatedb AS create_db, r.rolcreaterole AS create_role,
           r.rolreplication AS replication, r.rolbypassrls AS bypass_rls, s.ssl AS tls
         FROM pg_catalog.pg_roles r
-        JOIN pg_catalog.pg_stat_ssl s ON s.pid = pg_backend_pid()
+        JOIN pg_catalog.pg_stat_ssl s ON s.pid = pg_catalog.pg_backend_pid()
         WHERE r.rolname = current_user`;
+      if (operation === 'catalog-read-only') {
+        validateIdentity(result, target, enter);
+        enter('CATALOG_LOAD');
+        const { catalogChecks } = await import('./catalog-checks.js');
+        for (const check of catalogChecks) {
+          enter(check.code);
+          // Static, reviewed SELECTs only. No caller-supplied SQL or app routines.
+          check.validate(await tx.$queryRawUnsafe(check.sql));
+        }
+      }
       enter('TRANSACTION_FINISH');
       return result;
     }, { isolationLevel: 'ReadCommitted', maxWait: 3000, timeout: 10000 });
     transactionPending = false;
     enter('TRANSACTION_RESOLVED');
     if (loggedFailure) throw diagnosticError(loggedFailure);
-    enter('IDENTITY_RESULT_SHAPE');
-    if (!Array.isArray(rows) || rows.length !== 1 || !rows[0] ||
-      typeof rows[0] !== 'object' || Array.isArray(rows[0])) {
-      throw diagnosticError('IDENTITY_RESULT_SHAPE');
-    }
-    const row = rows[0];
-    enter('IDENTITY_MISMATCH');
-    if (typeof row.server_address !== 'string') throw diagnosticError('IDENTITY_ADDRESS_TYPE');
-    if (typeof row.server_port !== 'number') throw diagnosticError('IDENTITY_PORT_TYPE');
-    const checks: [string, unknown, string][] = [
-      ['database', target.database, 'IDENTITY_DATABASE'],
-      ['session_user', target.runtimeRole, 'IDENTITY_USER'],
-      ['current_user', target.runtimeRole, 'IDENTITY_USER'],
-      ['server_address', target.host === '[::1]' ? '::1' : target.host, 'IDENTITY_ADDRESS_VALUE'],
-      ['server_port', target.port, 'IDENTITY_PORT_VALUE'],
-      ['schema_usage', true, 'IDENTITY_SCHEMA'], ['schema_create', false, 'IDENTITY_SCHEMA'],
-      ['superuser', false, 'IDENTITY_PRIVILEGES'], ['create_db', false, 'IDENTITY_PRIVILEGES'],
-      ['create_role', false, 'IDENTITY_PRIVILEGES'], ['replication', false, 'IDENTITY_PRIVILEGES'],
-      ['bypass_rls', false, 'IDENTITY_PRIVILEGES'], ['tls', false, 'IDENTITY_TRANSPORT'],
-    ];
-    for (const [key, expected, code] of checks) {
-      if (row[key] !== expected) throw diagnosticError(code);
-    }
-    if (typeof row.server_version !== 'number' || row.server_version < 180000 || row.server_version >= 190000) {
-      throw diagnosticError('IDENTITY_VERSION');
-    }
-    if (typeof row.search_path !== 'string' || row.search_path.replaceAll(' ', '') !== 'app,pg_catalog') {
-      throw diagnosticError('IDENTITY_SEARCH_PATH');
-    }
-    identity = { database: target.database, runtimeRole: target.runtimeRole, serverVersion: row.server_version };
+    validateIdentity(rows, target, enter);
+    identity = { database: target.database, runtimeRole: target.runtimeRole, serverVersion: rows[0].server_version as number };
   } catch (error) {
     const code = diagnosticCode(error, stage);
     reportDiagnostic('failure', code);
-    if (transactionPending) reportDiagnostic('failure', transactionErrorCategory(error));
+    // A local validation refusal also rejects $transaction; it is not a driver error.
+    if (transactionPending && !isDiagnosticError(error)) reportDiagnostic('failure', transactionErrorCategory(error));
     failure = diagnosticError(code);
   }
   let cleanupFailure: Error | undefined;
@@ -168,4 +160,36 @@ export async function inspectRuntimeIdentity() {
   if (!identity) throw diagnosticError('IDENTITY_RESULT_SHAPE');
   reportDiagnostic('stage', 'HARNESS_OK');
   return identity;
+}
+
+function validateIdentity(rows: unknown, target: ReturnType<typeof readConnectedTarget>, enter: (code: string) => void): asserts rows is Record<string, unknown>[] {
+  enter('IDENTITY_RESULT_SHAPE');
+  if (!Array.isArray(rows) || rows.length !== 1 || !rows[0] ||
+    typeof rows[0] !== 'object' || Array.isArray(rows[0])) {
+    throw diagnosticError('IDENTITY_RESULT_SHAPE');
+  }
+  const row = rows[0];
+  enter('IDENTITY_MISMATCH');
+  if (typeof row.server_address !== 'string') throw diagnosticError('IDENTITY_ADDRESS_TYPE');
+  if (typeof row.server_port !== 'number') throw diagnosticError('IDENTITY_PORT_TYPE');
+  const checks: [string, unknown, string][] = [
+    ['database', target.database, 'IDENTITY_DATABASE'],
+    ['session_user', target.runtimeRole, 'IDENTITY_USER'],
+    ['current_user', target.runtimeRole, 'IDENTITY_USER'],
+    ['server_address', target.host === '[::1]' ? '::1' : target.host, 'IDENTITY_ADDRESS_VALUE'],
+    ['server_port', target.port, 'IDENTITY_PORT_VALUE'],
+    ['schema_usage', true, 'IDENTITY_SCHEMA'], ['schema_create', false, 'IDENTITY_SCHEMA'],
+    ['superuser', false, 'IDENTITY_PRIVILEGES'], ['create_db', false, 'IDENTITY_PRIVILEGES'],
+    ['create_role', false, 'IDENTITY_PRIVILEGES'], ['replication', false, 'IDENTITY_PRIVILEGES'],
+    ['bypass_rls', false, 'IDENTITY_PRIVILEGES'], ['tls', false, 'IDENTITY_TRANSPORT'],
+  ];
+  for (const [key, expected, code] of checks) {
+    if (row[key] !== expected) throw diagnosticError(code);
+  }
+  if (typeof row.server_version !== 'number' || row.server_version < 180000 || row.server_version >= 190000) {
+    throw diagnosticError('IDENTITY_VERSION');
+  }
+  if (typeof row.search_path !== 'string' || row.search_path.replaceAll(' ', '') !== 'app,pg_catalog') {
+    throw diagnosticError('IDENTITY_SEARCH_PATH');
+  }
 }

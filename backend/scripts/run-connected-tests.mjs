@@ -13,6 +13,7 @@ export async function runConnectedTests(args, env) {
     selectConnectedSuite(args[0]);
     phase = 'CONFIG_TARGET';
     const target = readConnectedTarget(env);
+    selectConnectedSuite(args[0], target.operation);
     const childEnv = {};
     // Do not inherit owner credentials, debug settings, Node preload hooks or PG*.
     for (const [key, value] of Object.entries(env)) {
@@ -111,7 +112,7 @@ export async function runConnectedTests(args, env) {
 if (process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url) {
   const result = await runConnectedTests(process.argv.slice(2), process.env);
   console.log(result === 0
-    ? 'DB_TEST: read-only identity checks completed'
+    ? 'DB_TEST: selected read-only checks completed'
     : 'DB_TEST: refused or failed; no success/cleanup claim. Review configuration and controlled diagnostics.');
   process.exitCode = result;
 }

@@ -20,6 +20,10 @@ const codes = new Set([
   'IDENTITY_ADDRESS_TYPE', 'IDENTITY_ADDRESS_VALUE', 'IDENTITY_PORT_TYPE', 'IDENTITY_PORT_VALUE',
   'RESOURCE_CLEANUP', 'RESOURCE_CLEANUP_TIMEOUT', 'RESOURCE_CLEANUP_HOOK',
   'HARNESS_BUSY', 'HARNESS_UNUSABLE', 'HARNESS_OK', 'UNKNOWN',
+  'CATALOG_CONTRACT', 'CATALOG_DEFINITION', 'CATALOG_RESULT_SHAPE', 'CATALOG_ROLES',
+  'CATALOG_RELATIONS', 'CATALOG_FUNCTIONS', 'CATALOG_COLUMNS', 'CATALOG_CONSTRAINTS',
+  'CATALOG_INDEXES', 'CATALOG_TRIGGERS', 'CATALOG_DEFAULT_ACL', 'CATALOG_LOAD',
+  'CATALOG_DEFAULT_ACL_FUNCTIONS', 'CATALOG_DEFAULT_ACL_TABLES', 'CATALOG_DEFAULT_ACL_BOTH',
 ]);
 const ownedErrors = new WeakMap();
 const safeCode = (code) => codes.has(code) ? code : 'UNKNOWN';
@@ -35,6 +39,11 @@ export function diagnosticError(code) {
 export function diagnosticCode(error, fallback) {
   // Do not inspect driver objects, getters, messages, stack traces or arbitrary codes.
   return ownedErrors.get(error) ?? safeCode(fallback);
+}
+
+export function isDiagnosticError(error) {
+  // Object identity only: an external diagnosticCode field is not trusted.
+  return ownedErrors.has(error);
 }
 
 const prismaCategories = new Map([

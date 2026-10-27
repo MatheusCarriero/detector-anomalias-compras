@@ -155,7 +155,7 @@ Required environment settings for that later stage are:
 | `DB_TEST_RUNTIME` | Exactly `detector_runtime` |
 | `DB_TEST_RUNTIME_URL` | Matching PostgreSQL URL, nonempty password, no query parameters or fragment |
 | `DB_TEST_TLS` | Explicit `local-plaintext` acknowledgement, for this loopback-only profile |
-| `DB_TEST_OPERATION` | Exactly `identity-read-only` |
+| `DB_TEST_OPERATION` | `identity-read-only` for identity; `catalog-read-only` for the separate Stage 2 inspection |
 
 The prefix and flags validate intent, not the actual contents or ownership of a
 database. Confirm the target and the local transport policy with its administrator
@@ -169,8 +169,8 @@ The prepared identity test uses the real Nest provider, without overriding it,
 inside a read-only transaction. It checks `session_user`, `current_user`, database,
 server address/port, PostgreSQL 18, `search_path`, schema USAGE/CREATE, role flags
 and transport. It does not claim to validate the full table/column/function ACL,
-ownership or membership graph. Those checks remain part of the next stage,
-before any fixture or write. No HTTP server or endpoint is started.
+ownership or membership graph. The separate Stage 2 inspection below covers
+those contracts before any fixture or write. No HTTP server or endpoint is started.
 
 Only one harness invocation/worker is allowed at a time, without retries.
 The runtime provider's pool settings are unchanged (the installed `pg` default
@@ -205,6 +205,98 @@ cleanup failures to the outer transaction. Actual Prisma error mapping, privileg
 SQL invariants, concurrency and cleanup on a real server remain unverified by
 Stage 0. The legacy root `db:test` suite connects and can persist synthetic
 fixtures; it is not part of this offline workflow.
+
+### Controlled PostgreSQL validation — Stage 2 (prepared offline)
+
+`test:runtime:catalog` selects `catalog-permissions/*.integration.test.ts` with
+`DB_TEST_OPERATION=catalog-read-only`. A mismatched operation/suite is refused
+before spawning or constructing the adapter. Ordinary tests, E2E and offline CI
+still exclude these connected files. No database access is needed to run the
+new `*.spec.ts` tests: they use artificial catalog projections and block sockets.
+
+The inspection reuses the Nest/Prisma lifecycle, identity checks and existing
+timeouts. In one `READ COMMITTED`, `READ ONLY` transaction, identity is verified
+before eight fixed catalog SELECTs. No business records or `app` functions are
+executed. The eight authorized function signatures must be executable; helpers,
+overloads, grant options, ownership and role membership/SET paths must not grant
+extra runtime powers. Direct table/column writes, schema creation and the ability
+to set `session_replication_role` are rejected. The session must use `origin`.
+Table SELECT access is not required across all eleven tables: this catalog-only
+inspection does not invent a blanket business-read grant. Database TEMP access
+is not prohibited by the migration; it is not treated as permission to write
+application tables or create fixtures here.
+
+The reviewed migration is read as text and pinned by its SHA-256 after LF
+normalization. It is never applied. The comparison covers eleven tables and their
+columns/defaults, 26 functions (eight authorized entry points), 32 foreign keys,
+13 CHECKs, 52 indexes including PKs, and 30 user triggers. It includes deferred
+composite FKs, internal FK triggers, PG18 NOT NULL validation, partial uniqueness,
+function arguments/results/defaults/bodies, SECURITY DEFINER and search_path.
+Only known CHECK/default deparser equivalents are normalized; unsupported syntax
+fails closed. A migration change requires reviewing this test contract explicitly.
+The optional Prisma migration bookkeeping table is excluded from the domain
+manifest, but its ownership and prohibited runtime privileges are still checked.
+
+Diagnostics remain fixed codes: `CATALOG_ROLES`, `CATALOG_RELATIONS`,
+`CATALOG_FUNCTIONS`, `CATALOG_COLUMNS`, `CATALOG_CONSTRAINTS`, `CATALOG_INDEXES`,
+`CATALOG_TRIGGERS` and `CATALOG_DEFAULT_ACL`. They identify the inspection that
+failed, not a disclosed object/value. Valid boolean default-ACL projections now
+distinguish `CATALOG_DEFAULT_ACL_FUNCTIONS`, `CATALOG_DEFAULT_ACL_TABLES` and
+`CATALOG_DEFAULT_ACL_BOTH`; malformed projections use `CATALOG_RESULT_SHAPE`.
+`CATALOG_DEFAULT_ACL` remains the query-stage code. Query errors also use the existing
+`TX_ERROR_*` categories; a syntax or access error is never accepted as a successful
+permission rejection. No rows, SQL bodies, URLs, credentials or driver messages
+are printed. Failure stops subsequent inspections and requests bounded cleanup.
+
+**Known default-privilege caveat:** the migration revokes PUBLIC EXECUTE from
+existing functions. Its per-schema default REVOKE alone cannot remove PostgreSQL's
+global default PUBLIC EXECUTE for future functions. The final inspection combines
+the owner's global defaults (or built-in fallback) with schema defaults, including
+future table privileges. `CATALOG_DEFAULT_ACL` can therefore refuse a database
+whose current eight entry points are otherwise correct. This is a separate
+future-object risk, not evidence that existing routines are currently public.
+Any owner-level default-ACL correction needs a separate administrative review
+and explicit authorization; do not change the migration or weaken the check to
+obtain a pass. See [PostgreSQL 18 ALTER DEFAULT PRIVILEGES](https://www.postgresql.org/docs/18/sql-alterdefaultprivileges.html).
+
+Default privileges belong to the role actually creating the object, not to its
+inherited roles. The migration requires its effective role to own `app`, but this
+does not establish the identity of future creators or rule out later ownership
+changes. A separate administrative review must confirm each creator, inspect
+global and schema grants, and assess the impact on other schemas in the same
+database before proposing a global REVOKE. Schema grants may need separate
+revocation. Existing-function ACLs remain a separate concern. The all-true offline
+fixture represents hardened defaults; it does not certify the migration alone.
+
+Offline mocks and static review do not prove server permissions, SQL execution
+or the server's exact deparser representation. The runtime catalog also cannot
+certify the identity/trust of the administrative owner, future objects created
+by other roles, privileges outside this application's scope, or concurrent DDL.
+Plan the future inspection without concurrent grants/DDL. If catalog access is
+denied, record the sanitized failure and request a separate administrator's
+read-only inspection; never use administrative credentials in this harness.
+Function behavior, rejection SQLSTATEs and concurrency still need their separate,
+future write-test stages. Metadata inspection does not prove those behaviors.
+
+Future procedure, **only after separate authorization**:
+
+1. Confirm the exclusive synthetic database, PostgreSQL 18, literal loopback,
+   runtime role and local-plaintext policy. Confirm no concurrent DDL/grants.
+2. Supply the existing required `DB_TEST_*` settings through the secure process
+   environment, including its matching runtime URL; do not print credentials,
+   store them in files or pass them as command-line arguments. Remove conflicting
+   settings according to the gate above. Do not set the internal runner marker.
+3. In `backend/`, select and run only the catalog inspection:
+
+   ```powershell
+   $env:DB_TEST_OPERATION = 'catalog-read-only'
+   npm.cmd run test:runtime:catalog
+   ```
+
+4. Require exit code zero and the runner's completion message. A failure or
+   timeout is not partial approval; preserve only sanitized diagnostics for
+   review. Do not retry automatically, grant privileges, alter objects or advance
+   to contracts/concurrency tests. Clear the temporary credential environment.
 
 #### Safe connected-test diagnostics
 
@@ -243,6 +335,13 @@ maps to `TX_ERROR_CANCELLED` (not necessarily a timeout); `55P03` maps to
 `TX_ERROR_READ_ONLY`, and `42601` to `TX_ERROR_SQL_SYNTAX`. Unknown errors remain
 `TX_ERROR_UNKNOWN`; their messages are never used to guess a cause. The classifier
 reads only own data properties, without invoking getters or copying error text.
+
+A local validator refusal also rejects the transaction promise. The harness
+recognizes its own diagnostic errors by object identity and does not classify
+them a second time as `TX_ERROR_UNKNOWN`. External errors, including ones with a
+forged diagnostic field, still receive the bounded transaction classification.
+This distinction does not certify rollback or cleanup; cleanup failures continue
+to be reported separately and prevent reuse of the harness.
 
 Limits remain unchanged: `maxWait=3000ms` covers adapter transaction startup
 (acquisition plus `BEGIN`/isolation), and `timeout=10000ms` covers the running
