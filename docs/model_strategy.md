@@ -2,7 +2,7 @@
 
 ## 1. Objetivo
 
-O projeto **Detector Inteligente de Anomalias em Compras** adota **3 domínios → 3 modelos especializados**. Cada componente usa sua própria fonte e mantém resultados independentes. As populações dos datasets são diferentes e não possuem chaves reais comuns para integração: não haverá merge direto de suas features. Uma eventual camada futura de integração de scores precisará de contexto verificável, avaliação própria e rastreabilidade, sem assumir que IDs semelhantes representam a mesma entidade.
+O projeto **Detector Inteligente de Anomalias em Compras** separa três domínios, com estágios de desenvolvimento distintos; isso não significa três modelos implementados. Cada domínio usa sua própria fonte e mantém resultados independentes. As populações dos datasets são diferentes e não possuem chaves reais comuns para integração: não haverá merge direto de suas features. Uma eventual camada futura de integração de scores precisará de contexto verificável, avaliação própria e rastreabilidade, sem assumir que IDs semelhantes representam a mesma entidade.
 
 A fase inicial criou a estrutura dos domínios externos. O Supplier Risk concluiu preparação, experimentos e avaliação final acadêmica única com Logistic Regression cenário C, conforme [registro final](supplier_risk_final_evaluation.md); não há modelo de produção nem autorização para reutilizar TEST. Purchase continua com auditoria/estratégia e implementação pendente. Invoice permanece independente e concluiu sua avaliação final única em TEST, sem novo fit ou tuning.
 
@@ -12,7 +12,7 @@ A fase inicial criou a estrutura dos domínios externos. O Supplier Risk conclui
 | --- | --- | --- | --- | --- | --- |
 | Invoice Anomaly Model | Fatura | Procurement Invoice Fraud Dataset | Lote retrospectivo preparado; uso online não validado | `invoice_anomaly_score` | Triagem/comparação VALIDATION e avaliação final única em TEST concluídas; sem uso operacional validado |
 | Supplier Risk Model | Fornecedor | Supplier Risk Assessment Dataset | Classificação do perfil representado no dataset, sem previsão temporal | Classe 0/1 e, quando compatível, probabilidade estimada da classe 1 | Avaliação final acadêmica LR/C concluída; sem uso operacional validado |
-| Purchase Risk Model | Linha de pedido na fonte; agregação por pedido não comprovada | Purchase Orders & Supplier Performance Dataset | Antes da aprovação | Significado pendente: anomalia ou desfecho específico; `purchase_risk_score` é nome histórico | Somente auditoria/documentação; features/modelo não criados |
+| Purchase Risk Model | Linha de pedido na fonte; agregação por pedido não comprovada | Purchase Orders & Supplier Performance Dataset | Uso pretendido antes da aprovação; disponibilidade não comprovada | Significado pendente: anomalia ou desfecho específico; `purchase_risk_score` é nome histórico | Decisão C: não implementar ainda; features/modelo não criados |
 
 Os scores devem permanecer separados, versionados e auditáveis. Uma eventual composição em um score geral deverá ocorrer somente depois da validação individual dos modelos e deverá preservar a contribuição de cada componente.
 
@@ -20,23 +20,23 @@ Os scores devem permanecer separados, versionados e auditáveis. Uma eventual co
 
 ```text
 ml/
-├── supplier_risk/
-│   ├── scripts/
-│   ├── models/
-│   └── notebooks/
-└── purchase_risk/
+├── scripts/         # Invoice e inspeções históricas
+├── models/          # Invoice: metadata e artefato local
+├── notebooks/       # EDA Invoice
+├── experiments/     # Evidências Invoice
+└── supplier_risk/
     ├── scripts/
-    ├── models/
-    └── notebooks/
+    ├── notebooks/
+    └── experiments/
 ```
 
-Responsabilidades planejadas:
+Responsabilidades dos diretórios existentes:
 
 - `scripts/`: validação, preparação de dados, feature engineering, treinamento e avaliação do domínio correspondente;
 - `models/`: artefatos locais dos modelos treinados e metadados permitidos;
 - `notebooks/`: exploração e experimentação acadêmica, sem substituir os pipelines reproduzíveis em scripts.
 
-Arquivos binários de modelo nos formatos `.joblib` e `.pkl` permanecem fora do versionamento Git.
+Arquivos binários de modelo nos formatos `.joblib` e `.pkl` permanecem fora do versionamento Git. Purchase está documentado em [purchase_risk_model.md](purchase_risk_model.md); não possui pipeline implementado e não depende de diretórios vazios para representar seu planejamento.
 
 ## 4. Separação de responsabilidades
 
@@ -68,7 +68,7 @@ Anomalia é perfil estatisticamente incomum, que pode ser excepcionalmente bom o
 
 ### 4.3. Purchase Risk Model
 
-O domínio mantém a fronteira **pré-aprovação**, mas precisa escolher entre detecção de anomalias e previsão de um desfecho específico. Anomalia não equivale automaticamente a risco. O dicionário confirma linhas de pedido (`PO_Number`), lead time efetivo pós-entrega, ESG simulado e moedas locais sem câmbio. A agregação em pedido completo requer chave real e regra justificadas; nenhum pipeline Purchase foi iniciado. O [contrato Purchase](purchase_risk_model.md) consolida essas evidências e pendências.
+O domínio mantém o uso pretendido **pré-aprovação**, cuja disponibilidade temporal ainda não foi comprovada. A decisão C impede iniciar modelagem enquanto essas lacunas persistirem; detecção de anomalias e previsão de um desfecho específico continuam possibilidades não escolhidas. Anomalia não equivale automaticamente a risco. O dicionário confirma linhas de pedido (`PO_Number`), lead time efetivo pós-entrega, ESG simulado e moedas locais sem câmbio. A agregação em pedido completo requer chave real e regra justificadas; nenhum pipeline Purchase foi iniciado. O [contrato Purchase](purchase_risk_model.md) consolida essas evidências e pendências.
 
 ## 5. Contrato dos futuros pipelines
 

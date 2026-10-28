@@ -1,6 +1,30 @@
 # Roadmap de implementação
 
-## Estado vigente — fechamento da avaliação Invoice em 18/10/2026
+## Estado vigente — infraestrutura e estudos acadêmicos
+
+Invoice e Supplier concluíram suas avaliações finais acadêmicas. Purchase mantém
+a decisão C: sem modelagem até esclarecer a fronteira pré-aprovação e as demais
+pendências metodológicas. Nenhum desses estudos representa um serviço de
+inferência integrado ao backend ou uso empresarial validado.
+
+A infraestrutura atual utiliza NestJS 12, TypeScript/ESM e Node 24, com Prisma
+7.10.0 e PostgreSQL 18. O primeiro incremento possui 11 tabelas de domínio no
+schema `app`, funções SQL transacionais, versões, snapshots e auditoria. A CI
+offline está implementada; os contratos e procedimentos estão nos guias do
+[backend](../backend/README.md) e do [banco](../prisma/README.md).
+
+As etapas de identidade e inspeção de permissões/catálogos pelo backend foram
+concluídas no banco sintético, conforme o fechamento informado pelo responsável
+no commit `552d09b`. Isso não atesta o estado atual de qualquer servidor nem
+substitui testes de comportamento das funções SQL e concorrência pelo harness
+NestJS, que permanecem etapas separadas. Os testes de integração do primeiro
+incremento do banco têm registro próprio; não confundir as duas frentes.
+
+Permanecem pendentes os contratos de inferência, funcionalidades de negócio,
+frontend e validação de uso operacional. Conexões e escritas de teste exigem
+escopo e autorização próprios; não são consequência automática da CI.
+
+## Fechamento acadêmico Invoice — 18/10/2026
 
 Invoice mantém 19 features, modelo e resultados históricos de VALIDATION.
 O fluxo é dados → preparação → EDA → features → treinamento → validação →
@@ -306,3 +330,143 @@ biblioteca experimental testável
 ```
 
 Invoice e a decisão Purchase podem avançar em paralelo depois de seus próprios gates, mas nenhum deles autoriza uma composição de scores. O produto somente poderá ser chamado de pronto para produção quando os contratos de problema, avaliação, inferência, segurança, monitoramento e responsabilidade humana estiverem aprovados para o uso declarado.
+
+
+## Registros técnicos consolidados
+
+Esta seção conserva as decisões e verificações úteis dos planos de engenharia
+encerrados. As contagens são históricas, não resultados da suíte atual. Os
+checklists de implementação e instruções para agentes foram retirados; protocolos,
+resultados científicos e contratos executáveis continuam em seus arquivos próprios.
+O histórico integral dos planos está no commit `552d09b`, anterior à limpeza.
+
+### Engenharia e avaliação Invoice — setembro de 2026
+
+- **17–18/09:** foi escolhido um fechamento pequeno de engenharia, em vez de
+  somente documentação ou implementação prematura de novos modelos/aplicação.
+  A importação do treino Invoice tornou-se inerte, com validação das 19 features;
+  o Supplier recebeu registro/verificação de evidências experimentais. Não houve
+  reconstrução de predições históricas ausentes. O contrato atual está em
+  [registros Supplier](supplier_risk_experiment_records.md) e a cobertura em
+  `tests/invoice/test_train_model.py` e `tests/supplier_risk/test_experiment_artifact.py`.
+  O diagnóstico inicial registrava 113 testes; no encerramento, o responsável
+  informou 196 testes e Ruff aprovados. Esses comandos não foram repetidos na
+  integração. Foram integrados 12 arquivos, preservados 72 hashes e conferidos
+  atributos de três arquivos TEST sem abrir seu conteúdo. A comparação com o
+  worktree aprovado desconsiderou apenas CRLF/LF; os notebooks ficaram fora.
+- **24/09, HEAD b624204:** Invoice foi priorizado por já ter um artefato; Purchase
+  dependia de problema, target quando aplicável e moedas. O offset original foi
+  mantido, sem seleção pelos resultados. O plano registrou 17 casos RED com
+  avaliador ausente, depois 38 testes Invoice aprovados em 8,30 s, Ruff e pip check
+  aprovados, em ambiente temporário com os mesmos pins. A execução real em
+  30.000 registros VALIDATION teve zero fits e preservou 51 hashes. AP 0,31607,
+  contra referência 0,22577, e os demais resultados permanecem no
+  [relatório original](invoice_validation_results.md). O protocolo foi mantido
+  imutável; observações e hash da saída foram registrados separadamente.
+- **29/09, HEAD b624204:** o executor então era exclusivamente sintético. A matriz
+  usava seleção global top-K, não classificação pelo threshold legado. A revisão
+  retirou uma restrição indevida de montantes positivos, mantendo valores assinados,
+  e corrigiu o bypass por cópia do freeze com vínculo ao destino. Houve 69 testes
+  direcionados aprovados e um skip antes do último ajuste; a regressão final
+  registrou **392 aprovados, 1 skip, 41,79 s**, Ruff aprovado e
+  `REAL_PROJECT_DATA_ACCESS_ATTEMPTS=0`. O skip dependia de symlink no Windows;
+  disputa simultânea entre processos não foi exercitada naquele fechamento.
+  O snapshot inicial tinha 91 hashes e 42 registros de tamanho/data, mas os
+  valores dos hashes não sobreviveram à retomada. A conferência posterior usou
+  metadados e o marcador `2026-09-29T04:11:14.561165Z`, sem alegar equivalência
+  criptográfica completa. Fixtures joblib confiáveis e filesystem cooperativo
+  eram limites explícitos; não houve execução científica nessa entrega.
+
+### Executor Invoice anterior à simplificação — outubro de 2026
+
+A arquitetura abaixo foi substituída em **13/10/2026**. Seus freezes, recibos e
+contratos de autorização não devem ser reconstruídos nem usados para executar o
+fluxo atual. A referência vigente é o [protocolo acadêmico](invoice_academic_evaluation_protocol.md)
+e o [guia técnico](invoice_final_executor.md). TEST foi avaliado posteriormente,
+em 18/10/2026; os registros abaixo são verificações técnicas anteriores.
+
+| Registro | Verificação histórica | Resultado |
+|---|---|---|
+| 05/10 | Invoice | 591 aprovados, 8 skips, 135,22 s |
+| 05/10 | Regressão completa | 816 aprovados, 8 skips, 137,32 s |
+| 06/10 | Seleção direcionada | 244 aprovados, 1 skip, 88,93 s |
+| 06/10 | Invoice | 595 aprovados, 8 skips, 140,13 s |
+| 06/10 | Regressão completa | 820 aprovados, 8 skips, 139,63 s |
+| 06/10, auditoria de formalização | Invoice | 595 aprovados, 8 skips, 146,80 s |
+
+Essas execuções registraram zero tentativas de acesso aos dados reais pelas
+instrumentações, Ruff aprovado nos nove arquivos envolvidos e verificações de
+whitespace aprovadas. Instrumentação não equivale a sandbox do sistema
+operacional. Os oito skips eram cinco casos de symlink do adaptador, um do
+executor sintético, um da evidência histórica e um da fronteira legada; não
+foram contabilizados como passes. Não houve atualização de dependências entre
+as revisões de outubro. O runtime registrado era Python 3.14.3, pandas 2.3.3,
+NumPy 2.5.2, PyArrow 25.0.1, scikit-learn 1.9.0, joblib 1.6.0, pytest 9.1.1 e
+Ruff 0.16.5, em ambiente descartável separado, com os pins existentes.
+
+As revisões corrigiram mutação de inputs durante publicação, hashes em maiúsculas,
+dependência da ordem de chaves, overflow JSON/redirecionamento de caminhos,
+recibos incompletos e aceitação indevida de bundles ainda não publicados. Cinco
+casos da revisão de 06/10 foram reproduzidos antes da correção. As verificações
+semânticas históricas passaram a atualizar referências descendentes para atingir
+a rejeição pretendida, e não apenas um digest antigo. A validação de métricas do
+bundle cobria invariantes limitadas; não certificava autenticidade ou correção
+semântica exaustiva. Escritas hostis no filesystem continuavam fora do escopo.
+
+Os três JSONs de VALIDATION foram conferidos em bytes e referências internas,
+sem reabrir datasets/modelos para recalcular hashes ou métricas. O fechamento
+conservou `source_reconciled=false`: integridade não comprova treinamento legado.
+O registro de 05/10 preservou estes hashes dos notebooks locais, sem afirmar que
+correspondem aos bytes congelados da avaliação Supplier:
+
+- notebook 01: `f750a05c83637f09faa9c9fce357c8f0448bc98f47f1d3e0bfc150e6f2f83e3f`;
+- notebook 02: `8c31090637683cc0391075e5211b78ee3772cbf98a6b8a0ba479c0b1283dcc46`.
+
+A formalização foi bloqueada apesar de **29 hashes permitidos coincidentes**:
+o contrato 1.2 exigia caminhos absolutos e destino vinculado, incompatíveis com
+um freeze portátil. Não houve emissão forçada ou autorização humana. O inventário
+então era um rascunho (`invoice-freeze-preparation/1.0`), candidato
+`invoice-prefreeze-4dbb67f7-1206-43a2-82b4-0cbb4fb946de`, SHA-256
+`036021fd68d98e9c93ceb0a6fcf31910dc14ae436b48067c103007f6e0ae7563`.
+A literal `max_features=1.0` foi corrigida na serialização do rascunho, não no
+modelo. Os 22 pins coincidiam com o ambiente QA, mas o gate conferia somente
+seis versões de runtime. A alternativa proposta era separar freeze portátil e
+contexto vinculado; essa infraestrutura foi posteriormente removida. Esses
+identificadores antigos não representam artefatos vigentes ou permissão de acesso.
+
+### Banco e CI offline — outubro de 2026
+
+- **20/10, HEAD f220740:** o primeiro incremento foi limitado às 11 tabelas,
+  histórico seletivo e snapshots contemporâneos, sem dados acadêmicos ou tabelas
+  ML. Identidades externas e observações foram separadas; versões usam FKs
+  tipadas e projeção/head transacionais. A decisão foi complementar Prisma com
+  SQL customizado, sem substituir FKs, triggers, locks ou imutabilidade pelo ORM.
+  Os tipos monetários, assinaturas, privilégios e procedimentos necessários
+  estão no [guia do banco](../prisma/README.md) e na migration preservada.
+  Naquele ponto havia PostgreSQL 18.6 instalado, Node 24.13.1 e npm 11.14.0,
+  mas detectar serviço/porta não identificava banco ou papéis autorizados.
+  A primeira entrega aprovou testes estáticos, validate/generate e dependências;
+  não aplicou migration nem executou testes SQL. A revisão independente foi
+  parcial por limite de uso. Bootstrap/search_path e lacunas de rollback,
+  permissões/concorrência foram corrigidos; a validação conectada ocorreu depois,
+  conforme o estado atual do guia. Não tratar os checkboxes antigos como pendências.
+- **23/10, HEAD a92e5ab:** a CI backend foi separada da CI Python. Windows foi
+  escolhido por corresponder ao ambiente validado e permitir exercitar junctions;
+  não se alegou suporte a uma matriz de sistemas ainda não testada. As ações e
+  Node/npm foram fixados, os dois lockfiles instalados com hooks desabilitados
+  e dependências nativas opcionais mantidas. O build precede os testes do client.
+  “Offline” significa sem banco/dados de negócio, não sem downloads de ferramentas.
+  A reprodução limpa copiou 34 arquivos permitidos para um temporário: ambos
+  `npm ci` e `npm ls --all` passaram; os 34 arquivos permaneceram iguais.
+  Foram **5 testes de contrato, 33 unitários, 1 E2E e 12 Prisma aprovados**
+  (51 no total, zero falhas/skips), além de schema, build, lint e TypeScript.
+  Actionlint 1.7.12 e a análise dos blocos PowerShell passaram. Dos 35 arquivos
+  monitorados no checkout, somente a seção CI do guia backend mudou.
+  Não se reproduziram localmente checkout/setup/cache hospedados, instalação
+  global npm ou a guarda Git de checkout limpo. A revisão não encontrou bloqueador;
+  esses resultados locais não comprovavam uma execução no GitHub Actions.
+
+Os históricos completos que originaram esta consolidação podem ser consultados
+na [árvore do commit 552d09b](https://github.com/MatheusCarriero/detector-anomalias-compras/tree/552d09b63b47604b5a8abd98d05ec2a5f3130911/docs/superpowers): planos de
+17/09, 24/09, 29/09, 02/10, 20/10 e 23/10, e desenho de 17/09. Nenhum protocolo,
+resultado experimental ou contrato executável foi substituído por esta síntese.

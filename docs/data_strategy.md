@@ -492,8 +492,32 @@ As sondagens anteriores de venvs isoladas em Python 3.14.3 e 3.13.14 não resolv
 
 **IMPLEMENTADO:** requisitos corrigidos e CI configurada para instalação limpa e testes sintéticos. Sua execução remota não foi consultada nesta auditoria; outras plataformas/versões e reprodução de resultados reais não são comprovadas pela suíte sintética. Metadados dos artefatos mantêm suas versões históricas. O [registro de ambiente no README](../README.md#instalação) concentra comandos, versões e limites.
 
+### Recursos externos após clonagem
+
+O clone não contém os datasets nem os modelos binários. Diretórios vazios não
+são versionados: ao provisionar uma fonte autorizada, crie seu diretório conforme
+os caminhos da seção 1 e coloque somente os arquivos da versão correspondente.
+Por exemplo, a preparação manual dos diretórios auxiliares/externos em PowerShell
+pode usar:
+
+```powershell
+New-Item -ItemType Directory -Force -Path data/auxiliary, data/external/purchase_orders, data/external/supplier_risk
+```
+
+Esse comando cria somente diretórios; não baixa, valida ou autoriza uso dos dados.
+O extrator auxiliar já cria seu diretório de destino. Os produtores Supplier
+criam os diretórios de saída ao executar, mas não devem ser chamados apenas para
+recriar pastas ou repetir um estudo encerrado. `ml/supplier_risk/models/` continua
+sendo um destino futuro possível, não um modelo de produção fornecido no clone.
+
+Para reproduzir o uso dos artefatos acadêmicos, são necessários os arquivos e
+versões externas, o modelo Invoice compatível com sua metadata e as dependências
+adequadas. Disponibilidade da fonte e procedência do fit legado não são provadas
+por um clone bem-sucedido; retreinar não substitui automaticamente esse artefato.
+As avaliações finais concluídas não devem ser repetidas para testar a instalação.
+
 ## 7. Conclusão
 
-A estratégia atual define três domínios e três modelos especializados, com prevenção de vazamento e rastreabilidade como requisitos metodológicos. O Procurement Invoice Fraud Dataset permanece como fonte principal do Invoice Anomaly; Supplier Risk e Purchase Orders são fontes principais dos respectivos modelos. O Procurement KPI permanece exclusivamente auxiliar nesta fase.
+A estratégia atual define três domínios independentes, com Purchase ainda sem modelo, com prevenção de vazamento e rastreabilidade como requisitos metodológicos. O Procurement Invoice Fraud Dataset permanece como fonte principal do Invoice Anomaly; Supplier Risk e Purchase Orders são fontes principais dos respectivos modelos. O Procurement KPI permanece exclusivamente auxiliar nesta fase.
 
 As fontes permanecem independentes. A evolução se dará por experimentos dentro de cada domínio; uma integração de scores não implica identidade entre registros nem comprovação de risco operacional. As conclusões do Supplier ficam limitadas à classificação de risco fornecida pelo dataset. Gates e responsabilidades até a implementação operacional estão no [roadmap](implementation_roadmap.md).

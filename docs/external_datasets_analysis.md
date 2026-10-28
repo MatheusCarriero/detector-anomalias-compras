@@ -1,5 +1,10 @@
 # Auditoria dos Datasets para Modelos Externos
 
+> Registro histórico da inspeção inicial. As hipóteses abaixo não substituem as
+> decisões posteriores: [Supplier concluiu a avaliação acadêmica](supplier_risk_final_evaluation.md)
+> e [Purchase permanece na decisão C](purchase_risk_model.md), sem target ou
+> features pré-aprovação aprovados. Os resultados desta inspeção foram preservados.
+
 ## 1. Objetivo e escopo
 
 Este documento registra a auditoria inicial dos datasets externos candidatos aos futuros **Supplier Risk Model** e **Purchase Risk Model**. A análise é exploratória: nenhum modelo foi criado, nenhuma feature foi implementada e os arquivos de dados não foram alterados.
