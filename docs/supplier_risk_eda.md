@@ -58,7 +58,7 @@ O notebook contém também count, desvio padrão amostral, mínimo, Q1, Q3, máx
 
 ## Protocolo preservado e qualidade
 
-Continuam obrigatórios **A: 10 features; B: sem geopolitical_risk_index; C: sem supplier_record_count; D: sem ambas**. Hipóteses da EDA não substituem o [protocolo experimental](supplier_risk_model.md#13-protocolo-experimental-pré-definido--planejado). Nenhuma ablação ou escolha de modelo foi executada.
+Continuam obrigatórios **A: 10 features; B: sem geopolitical_risk_index; C: sem supplier_record_count; D: sem ambas**. Hipóteses da EDA não substituem o [protocolo experimental](supplier_risk_model.md#13-protocolo-experimental-pré-definido--implementado-em-parte). Nenhuma ablação ou escolha de modelo foi executada.
 
 Reprodução: Python 3.14.3, pandas 2.3.3, NumPy 2.5.2, PyArrow 25.0.1 e ferramentas opcionais fixadas em [notebooks/requirements.txt](../ml/supplier_risk/notebooks/requirements.txt): matplotlib 3.10.8, nbformat 5.10.4, nbclient 0.10.4 e ipykernel 7.2.0. Instalação somente no ambiente temporário isolado; a `.venv` principal e os requisitos dos pipelines não foram alterados. As versões relevantes e hashes das entradas estão incorporados ao notebook.
 

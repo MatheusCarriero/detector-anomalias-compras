@@ -50,7 +50,7 @@ Os critérios abaixo permitem conferir o comportamento esperado, preferencialmen
 - Estado: Implementado.
 - Critério de aceitação: destino existente é recusado antes da validação dos dados; falha de validação impede cálculo e gravação. A saída válida é criada em arquivo novo.
 
-RF01–RF06 consolidam o [guia técnico Invoice](invoice_final_executor.md) e o [protocolo acadêmico](invoice_academic_evaluation_protocol.md). O avaliador existe, mas a avaliação final Invoice permanece pendente. Proteção contra sobrescrita não concede permissão para repetir TEST em outro destino.
+RF01–RF06 consolidam o [guia técnico Invoice](invoice_final_executor.md) e o [protocolo acadêmico](invoice_academic_evaluation_protocol.md). A avaliação final única em TEST foi concluída e está registrada em [invoice_test_final_v1.json](../ml/experiments/invoice_test_final_v1.json). Proteção contra sobrescrita não concede permissão para repetir TEST em outro destino.
 
 ### RF07 — Preparar e classificar fornecedores no estudo Supplier
 
