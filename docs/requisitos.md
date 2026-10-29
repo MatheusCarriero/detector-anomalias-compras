@@ -2,7 +2,7 @@
 
 Este documento reúne os requisitos do projeto acadêmico e suas extensões planejadas. Os RF implementados descrevem funcionalidades existentes; os planejados representam evolução futura, não entregas concluídas. Nos RNF, “Atual” indica uma restrição ou prática vigente, não uma certificação de qualidade operacional.
 
-Invoice prioriza faturas incomuns para auditoria humana. Supplier classifica a referência `Risk_Level` do dataset e já concluiu sua avaliação acadêmica. Purchase mantém decisões metodológicas pendentes. Os domínios têm fontes e resultados independentes, conforme a [estratégia dos modelos](model_strategy.md) e a [estratégia de dados](data_strategy.md).
+Invoice prioriza faturas incomuns para auditoria humana. Supplier classifica a referência `Risk_Level` do dataset e já concluiu sua avaliação acadêmica. Purchase mantém decisões metodológicas pendentes. Os domínios têm fontes e resultados independentes, conforme a [estratégia de dados e modelos](data_strategy.md).
 
 Os critérios abaixo permitem conferir o comportamento esperado, preferencialmente com fixtures sintéticas. Sua inclusão não significa que testes foram executados nesta consolidação nem permite repetir avaliações ou usar TEST no desenvolvimento. O [roadmap](implementation_roadmap.md) registra o estado vigente e distingue etapas concluídas de planos históricos.
 
@@ -50,7 +50,7 @@ Os critérios abaixo permitem conferir o comportamento esperado, preferencialmen
 - Estado: Implementado.
 - Critério de aceitação: destino existente é recusado antes da validação dos dados; falha de validação impede cálculo e gravação. A saída válida é criada em arquivo novo.
 
-RF01–RF06 consolidam o [guia técnico Invoice](invoice_final_executor.md) e o [protocolo acadêmico](invoice_academic_evaluation_protocol.md). A avaliação final única em TEST foi concluída e está registrada em [invoice_test_final_v1.json](../ml/experiments/invoice_test_final_v1.json). Proteção contra sobrescrita não concede permissão para repetir TEST em outro destino.
+RF01–RF06 consolidam o [guia técnico Invoice](invoice_academic_evaluation_protocol.md#71-responsabilidades-dos-módulos) e o [protocolo acadêmico](invoice_academic_evaluation_protocol.md). A avaliação final única em TEST foi concluída e está registrada em [invoice_test_final_v1.json](../ml/experiments/invoice_test_final_v1.json). Proteção contra sobrescrita não concede permissão para repetir TEST em outro destino.
 
 ### RF07 — Preparar e classificar fornecedores no estudo Supplier
 
@@ -84,7 +84,7 @@ RF08–RF09 correspondem às fases de contratos de inferência e aplicação do 
 ### RNF01 — Confiabilidade diante de entradas inválidas
 
 - Descrição: falhar explicitamente quando os contratos de entrada não forem atendidos, sem reparar dados ou descartar casos silenciosamente.
-- Critério verificável: fixtures inválidas provocam erro antes do scoring e da escrita de resultados, conforme RF01–RF03 e o [guia Invoice](invoice_final_executor.md).
+- Critério verificável: fixtures inválidas provocam erro antes do scoring e da escrita de resultados, conforme RF01–RF03 e o [guia Invoice](invoice_academic_evaluation_protocol.md#71-responsabilidades-dos-módulos).
 - Estado: Atual.
 
 ### RNF02 — Integridade e preservação de evidências
@@ -117,7 +117,7 @@ RF08–RF09 correspondem às fases de contratos de inferência e aplicação do 
 - Critério verificável: contratos e registros identificam domínio e partição; não há merge de fontes com base em IDs apenas semelhantes. Transformações seguem o conjunto permitido pelo protocolo. A revisão pré-TEST não usa raw compartilhado, pois filtros de linhas não garantem isolamento físico.
 - Estado: Atual.
 
-RNF02–RNF06 se apoiam nas [estratégias de dados](data_strategy.md) e [modelos](model_strategy.md), no [guia Invoice](invoice_final_executor.md) e nos [registros Supplier](supplier_risk_experiment_records.md). São controles técnicos e metodológicos, não evidência de prontidão para produção.
+RNF02–RNF06 se apoiam na [estratégia de dados e modelos](data_strategy.md), no [guia Invoice](invoice_academic_evaluation_protocol.md#71-responsabilidades-dos-módulos) e nos [registros Supplier](supplier_risk_experiment_records.md). São controles técnicos e metodológicos, não evidência de prontidão para produção.
 
 ## Requisitos não funcionais futuros
 
