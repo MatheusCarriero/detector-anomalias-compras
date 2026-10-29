@@ -32,7 +32,7 @@ avaliação final → resultados. O avaliador recebe dados/modelo explicitamente
 valida inputs e grava um JSON novo sem sobrescrever resultados. A verificação
 histórica é independente da avaliação normal. Consulte o
 [protocolo acadêmico](invoice_academic_evaluation_protocol.md) e a
-[documentação técnica](invoice_final_executor.md).
+[documentação técnica](invoice_academic_evaluation_protocol.md#71-responsabilidades-dos-módulos).
 
 A avaliação final em TEST foi concluída em execução única, com 60.000 faturas
 e as mesmas 19 features, sem fit, tuning ou alteração do modelo. O resultado
@@ -57,7 +57,7 @@ As decisões independentes de Supplier/Purchase continuam válidas.
 
 ## Atualização de execução — 28/09/2026
 
-A [comparação IF versus valor](invoice_value_comparison_results.md) está
+A [comparação IF versus valor](invoice_validation_results.md#3-comparação-if--valor--28092026) está
 **concluída em VALIDATION**: ganho líquido de positivos −40/+7/+192 nos orçamentos
 fixos 1%/5%/10%. Não há vencedor uniforme, orçamento escolhido ou utilidade
 empresarial comprovada. Não repetir essa comparação como pendência.
@@ -65,7 +65,7 @@ empresarial comprovada. Não repetir essa comparação como pendência.
 O teste técnico da revisão cega foi encerrado pelo responsável. Avaliadores
 artificiais não são pessoas nem evidência; respostas simuladas, concordância e
 julgamentos ficam excluídos de resultados, JSONs e decisões acadêmicas. ZIPs
-simulados devem permanecer fora do repositório. A [preparação original](invoice_blind_review_preparation.md)
+simulados devem permanecer fora do repositório. A [preparação original](invoice_academic_evaluation_protocol.md#9-preparação-da-revisão-cega--histórico-de-coordenação)
 foi preservada; não houve revisão humana válida e uma eventual etapa real segue
 separada, sem ser substituída pela simulação.
 
@@ -85,7 +85,7 @@ não classificação automática de fraude. A avaliação anterior e a
 preservadas; as pendências de auditoria abaixo são registros históricos.
 
 O [protocolo de triagem](invoice_triage_protocol.md) e seus
-[resultados](invoice_triage_results.md) registram diagnóstico top-1%/5%/10%
+[resultados](invoice_validation_results.md#2-triagem-e-diagnóstico-temporal--27092026) registram diagnóstico top-1%/5%/10%
 somente em VALIDATION, com o modelo e as 19 features existentes, zero fit/tuning
 ou ajuste de threshold. Precision@K da referência: 85,00%/43,00%/32,67%;
 sinal concentrado em INFLATED, sem comprovação de utilidade humana.
@@ -382,7 +382,7 @@ O histórico integral dos planos está no commit `552d09b`, anterior à limpeza.
 A arquitetura abaixo foi substituída em **13/10/2026**. Seus freezes, recibos e
 contratos de autorização não devem ser reconstruídos nem usados para executar o
 fluxo atual. A referência vigente é o [protocolo acadêmico](invoice_academic_evaluation_protocol.md)
-e o [guia técnico](invoice_final_executor.md). TEST foi avaliado posteriormente,
+e o [guia técnico](invoice_academic_evaluation_protocol.md#71-responsabilidades-dos-módulos). TEST foi avaliado posteriormente,
 em 18/10/2026; os registros abaixo são verificações técnicas anteriores.
 
 | Registro | Verificação histórica | Resultado |
@@ -470,3 +470,20 @@ Os históricos completos que originaram esta consolidação podem ser consultado
 na [árvore do commit 552d09b](https://github.com/MatheusCarriero/detector-anomalias-compras/tree/552d09b63b47604b5a8abd98d05ec2a5f3130911/docs/superpowers): planos de
 17/09, 24/09, 29/09, 02/10, 20/10 e 23/10, e desenho de 17/09. Nenhum protocolo,
 resultado experimental ou contrato executável foi substituído por esta síntese.
+
+## Critérios históricos de prontidão dos domínios
+
+A fase inicial definiu os seguintes critérios para receber pipelines; o Supplier já concluiu a preparação, enquanto Purchase mantém implementação futura:
+
+- os três diretórios de cada domínio existirem;
+- os limites entre os modelos estiverem documentados;
+- a unidade de análise estiver definida;
+- o instante de scoring estiver definido;
+- as exclusões por identificação, label e temporalidade estiverem registradas;
+- as features candidatas estiverem documentadas e sua implementação corresponder ao estado declarado de cada domínio;
+- os diretórios de modelos estiverem protegidos contra versionamento de binários;
+- nenhuma alteração tiver sido realizada nos datasets originais.
+
+As ideias antigas “V2 = Invoice + Purchase” e “V3 = Invoice + Purchase + Supplier” foram substituídas. São hipóteses históricas, não arquitetura vigente nem junções diretas planejadas. O versionamento e as baselines serão separados por domínio; comparar scores futuramente não autoriza fundir features ou comparar métricas de populações diferentes.
+
+Esses critérios descrevem o planejamento inicial. Diretórios vazios não são requisito atual de clonagem; o provisionamento está na [estratégia de dados](data_strategy.md#recursos-externos-após-clonagem). A avaliação Supplier já terminou; Purchase permanece na decisão C e nenhum score combinado foi escolhido.

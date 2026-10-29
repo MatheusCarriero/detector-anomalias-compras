@@ -48,8 +48,8 @@ Valores arredondados para apresentação. Precision@K é a proporção de positi
 O ranking por valor foi melhor no top 1%. No top 5%, os resultados foram próximos, com pequena vantagem do Isolation Forest; no top 10%, o modelo apresentou maior Precision@K e captura. **Não houve superioridade uniforme**, e a comparação não define sozinha uma política operacional de auditoria.
 
 - [Resultado oficial de TEST](ml/experiments/invoice_test_final_v1.json): registro separado do histórico de VALIDATION.
-- [Avaliação histórica](docs/invoice_validation_results.md), [triagem](docs/invoice_triage_results.md) e [benchmark IF × valor em VALIDATION](docs/invoice_value_comparison_results.md).
-- [EDA das 19 features em TRAIN](docs/invoice_eda.md), [protocolo acadêmico](docs/invoice_academic_evaluation_protocol.md) e [guia do avaliador](docs/invoice_final_executor.md).
+- [Avaliação histórica](docs/invoice_validation_results.md), [triagem](docs/invoice_validation_results.md#2-triagem-e-diagnóstico-temporal--27092026) e [benchmark IF × valor em VALIDATION](docs/invoice_validation_results.md#3-comparação-if--valor--28092026).
+- [EDA das 19 features em TRAIN](docs/invoice_methodological_audit.md#10-eda-acadêmica-somente-train--08102026), [protocolo acadêmico](docs/invoice_academic_evaluation_protocol.md) e [responsabilidades do executor](docs/invoice_academic_evaluation_protocol.md#71-responsabilidades-dos-módulos).
 
 **Limites:** a comparação é retrospectiva e descritiva. A referência `is_fraud` não é verdade empresarial certificada; a procedência do treinamento legado permanece incompleta (`source_reconciled=false`). As agregações usam somente TRAIN, mas todo o período desse conjunto, inclusive a própria observação: não reconstituem o que era conhecido em cada instante. Não houve revisão humana válida nem comprovação de generalização externa ou eficácia empresarial. A [auditoria metodológica](docs/invoice_methodological_audit.md) detalha essas ressalvas.
 
@@ -189,8 +189,7 @@ O Invoice tem partições oficiais de 210.000 / 30.000 / 60.000 faturas. O Procu
 | Assunto | Referência |
 |---|---|
 | Requisitos funcionais e não funcionais | [Requisitos acadêmicos](docs/requisitos.md) |
-| Dados, unidades de análise e separação das fontes | [Estratégia de dados](docs/data_strategy.md) |
-| Modelagem, features e limites por domínio | [Estratégia dos modelos](docs/model_strategy.md) |
+| Dados, modelagem, features e limites por domínio | [Estratégia de dados e modelos](docs/data_strategy.md) |
 | Estado vigente e decisões anteriores | [Roadmap](docs/implementation_roadmap.md) |
 | Integração NestJS/Prisma, CI e validação controlada | [Backend](backend/README.md) |
 | Estrutura SQL, funções, permissões e histórico | [Banco operacional](prisma/README.md) |

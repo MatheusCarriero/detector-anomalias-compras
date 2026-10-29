@@ -78,3 +78,9 @@ ml/experiments/invoice_blind_review_v1/
 backend/generated/prisma/
 backend/dist/
 backend/*.tsbuildinfo
+
+# Instruções e ferramenta de inspeção mantidas somente neste checkout
+/AGENTS.md
+/.agents/skills/code-change-verification/SKILL.md
+/.agents/skills/invoice-pretest-guard/SKILL.md
+/ml/scripts/inspecionar_datasets_externos.py
