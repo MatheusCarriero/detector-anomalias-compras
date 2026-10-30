@@ -185,8 +185,11 @@ tests. Future cases belong respectively in `test/connected/sql-contracts/` and
 review/authorization. Writes must use the SQL functions in the database guide;
 no direct CRUD, seed, grants or fixture creation is introduced here.
 
-The offline-tested SQLSTATE helper supports exact PostgreSQL codes and the
-installed Prisma adapter's structured error shape. It refuses syntax errors,
+The prototype SQLSTATE helper and its offline tests are retained locally only;
+they are not dependencies of the published identity/catalog suites. Future negative
+tests must reintroduce a reviewed helper and its regression tests before enabling
+SQL-contract or concurrency suites. The required behavior includes exact PostgreSQL
+codes and the installed Prisma adapter's structured error shape. It refuses syntax errors,
 aborted-transaction errors and unexpected success as evidence of a legitimate
 rejection. Each future negative case uses its own savepoint, forces deferred
 constraints and rolls back/releases the savepoint before the next case. Propagate

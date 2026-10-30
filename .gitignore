@@ -84,3 +84,13 @@ backend/*.tsbuildinfo
 /.agents/skills/code-change-verification/SKILL.md
 /.agents/skills/invoice-pretest-guard/SKILL.md
 /ml/scripts/inspecionar_datasets_externos.py
+
+# Optional local documentation and exploratory/test prototypes
+/docs/data_strategy.md
+/docs/requisitos.md
+/docs/external_datasets_analysis.md
+/ml/scripts/analisar_datasets_modelos_externos.py
+/ml/scripts/extrair_dataset_auxiliar.py
+/ml/scripts/validar_dataset.py
+/backend/test/connected/sqlstate.ts
+/backend/test/connected/sqlstate.spec.ts

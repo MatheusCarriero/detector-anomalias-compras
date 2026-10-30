@@ -182,14 +182,41 @@ A [CI Python](.github/workflows/quality.yml) descreve a instalação por wheels 
 - Não versionar credenciais, datasets, binários de modelos ou clientes gerados.
 - Consultar o [roadmap vigente](docs/implementation_roadmap.md) antes de iniciar outra etapa.
 
-O Invoice tem partições oficiais de 210.000 / 30.000 / 60.000 faturas. O Procurement KPI, com 777 pedidos, é apenas auxiliar e não participa do treinamento dos domínios. Os caminhos e a responsabilidade das fontes permanecem na [estratégia de dados](docs/data_strategy.md); elas não são necessárias à CI.
+O Invoice tem partições oficiais de 210.000 / 30.000 / 60.000 faturas. O Procurement KPI, com 777 pedidos, é apenas auxiliar e não participa do treinamento dos domínios. As fontes não são necessárias à CI; seu provisionamento está descrito abaixo.
+
+### Fontes e reconstrução
+
+O clone não contém datasets nem modelos binários. As fontes têm populações independentes: IDs semelhantes não autorizam junções, mistura de features ou um score combinado.
+
+| Fonte | Diretório esperado | Uso |
+|---|---|---|
+| Procurement Invoice Fraud Dataset | `data/raw/` | Invoice; processados existentes em `data/processed/` e modelo legado compatível com `ml/models/model_metadata.json` |
+| Supplier Risk Assessment Dataset | `data/external/supplier_risk/` | Preparação descrita em [features](docs/supplier_risk_features.md), [target/split](docs/supplier_risk_target_and_split.md) e no protocolo Supplier |
+| Purchase Orders & Supplier Performance Dataset | `data/external/purchase_orders/` | Fonte candidata; decisão C, sem target ou features pré-aprovação aprovados |
+| Procurement KPI | `data/auxiliary/` | Fonte opcional, fora dos modelos; o extrator exploratório não integra o clone |
+
+Em provisionamento explicitamente autorizado, crie somente os diretórios necessários e forneça os arquivos das versões correspondentes. Diretórios vazios não são entregas nem exigem execução de pipelines. Os caminhos e contratos dos artefatos estão nos documentos de domínio; não execute produtores apenas para recriar pastas.
+
+Disponibilidade das fontes, licenças e procedência do fit legado não são comprovadas pelo clone. São necessários os arquivos externos corretos, o modelo Invoice compatível com sua metadata e o ambiente fixado. Retreinar não substitui o artefato legado; as avaliações finais concluídas não devem ser repetidas para conferir instalação.
+
+### Controles metodológicos e de manutenção
+
+- Preserve fontes originais e evidências. Identifique domínio, versão, origem, features ordenadas, transformação, partição, parâmetros, seed, ambiente e hashes previstos em cada novo registro autorizado.
+- Separe partições antes de aprender transformações; ajuste imputação, scaling e encoding somente em TRAIN. Na CV, ajuste dentro de cada fold. Labels e IDs não entram como features.
+- Respeite a disponibilidade temporal das entradas. As agregações retrospectivas atuais não comprovam informações disponíveis antes de cada decisão; Purchase continua bloqueado para modelagem.
+- Valide schemas, IDs, alinhamento e compatibilidade antes de scoring; rejeite entradas inválidas e destinos existentes, sem correções silenciosas. Integridade não prova procedência: `source_reconciled=false` permanece no Invoice.
+- Preserve os resultados de desenvolvimento separados de TEST. Os contratos de [evidências Supplier](docs/supplier_risk_experiment_records.md) e do [executor Invoice](docs/invoice_academic_evaluation_protocol.md#71-responsabilidades-dos-módulos) continuam públicos.
+- Use fixtures sintéticas para manutenção. A preparação histórica não é transacional em todos os produtores; não reprocessar dados para ocultar essa limitação.
+- Integração operacional, interfaces, monitoramento e validação de utilidade permanecem sujeitos ao roadmap. Não há SLA, calibração empresarial ou eficácia operacional demonstrada.
+
+Os documentos extensos de estratégia, requisitos e inspeção inicial e seus auxiliares opcionais permanecem apenas no checkout do responsável. O clone usa as instruções e os contratos públicos acima e não depende dessas cópias locais.
 
 ## Documentação
 
 | Assunto | Referência |
 |---|---|
-| Requisitos funcionais e não funcionais | [Requisitos acadêmicos](docs/requisitos.md) |
-| Dados, modelagem, features e limites por domínio | [Estratégia de dados e modelos](docs/data_strategy.md) |
+| Dados, provisionamento e controles | [Fontes e reconstrução](#fontes-e-reconstrução) |
+| Metodologia por domínio | [Invoice](docs/invoice_academic_evaluation_protocol.md), [Supplier](docs/supplier_risk_model.md) e [Purchase](docs/purchase_risk_model.md) |
 | Estado vigente e decisões anteriores | [Roadmap](docs/implementation_roadmap.md) |
 | Integração NestJS/Prisma, CI e validação controlada | [Backend](backend/README.md) |
 | Estrutura SQL, funções, permissões e histórico | [Banco operacional](prisma/README.md) |

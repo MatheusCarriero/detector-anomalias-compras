@@ -486,4 +486,4 @@ A fase inicial definiu os seguintes critérios para receber pipelines; o Supplie
 
 As ideias antigas “V2 = Invoice + Purchase” e “V3 = Invoice + Purchase + Supplier” foram substituídas. São hipóteses históricas, não arquitetura vigente nem junções diretas planejadas. O versionamento e as baselines serão separados por domínio; comparar scores futuramente não autoriza fundir features ou comparar métricas de populações diferentes.
 
-Esses critérios descrevem o planejamento inicial. Diretórios vazios não são requisito atual de clonagem; o provisionamento está na [estratégia de dados](data_strategy.md#recursos-externos-após-clonagem). A avaliação Supplier já terminou; Purchase permanece na decisão C e nenhum score combinado foi escolhido.
+Esses critérios descrevem o planejamento inicial. Diretórios vazios não são requisito atual de clonagem; o provisionamento está no [guia de provisionamento](../README.md#fontes-e-reconstrução). A avaliação Supplier já terminou; Purchase permanece na decisão C e nenhum score combinado foi escolhido.
