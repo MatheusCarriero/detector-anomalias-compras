@@ -143,8 +143,9 @@ fraud_type=NONE; outras 140 têm is_fraud=0 com tipo diferente de NONE.
 Esses valores reconciliam exatamente com labels.parquet por invoice_id:
 não foram introduzidos pelo join do avaliador. O manifest disponível só
 informa versão, data e contagens; não explica a regra de rotulagem.
-O script histórico validar_dataset.py já contém verificações dessas combinações;
-ele não foi executado, pois carrega a fonte global e não restringe holdouts.
+O script histórico `validar_dataset.py`, hoje mantido somente localmente, contém
+verificações dessas combinações. Ele não foi executado naquela etapa, pois carrega
+a fonte global e não restringe holdouts; não é dependência do executor publicado.
 
 **HIPÓTESES, não conclusões:** a diferença entre tipos pode refletir alinhamento
 das features a determinadas anomalias, particularidades de geração ou ruído da
