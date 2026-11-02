@@ -185,10 +185,13 @@ tests. Future cases belong respectively in `test/connected/sql-contracts/` and
 review/authorization. Writes must use the SQL functions in the database guide;
 no direct CRUD, seed, grants or fixture creation is introduced here.
 
-The prototype SQLSTATE helper and its offline tests are retained locally only;
-they are not dependencies of the published identity/catalog suites. Future negative
-tests must reintroduce a reviewed helper and its regression tests before enabling
-SQL-contract or concurrency suites. The required behavior includes exact PostgreSQL
+Stage A restores the SQLSTATE helper and its offline tests alongside the declarative
+eight-function map in `test/connected/transaction-contracts.ts`. This map records
+ordered parameters/defaults, effects, targeted rejections and migration evidence;
+it does not execute functions or enable SQL-contract/concurrency suites. Offline
+tests compare it with the pinned migration and simulate errors, not database behavior.
+The helper accepts `22023` and `25001` where the SQL contract requires them.
+The required behavior includes exact PostgreSQL
 codes and the installed Prisma adapter's structured error shape. It refuses syntax errors,
 aborted-transaction errors and unexpected success as evidence of a legitimate
 rejection. Each future negative case uses its own savepoint, forces deferred

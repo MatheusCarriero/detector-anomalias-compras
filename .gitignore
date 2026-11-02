@@ -92,5 +92,3 @@ backend/*.tsbuildinfo
 /ml/scripts/analisar_datasets_modelos_externos.py
 /ml/scripts/extrair_dataset_auxiliar.py
 /ml/scripts/validar_dataset.py
-/backend/test/connected/sqlstate.ts
-/backend/test/connected/sqlstate.spec.ts
