@@ -10,7 +10,7 @@ de negócio implementados nesta etapa.
 O contrato `invoice-demo/1.0` está em
 [`invoice_demo_contract.py`](../ml/scripts/invoice_demo_contract.py), com uma
 [fixture de três registros artificiais](../tests/invoice/fixtures/invoice_demo_v1.json).
-Este incremento valida somente entrada e saída em memória. Não carrega o modelo,
+O P0 valida somente entrada e saída em memória. Não carrega o modelo,
 não calcula scores e não implementa API, subprocesso Python ou persistência.
 
 Entrada: `contract`, `origin=synthetic`, `feature_names` na ordem oficial das
@@ -21,14 +21,14 @@ de strings/booleanos, imputação ou features adicionais. Labels, caminhos de
 datasets/modelos e outros campos são recusados. A ordem publicada é comparada
 estaticamente com `FEATURES`; o treino e seus parâmetros não foram modificados.
 
-Saída futura: `contract`, `origin=synthetic`, `source_reconciled=false`,
+Saída: `contract`, `origin=synthetic`, `source_reconciled=false`,
 `model_sha256`, `score_kind=negative_score_samples`,
 `score_direction=higher_is_more_anomalous` e `rows` com `id`, `score`, `rank`.
 Todos os IDs da entrada devem aparecer uma única vez, em ordem decrescente de
 score, com desempate pelo ID e rank iniciado em 1. Não há probabilidade de fraude,
 threshold novo, classificação de risco ou métrica científica nessa resposta.
-O digest deverá ser calculado sobre o artefato confiável pela futura execução;
-a validação atual verifica apenas sua representação, não a identidade do modelo.
+O validador do contrato verifica somente a representação do digest. O carregador
+P1.5 abaixo verifica os bytes contra a identidade previamente registrada.
 
 A fixture foi escrita manualmente. Seu contexto inventado usa médias de valor
 100, desvio de fornecedor 50 e frequências 0,1/0,5/0,2/0,05, respectivamente para
@@ -42,17 +42,112 @@ certifica semântica ou disponibilidade temporal de entradas externas.
 MVP deve usar a fixture revisada, sem upload irrestrito. Os valores de score nos
 testes são inventados e não são salvos como evidência. A futura leitura JSON
 deverá impor limites de bytes, rejeitar chaves duplicadas e validar este contrato
-antes de qualquer carregamento de modelo. Essa camada de transporte pertence a P1.
+antes de qualquer carregamento de modelo. Essa camada de transporte ainda não
+faz parte do núcleo em memória implementado abaixo.
 
-Verificação offline a partir da raiz (também coletável pelo pytest da CI):
+### Núcleo Python de inferência — P1, primeira parte
+
+[`invoice_demo_scoring.py`](../ml/scripts/invoice_demo_scoring.py) oferece
+`score_demo(request, estimator, *, model_sha256)`. O chamador fornece um estimador
+já carregado, ajustado e validado; não há carregamento automático de arquivos.
+`feature_names_in_` deve corresponder às 19 features na ordem do contrato e
+`n_features_in_` deve ser 19. A função monta um DataFrame numérico com essas
+colunas, sem IDs ou labels, e chama `score_samples` uma única vez.
+
+O score de anomalia é `-score_samples`. A função exige um vetor unidimensional
+numérico e finito, com um valor por linha. Associa cada saída ao ID da posição
+original, ordena por score decrescente e desempata pelo ID. Também rejeita
+alterações do DataFrame pelo estimador e valida a resposta com `validate_response`.
+O estimador confiável precisa respeitar a ordem das linhas ao retornar os scores;
+o núcleo não consegue detectar uma permutação interna de um vetor sem IDs.
+
+`model_sha256` vem do carregador confiável e é copiado para a resposta. Aqui se
+verifica somente o formato do digest; verificar os bytes do artefato, sua
+compatibilidade e seu estado ajustado é responsabilidade do carregador.
+Não há `fit`, `predict`, alteração de threshold, API ou persistência neste núcleo.
+Falhas do estimador resultam em `DEMO_SCORING_FAILED`, sem mensagem original e
+sem nova tentativa automática.
+
+Os testes usam exclusivamente um estimador simulado e a fixture artificial do
+P0. Eles verificam o contrato técnico, não a eficácia do Isolation Forest.
+Scores e hashes simulados não são evidências científicas, probabilidades de
+fraude ou demonstrações de risco empresarial. `source_reconciled=false` continua
+preservado; esta implementação não comprova a procedência do treinamento legado.
+Nenhuma avaliação histórica de VALIDATION ou TEST faz parte da demonstração.
+
+Verificação offline a partir da raiz, com as dependências de desenvolvimento:
 
 ```powershell
-.\.venv\Scripts\python.exe -I -B -m unittest discover -s tests/invoice -p test_invoice_demo_contract.py -v
+.\.venv\Scripts\python.exe -I -B -m pytest tests/invoice/test_invoice_demo_contract.py tests/invoice/test_invoice_demo_scoring.py tests/invoice/test_invoice_demo_loader.py -q -p no:cacheprovider
 ```
 
-Próximo incremento: interface Python dedicada, inicialmente com estimador simulado.
-Carregar o modelo real para demonstração sintética exige etapa explícita posterior;
-os executores históricos de avaliação e TEST não participam desse caminho.
+### Carregador controlado — P1.5
+
+[`invoice_demo_loader.py`](../ml/scripts/invoice_demo_loader.py) implementa
+`load_demo_model(project_root, *, deserialize=None)`. A chamada é explícita;
+importar o módulo não abre artefatos. A raiz vem da aplicação confiável, nunca
+da requisição do demonstrador. Os dois caminhos são fixos, relativos à raiz:
+
+| Arquivo esperado | SHA-256 esperado |
+|---|---|
+| `ml/models/isolation_forest.joblib` | `c9c0f51a9c962fac5ea6b34db5e0b74f09c120896bf9e7bf3a87418df2adba1b` |
+| `ml/models/model_metadata.json` | `ba07485e8dda458e45376b6edc4bd164926efe2c6ca8385cde32f7309db86595` |
+
+Essas referências vêm da seção 4 do
+[protocolo acadêmico](../docs/invoice_academic_evaluation_protocol.md#4-especificação-prévia-para-eventual-avaliação-final),
+não do hash calculado do próprio arquivo durante a carga. Uma divergência encerra
+a operação antes de desserializar; não há atualização automática das referências,
+busca de outro modelo ou aceitação de um hash enviado pelo usuário. Links
+simbólicos/junctions nos caminhos são recusados. Isso pressupõe um checkout e
+diretório local confiáveis, sem alterações concorrentes; não constitui sandbox.
+
+A metadata é conferida antes do joblib. O carregador lê os bytes do modelo uma
+vez, compara o SHA-256 e entrega esse mesmo conteúdo em memória a
+`deserialize_joblib`, a interface que encapsula `joblib.load`. Os testes substituem
+essa interface ou a chamada de joblib por mocks. Não foi feita desserialização
+real no P1.5. Validar tipo depois da carga não protege contra código executável
+de pickle: somente o artefato local previamente confiável pode chegar à interface.
+
+O retorno contém `estimator` e `model_sha256`, usados diretamente pelo núcleo
+P1. A validação exige `IsolationForest` (sem subclasses), estado ajustado,
+19 features na ordem oficial, 200 árvores, parâmetros documentados e offset
+`-0.5211491197816622`. Confere ainda `max_samples_=256` e `_n_samples=210000`,
+conforme a [auditoria do artefato legado](../docs/invoice_methodological_audit.md#6-procedência-do-isolation-forest).
+Não chama `fit`, `score_samples`, `predict` ou avaliação durante a carga.
+
+O ambiente exigido é Python 3.14.3, NumPy 2.5.2, Pandas 2.3.3, scikit-learn 1.9.0,
+joblib 1.6.0 e SciPy 1.18.1, alinhado aos pins atuais. Divergências de ambiente
+são recusadas antes de abrir os arquivos; `InconsistentVersionWarning` do
+scikit-learn também interrompe a carga. O ambiente original do treinamento não
+consta da metadata: essa conferência técnica não o certifica, nem substitui
+`source_reconciled=false`. Erros de desserialização são sanitizados, sem retry.
+
+Para a primeira inferência real, em etapa explicitamente autorizada: usar uma
+venv isolada com os pins e testes offline aprovados; confirmar a procedência
+local confiável dos dois arquivos e as referências acima; validar primeiro o
+lote sintético revisado do P0; chamar o carregador sem mocks e passar seu retorno
+ao `score_demo`. Qualquer recusa deve ser investigada sem trocar hashes, refazer
+o modelo ou ignorar avisos. O resultado será apenas demonstração sintética em
+memória, sem métricas científicas, persistência ou acesso a TRAIN/VALIDATION/TEST/raw.
+API, subprocesso e transporte JSON continuam fora desta etapa.
+
+### Executor local — P1.6
+
+[`invoice_demo_runner.py`](../ml/scripts/invoice_demo_runner.py) usa exclusivamente
+a fixture P0 revisada e o carregador P1.5, seguido pelo scoring P1. Não aceita
+argumentos, uploads ou caminhos alternativos. Na raiz do projeto:
+
+```powershell
+.\.venv\Scripts\python.exe -I -B ml/scripts/invoice_demo_runner.py
+```
+
+Esse comando **carrega o modelo real e executa uma inferência demonstrativa**.
+Não integra os testes offline nem deve ser executado automaticamente pela CI.
+Em sucesso, imprime somente a resposta `invoice-demo/1.0` no stdout e retorna 0;
+em falha, imprime um diagnóstico fixo no stderr e retorna 1 (2 para argumentos).
+Não grava resultados nem faz retry. O SHA-256 da fixture também é conferido antes
+da carga. Os testes de integração em `test_invoice_demo_runner.py` usam mocks;
+scores da demonstração são indicadores de anomalia, não probabilidades de fraude.
 
 ## Preparação local
 
