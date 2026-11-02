@@ -5,6 +5,55 @@ O backend possui integração Prisma e testes offline/controle de acesso ao banc
 sintético. Não há serviços de inferência dos modelos acadêmicos nem endpoints
 de negócio implementados nesta etapa.
 
+## Contrato inicial do demonstrador Invoice — P0
+
+O contrato `invoice-demo/1.0` está em
+[`invoice_demo_contract.py`](../ml/scripts/invoice_demo_contract.py), com uma
+[fixture de três registros artificiais](../tests/invoice/fixtures/invoice_demo_v1.json).
+Este incremento valida somente entrada e saída em memória. Não carrega o modelo,
+não calcula scores e não implementa API, subprocesso Python ou persistência.
+
+Entrada: `contract`, `origin=synthetic`, `feature_names` na ordem oficial das
+19 features e `rows`, cada uma com `id` e `values`. IDs únicos seguem
+`demo-[a-z0-9-]{1,40}`. O lote aceita de 1 a 100 registros: limite inicial do
+demonstrador, não capacidade medida. Valores são números finitos, sem coerção
+de strings/booleanos, imputação ou features adicionais. Labels, caminhos de
+datasets/modelos e outros campos são recusados. A ordem publicada é comparada
+estaticamente com `FEATURES`; o treino e seus parâmetros não foram modificados.
+
+Saída futura: `contract`, `origin=synthetic`, `source_reconciled=false`,
+`model_sha256`, `score_kind=negative_score_samples`,
+`score_direction=higher_is_more_anomalous` e `rows` com `id`, `score`, `rank`.
+Todos os IDs da entrada devem aparecer uma única vez, em ordem decrescente de
+score, com desempate pelo ID e rank iniciado em 1. Não há probabilidade de fraude,
+threshold novo, classificação de risco ou métrica científica nessa resposta.
+O digest deverá ser calculado sobre o artefato confiável pela futura execução;
+a validação atual verifica apenas sua representação, não a identidade do modelo.
+
+A fixture foi escrita manualmente. Seu contexto inventado usa médias de valor
+100, desvio de fornecedor 50 e frequências 0,1/0,5/0,2/0,05, respectivamente para
+fornecedor/país/departamento/par fornecedor-departamento. As codificações cíclicas
+representam hora 0, segunda-feira e janeiro; tipo 0 representa GOODS. Não há
+linhas derivadas de dados acadêmicos nem hipótese sobre o ranking esperado.
+Os testes verificam log, razões, z-score e pares cíclicos dessa fixture; isso não
+certifica semântica ou disponibilidade temporal de entradas externas.
+
+`origin=synthetic` é uma declaração, não comprovação de procedência. O primeiro
+MVP deve usar a fixture revisada, sem upload irrestrito. Os valores de score nos
+testes são inventados e não são salvos como evidência. A futura leitura JSON
+deverá impor limites de bytes, rejeitar chaves duplicadas e validar este contrato
+antes de qualquer carregamento de modelo. Essa camada de transporte pertence a P1.
+
+Verificação offline a partir da raiz (também coletável pelo pytest da CI):
+
+```powershell
+.\.venv\Scripts\python.exe -I -B -m unittest discover -s tests/invoice -p test_invoice_demo_contract.py -v
+```
+
+Próximo incremento: interface Python dedicada, inicialmente com estimador simulado.
+Carregar o modelo real para demonstração sintética exige etapa explícita posterior;
+os executores históricos de avaliação e TEST não participam desse caminho.
+
 ## Preparação local
 
 Use Node 24 e npm 11; as versões da CI estão fixadas no

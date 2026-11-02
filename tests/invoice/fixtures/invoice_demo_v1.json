@@ -1,0 +1,17 @@
+{
+  "contract": "invoice-demo/1.0",
+  "origin": "synthetic",
+  "feature_names": [
+    "invoice_amount", "log_invoice_amount", "supplier_age_days",
+    "supplier_frequency", "country_frequency", "amount_vs_supplier_mean",
+    "supplier_amount_zscore", "department_frequency", "amount_vs_department_mean",
+    "supplier_department_frequency", "payment_terms_days", "invoice_type_encoded",
+    "submission_hour_sin", "submission_hour_cos", "day_of_week_sin",
+    "day_of_week_cos", "month_sin", "month_cos", "is_weekend"
+  ],
+  "rows": [
+    {"id": "demo-001", "values": [100, 4.61512051684126, 365, 0.1, 0.5, 1, 0, 0.2, 1, 0.05, 30, 0, 0, 1, 0, 1, 0, 1, 0]},
+    {"id": "demo-002", "values": [200, 5.303304908059076, 365, 0.1, 0.5, 2, 2, 0.2, 2, 0.05, 30, 0, 0, 1, 0, 1, 0, 1, 0]},
+    {"id": "demo-003", "values": [50, 3.9318256327243257, 365, 0.1, 0.5, 0.5, -1, 0.2, 0.5, 0.05, 30, 0, 0, 1, 0, 1, 0, 1, 0]}
+  ]
+}
