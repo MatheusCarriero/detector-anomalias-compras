@@ -66,7 +66,7 @@ def _verified_bytes(root, relative_path, expected_hash, diagnostic):
         for component in (root, root / "ml", root / "ml/models", path):
             if component.is_symlink() or component.is_junction():
                 raise ValueError("DEMO_ARTIFACT_PATH")
-        if path.resolve(strict=True) != path.absolute() or not path.is_file():
+        if path.resolve(strict=True) != root.resolve(strict=True) / relative_path or not path.is_file():
             raise ValueError("DEMO_ARTIFACT_PATH")
         content = path.read_bytes()
     except OSError:

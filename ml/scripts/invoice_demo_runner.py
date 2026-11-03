@@ -30,7 +30,7 @@ def _read_fixture():
                           path.parent, path):
             if component.is_symlink() or component.is_junction():
                 raise ValueError("DEMO_FIXTURE_PATH")
-        if path.resolve(strict=True) != path.absolute() or not path.is_file():
+        if path.resolve(strict=True) != PROJECT_ROOT.resolve(strict=True) / FIXTURE_PATH or not path.is_file():
             raise ValueError("DEMO_FIXTURE_PATH")
         with path.open("rb") as stream:
             content = stream.read(MAX_FIXTURE_BYTES + 1)
