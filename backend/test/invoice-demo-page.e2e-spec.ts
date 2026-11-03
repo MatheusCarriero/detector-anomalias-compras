@@ -72,6 +72,7 @@ describe('Invoice demo page (offline E2E)', () => {
   it.each([
     ['/demo/assets/style.css', /^text\/css/],
     ['/demo/assets/app.js', /^(text|application)\/javascript/],
+    ['/demo/assets/purchase.js', /^(text|application)\/javascript/],
   ])('serves only the expected local asset %s', async (path, contentType) => {
     const asset = await request(app.getHttpServer()).get(path as string).expect(200);
     expect(asset.headers['content-type']).toMatch(contentType as RegExp);
@@ -89,6 +90,17 @@ describe('Invoice demo page (offline E2E)', () => {
     '/ml/models/isolation_forest.joblib',
   ])('does not expose arbitrary files at %s', async (path) => {
     await request(app.getHttpServer()).get(path).expect(404);
+    expect(processMock.execFile).not.toHaveBeenCalled();
+  });
+
+  it('serves the separate commercial form without starting an Invoice run', async () => {
+    const page = await request(app.getHttpServer()).get('/').expect(200);
+    expect(page.text).toContain('id="purchase-form"');
+    expect(page.text).toContain('/demo/assets/purchase.js');
+    expect(page.text).toContain('id="purchase-summary"');
+    expect(page.text).toContain('id="run-button"');
+    expect(page.text).toContain('source_reconciled=false');
+    await request(app.getHttpServer()).get('/demo/assets/purchase.js').expect(200);
     expect(processMock.execFile).not.toHaveBeenCalled();
   });
 

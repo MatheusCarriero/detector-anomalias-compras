@@ -7,6 +7,7 @@
     <title>Invoice Anomaly · Detector Inteligente de Anomalias em Compras</title>
     <link rel="stylesheet" href="/demo/assets/style.css">
     <script src="/demo/assets/app.js" defer></script>
+    <script src="/demo/assets/purchase.js" defer></script>
   </head>
   <body>
     <a class="skip-link" href="#conteudo">Ir para o conteúdo</a>
@@ -94,6 +95,98 @@
           <p class="provenance-label">Limitação de procedência</p>
           <code>source_reconciled=false</code>
           <p>A procedência do treinamento legado não está certificada. As verificações técnicas do artefato não eliminam essa limitação.</p>
+        </div>
+      </section>
+
+      <section class="purchase-section" aria-labelledby="purchase-title">
+        <div class="purchase-heading">
+          <div>
+            <p class="eyebrow">Preparação comercial · P4</p>
+            <h2 id="purchase-title">Preparação de compra</h2>
+          </div>
+          <span class="data-badge">Sem avaliação de risco</span>
+        </div>
+        <p class="purchase-intro">Monte uma operação de exemplo com materiais de construção civil.
+          Fornecedores, produtos e departamentos deste catálogo são fictícios.</p>
+        <p class="purchase-boundary">Este formulário não calcula scores nem avalia risco. Os dados preenchidos
+          não são enviados ao modelo e não alteram o ranking Invoice acima. Produto ainda não é uma feature do modelo.</p>
+
+        <div class="purchase-layout">
+          <form id="purchase-form" class="panel purchase-form" novalidate autocomplete="off" aria-labelledby="purchase-form-title">
+            <h3 id="purchase-form-title">Informações da operação</h3>
+            <p class="purchase-required">Todos os campos são obrigatórios. Valores em reais (BRL), sem conversão cambial.</p>
+            <div class="purchase-fields">
+              <div class="purchase-field">
+                <label for="purchase-supplier">Fornecedor sintético</label>
+                <select id="purchase-supplier" required aria-describedby="purchase-supplier-error">
+                  <option value="">Selecione um fornecedor</option>
+                </select>
+                <p id="purchase-supplier-error" class="field-error"></p>
+              </div>
+              <div class="purchase-field">
+                <label for="purchase-product">Produto sintético</label>
+                <select id="purchase-product" required aria-describedby="purchase-unit purchase-product-error">
+                  <option value="">Selecione um produto</option>
+                </select>
+                <p id="purchase-unit" class="field-hint">Unidade do produto</p>
+                <p id="purchase-product-error" class="field-error"></p>
+              </div>
+              <div class="purchase-field">
+                <label for="purchase-department">Departamento</label>
+                <select id="purchase-department" required aria-describedby="purchase-department-error">
+                  <option value="">Selecione um departamento</option>
+                </select>
+                <p id="purchase-department-error" class="field-error"></p>
+              </div>
+              <div class="purchase-field">
+                <label for="purchase-date">Data da operação</label>
+                <input id="purchase-date" type="date" required aria-describedby="purchase-date-hint purchase-date-error">
+                <p id="purchase-date-hint" class="field-hint">Data informada para o exemplo; não representa uma aprovação.</p>
+                <p id="purchase-date-error" class="field-error"></p>
+              </div>
+              <div class="purchase-field">
+                <label for="purchase-quantity">Quantidade</label>
+                <input id="purchase-quantity" type="text" inputmode="numeric" maxlength="7" required aria-describedby="purchase-quantity-hint purchase-quantity-error">
+                <p id="purchase-quantity-hint" class="field-hint">De 1 a 1.000.000 unidades inteiras do produto.</p>
+                <p id="purchase-quantity-error" class="field-error"></p>
+              </div>
+              <div class="purchase-field">
+                <label for="purchase-unit-price">Preço unitário (R$)</label>
+                <input id="purchase-unit-price" type="text" inputmode="decimal" maxlength="10" required aria-describedby="purchase-unit-price-hint purchase-unit-price-error">
+                <p id="purchase-unit-price-hint" class="field-hint">De R$ 0,01 a R$ 1.000.000,00. Use vírgula ou ponto decimal, sem separador de milhar.</p>
+                <p id="purchase-unit-price-error" class="field-error"></p>
+              </div>
+              <div class="purchase-field">
+                <label for="purchase-payment-days">Prazo de pagamento (dias)</label>
+                <input id="purchase-payment-days" type="text" inputmode="numeric" maxlength="4" required aria-describedby="purchase-payment-days-hint purchase-payment-days-error">
+                <p id="purchase-payment-days-hint" class="field-hint">De 0 a 3.650 dias. Zero significa pagamento à vista.</p>
+                <p id="purchase-payment-days-error" class="field-error"></p>
+              </div>
+            </div>
+            <div class="purchase-total-line">
+              <label for="purchase-total">Total da compra</label>
+              <output id="purchase-total" for="purchase-quantity purchase-unit-price" aria-live="polite">—</output>
+              <p>Quantidade × preço unitário, sem frete, impostos ou descontos adicionais.</p>
+            </div>
+            <button id="purchase-prepare" class="run-button" type="submit" disabled>Preparar resumo</button>
+            <p id="purchase-status" class="run-status" role="status" aria-live="polite" aria-atomic="true">Preencha a operação para preparar o resumo.</p>
+            <noscript><p class="noscript-message">Ative o JavaScript para calcular o total e preparar o resumo local.</p></noscript>
+          </form>
+
+          <div class="purchase-summary-column">
+            <section id="purchase-summary" class="panel purchase-summary" aria-labelledby="purchase-summary-title" hidden>
+              <p class="eyebrow">Conferência da operação</p>
+              <h3 id="purchase-summary-title">Resumo preparado</h3>
+              <dl id="purchase-summary-values"></dl>
+              <p class="session-note">Resumo não salvo. Nenhum score, percentual ou classificação de risco foi produzido.</p>
+            </section>
+            <aside class="purchase-local-note" aria-label="Limites da preparação">
+              <h3>Apenas nesta página</h3>
+              <p>O preenchimento e o cálculo ficam no navegador, sem envio ao backend, persistência ou histórico.
+                Recarregar a página descarta a operação.</p>
+              <p>As faixas de preenchimento são limites desta demonstração. Não representam regras de aprovação ou de risco.</p>
+            </aside>
+          </div>
         </div>
       </section>
     </main>
