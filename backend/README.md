@@ -2,8 +2,8 @@
 
 Infraestrutura TypeScript/ESM do Detector Inteligente de Anomalias em Compras.
 O backend possui integração Prisma e testes offline/controle de acesso ao banco
-sintético. Não há serviços de inferência dos modelos acadêmicos nem endpoints
-de negócio implementados nesta etapa.
+sintético. O demonstrador Invoice P2 possui uma entrada local separada, descrita
+abaixo. Não há integração de inferência com o banco nem endpoints de negócio.
 
 ## Contrato inicial do demonstrador Invoice — P0
 
@@ -148,6 +148,45 @@ em falha, imprime um diagnóstico fixo no stderr e retorna 1 (2 para argumentos)
 Não grava resultados nem faz retry. O SHA-256 da fixture também é conferido antes
 da carga. Os testes de integração em `test_invoice_demo_runner.py` usam mocks;
 scores da demonstração são indicadores de anomalia, não probabilidades de fraude.
+
+### API local do demonstrador — P2
+
+O módulo `InvoiceDemoModule` expõe `POST /demo/invoice-runs` em uma aplicação
+separada do `AppModule`/Prisma. Depois do build, iniciar essa aplicação não
+conecta ao PostgreSQL nem carrega o modelo. A partir de `backend/`:
+
+```powershell
+npm.cmd run build
+npm.cmd run start:demo
+```
+
+O servidor escuta exclusivamente em `127.0.0.1:3001`. Para uma demonstração
+posterior, com o ambiente Python e artefatos confiáveis do P1.5 disponíveis:
+
+```powershell
+Invoke-RestMethod -Method Post -Uri http://127.0.0.1:3001/demo/invoice-runs
+```
+
+**Cada POST aceito executa inferência real sobre as três faturas sintéticas.**
+Não há nova avaliação acadêmica. O corpo deve estar ausente ou ser `{}`;
+query parameters, uploads, caminhos e dados adicionais são recusados. A API
+chama somente `.venv/Scripts/python.exe` (`.venv/bin/python` em Unix), com
+`-I -B` e o runner P1.6 fixo. Não aceita override por requisição ou ambiente.
+
+O subprocesso usa `shell: false`, timeout de 30 segundos e limite de 64 KiB
+por fluxo de saída. A resposta JSON é validada antes do HTTP 200, incluindo
+contrato, hash esperado, três IDs, scores finitos e ordem do ranking. Os scores
+representam anomalia, não probabilidade de fraude; `source_reconciled=false`.
+Falhas retornam códigos fixos sem stderr, caminhos, credenciais ou retry.
+Uma segunda chamada simultânea recebe 409; o bloqueio permanece até o processo
+encerrar, mesmo se o cliente HTTP desconectar. O encerramento da aplicação
+também solicita o término do subprocesso ativo.
+
+Esta versão é local, sem autenticação, fila ou persistência. Deve haver apenas
+uma instância; o bloqueio não coordena processos/servidores diferentes. Não a
+exponha por proxy público. `npm.cmd start` mantém o comportamento anterior com
+Prisma; use `start:demo` para o demonstrador isolado. Os testes unitários e E2E
+simulam o subprocesso e não executam Python, modelo real ou PostgreSQL.
 
 ## Preparação local
 
