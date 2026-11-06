@@ -92,3 +92,6 @@ backend/*.tsbuildinfo
 /ml/scripts/analisar_datasets_modelos_externos.py
 /ml/scripts/extrair_dataset_auxiliar.py
 /ml/scripts/validar_dataset.py
+
+# Artefatos treinados Procurement V2: distribuicao somente por decisao explicita
+/ml/procurement_v2/artifacts/
