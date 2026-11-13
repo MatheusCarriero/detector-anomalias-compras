@@ -1,0 +1,3 @@
+ml/procurement_v2/features.py text eol=lf
+ml/procurement_v2/batch.py text eol=lf
+ml/procurement_v2/baseline.py text eol=lf
