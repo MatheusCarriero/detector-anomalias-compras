@@ -187,15 +187,40 @@ O carregador exige Python **3.14.3**, scikit-learn **1.9.0**, NumPy **2.5.2**,
 pandas **2.3.3**, joblib **1.6.0** e SciPy **1.18.1**. O serviço usa exclusivamente
 o Python da `.venv` na raiz, com `-I -B -X utf8`, sem caminhos recebidos pela API.
 
-**Pendência local de isolamento:** na auditoria P5.15.6A, `pyvenv.cfg` continha
-`include-system-site-packages = true`. Os pins principais estavam corretos dentro
-da venv, mas o ambiente admitia pacotes globais. O P5.15.6B não modifica esse ambiente.
-Para a correção futura: preservar a venv atual; criar outra venv em diretório novo,
-sem `--system-site-packages`, com Python 3.14.3; instalar os requirements fixados
-somente quando autorizado; conferir `pyvenv.cfg`, `sys.path`, versões, origem dos
-pacotes e `pip check` usando `-I -B`. Executar os testes offline selecionados antes
-de substituir controladamente a `.venv` esperada pelo serviço. Não incluir inferência,
-treinamento ou testes científicos reais nessa verificação de ambiente.
+#### Ambiente Python isolado (P5.16)
+
+Uma venv temporária com `include-system-site-packages = false` passou nos 362
+testes selecionados, Ruff e `pip check`. Todas as distribuições visíveis e as
+bibliotecas importadas vieram dessa venv. Uma única chamada real do runner, com
+`-I -B -X utf8` e diretório de trabalho externo ao repositório, reproduziu exatamente
+`0.4807226999252244` para `PO-2025-27239` (2025-01-23, ocorrência 1), mantendo as
+cinco entradas e os hashes aprovados. Não houve treinamento.
+
+Para preparar outro ambiente no Windows, execute na raiz, com o launcher `py`
+e Python 3.14.3 instalados. Os manifests incluem os pins de execução e testes:
+
+```powershell
+py -3.14 -I -B -c "import sys; assert sys.version.split()[0] == '3.14.3'"
+if ($LASTEXITCODE -ne 0) { throw 'Python incompatível' }
+$v2Env = Join-Path $env:TEMP ('procurement-v2-' + [guid]::NewGuid().ToString('N'))
+py -3.14 -I -B -m venv $v2Env
+if ($LASTEXITCODE -ne 0) { throw 'Falha ao criar ambiente' }
+$v2Python = Join-Path $v2Env 'Scripts/python.exe'
+& $v2Python -I -B -m pip --isolated install --only-binary=:all: --index-url https://pypi.org/simple --no-cache-dir --disable-pip-version-check -r requirements-dev.txt
+if ($LASTEXITCODE -ne 0) { throw 'Dependências indisponíveis' }
+& $v2Python -I -B -m pip check
+Get-Content (Join-Path $v2Env 'pyvenv.cfg')
+& $v2Python -I -B -c "import sys, site; from pathlib import Path; from importlib.metadata import distributions; p=Path(sys.prefix).resolve(); assert sys.prefix != sys.base_prefix and not site.ENABLE_USER_SITE; assert all(Path(x).resolve().is_relative_to(p) for x in sys.path if 'site-packages' in x.lower()); assert all(Path(d.locate_file('')).resolve().is_relative_to(p) for d in distributions()); print(sys.path)"
+& $v2Python -I -B -m pytest -q -p no:cacheprovider --basetemp ($v2Env + '-pytest') tests/procurement_v2/test_features.py tests/procurement_v2/test_batch.py tests/procurement_v2/test_artifact.py tests/procurement_v2/test_demo.py tests/procurement_v2/test_demo_runner.py tests/procurement_v2/test_demo_inference.py
+& $v2Python -I -B -m ruff check ml/procurement_v2 tests/procurement_v2 --no-cache
+```
+
+Os testes acima usam fixtures e estimadores simulados; não exigem o modelo real.
+Para inferência, forneça separadamente os quatro arquivos confiáveis listados acima
+e preserve os pins e finais LF. Não obtenha isolamento copiando pacotes da venv antiga.
+O P5.16 validou este computador, não outra máquina ou sistema operacional. A `.venv`
+original continua intacta e admite pacotes globais; o NestJS ainda aponta para ela.
+Substituí-la exige uma etapa posterior controlada. Esta preparação não executa inferência.
 
 O prazo HTTP do subprocesso é de 30 segundos. Timeout, falha de stdin e shutdown
 encerram a espera com erros sanitizados e solicitam término no máximo uma vez.

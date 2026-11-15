@@ -166,6 +166,8 @@ A versão está fixada em [`.python-version`](.python-version): **Python 3.14.3*
 
 A instalação limpa foi validada em Windows x64. O ambiente local legado já utilizou pacotes externos à venv; igualdade de versões não comprova isolamento. Os pins não garantem reprodução bit a bit dos modelos históricos, que mantêm seus próprios metadados.
 
+No P5.16, uma venv temporária sem pacotes globais reproduziu exatamente o score de referência da Procurement V2 (`0.4807226999252244`), via runner com `-I -B`, e passou nos 362 testes selecionados sem treinamento. Isso valida o isolamento neste computador, não a portabilidade em outra máquina. A `.venv` original foi preservada. O [procedimento de provisionamento](backend/README.md#ambiente-python-isolado-p516) usa os manifests fixados e requer o CSV e o artefato V2 confiáveis, externos ao Git.
+
 Com o ambiente isolado preparado:
 
 ```powershell
