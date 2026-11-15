@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Demonstração acadêmica Procurement V2: contexto histórico e análise de atipicidade de operações sintéticas.">
+  <title>Procurement V2 · Anomalias em Compras</title>
+  <link rel="stylesheet" href="/demo/procurement-v2/assets/style.css">
+  <script src="/demo/procurement-v2/assets/app.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#conteudo">Ir para o conteúdo</a>
+  <header class="masthead">
+    <div class="masthead-inner">
+      <a class="brand" href="/" aria-label="Voltar ao demonstrador Invoice e formulário P4">
+        <svg viewBox="0 0 36 36" fill="none" aria-hidden="true"><path d="M5 25 13 16 21 21 31 8" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="13" cy="16" r="3" fill="currentColor"/><circle cx="21" cy="21" r="3" fill="currentColor"/><circle cx="31" cy="8" r="3" fill="currentColor"/></svg>
+        <span>Detector Inteligente de<br><strong>Anomalias em Compras</strong></span>
+      </a>
+      <nav aria-label="Demonstradores"><a href="/">Invoice &amp; preparação P4 <span aria-hidden="true">↗</span></a><span class="local-badge">Ambiente local</span></nav>
+    </div>
+  </header>
+  <main id="conteudo" class="workspace">
+    <section class="intro" aria-labelledby="page-title">
+      <div><p class="eyebrow">Procurement Analytics <span>/</span> V2</p><h1 id="page-title">Uma compra, em contexto.</h1><p class="lead">Explore o histórico de uma operação e sua atipicidade segundo o Isolation Forest. Uma demonstração acadêmica, com dados sintéticos.</p></div>
+      <div class="method-note"><span class="method-mark" aria-hidden="true">IF</span><div><strong>Isolation Forest</strong><span>Baseline experimental · 5 features</span></div></div>
+    </section>
+    <ol class="journey" aria-label="Etapas da análise"><li><span>01</span> Selecione uma operação</li><li><span>02</span> Consulte o histórico</li><li><span>03</span> Analise com IA</li></ol>
+
+    <div class="analysis-layout">
+      <aside id="catalog-panel" class="panel catalog-panel" aria-labelledby="catalog-title" aria-busy="true">
+        <div class="panel-heading"><div><p class="eyebrow">Catálogo autorizado</p><h2 id="catalog-title">Operações de referência</h2></div><span id="catalog-count" class="count-badge">—</span></div>
+        <p class="small-copy">Casos fixos para demonstração. A seleção não representa todas as compras da fonte.</p>
+        <p id="catalog-status" class="status" role="status" aria-live="polite" aria-atomic="true">Carregando catálogo…</p>
+        <div id="operation-list" class="operation-list" role="group" aria-label="Selecionar operação"></div>
+        <button id="catalog-retry" class="button subtle" type="button" disabled>Tentar carregar novamente</button>
+      </aside>
+
+      <div class="analysis-column">
+        <section class="panel" aria-labelledby="detail-title">
+          <div class="panel-heading"><div><p class="eyebrow">01 · Operação selecionada</p><h2 id="detail-title">Detalhes da compra</h2></div><span class="badge">Dados sintéticos</span></div>
+          <p id="selection-empty" class="empty-copy">Selecione uma operação do catálogo para conhecer seus dados comerciais.</p>
+          <div id="operation-details" hidden><h3 id="operation-product" class="product-name"></h3><p id="operation-identity" class="mono identity"></p><dl id="commercial-values" class="detail-grid"></dl></div>
+          <p class="monetary-note">Preços e totais são valores na unidade monetária da fonte, que não foi especificada. Não há conversão cambial.</p>
+        </section>
+
+        <section id="analysis-panel" class="panel" aria-labelledby="history-title" aria-busy="false">
+          <div class="panel-heading"><div><p class="eyebrow">02 · Contexto temporal</p><h2 id="history-title">Histórico antes da compra</h2></div><span id="preparation-badge" class="badge">Não consultado</span></div>
+          <p class="small-copy">Janela de 90 dias. Compras do mesmo dia e registros futuros ficam fora da preparação. Referências estatísticas exigem pelo menos 20 observações.</p>
+          <div class="actions"><button id="prepare-button" class="button secondary" type="button" disabled>Consultar histórico</button><button id="analyze-button" class="button primary" type="button" disabled>Analisar com IA <span aria-hidden="true">→</span></button></div>
+          <p id="action-status" class="status" role="status" aria-live="polite" aria-atomic="true">Selecione uma operação para começar. Nenhuma análise é automática.</p>
+          <div id="history-content" hidden>
+            <p id="history-window" class="window-note"></p>
+            <dl id="history-support" class="support-grid"></dl>
+            <div id="unavailable-note" class="notice" hidden><h3>Análise indisponível</h3><p>Não há referências históricas suficientes ou utilizáveis para todas as cinco features. Nenhum score foi calculado.</p><ul id="unavailable-reasons"></ul></div>
+            <div class="table-wrap"><table><caption>Cinco features do modelo · valores preparados pelo Python</caption><thead><tr><th scope="col">Variável</th><th scope="col">Valor</th></tr></thead><tbody id="feature-rows"></tbody></table></div>
+            <details class="references"><summary>Referências históricas comparáveis</summary><p class="small-copy">Contexto descritivo do material. Estas referências não explicam causalmente o score.</p><div class="table-wrap"><table><caption>Distribuições do material na janela histórica</caption><thead><tr><th scope="col">Referência</th><th scope="col">Mediana</th><th scope="col">IQR</th><th scope="col">MAD</th></tr></thead><tbody id="reference-rows"></tbody></table></div></details>
+          </div>
+        </section>
+
+        <section id="result-panel" class="panel result-panel" aria-labelledby="result-title">
+          <div class="panel-heading"><div><p class="eyebrow">03 · Inferência</p><h2 id="result-title">Resultado da análise</h2></div><span class="badge">Somente leitura</span></div>
+          <div id="result-empty" class="result-empty"><span class="empty-icon" aria-hidden="true">↗</span><p>O resultado aparecerá aqui.</p><span>Consulte o histórico e, se a operação for elegível, clique em “Analisar com IA”.</span></div>
+          <div id="scored-result" hidden>
+            <div class="score-block"><p>Score de anomalia</p><output id="anomaly-score" class="score-value"></output><span class="score-label">−score_samples · sem classificação de risco</span></div>
+            <p id="result-operation" class="result-operation"></p>
+            <p class="interpretation">O score mede atipicidade estatística. Valores maiores representam operações mais atípicas segundo o modelo. Não representa probabilidade ou confirmação de fraude.</p>
+            <details class="provenance"><summary>Modelo e rastreabilidade</summary><dl id="provenance-values"></dl></details>
+          </div>
+          <p class="session-note">Sem gravação de resultados ou histórico de sessões. Esta demonstração utiliza uma baseline acadêmica e não define uma política operacional de auditoria.</p>
+        </section>
+      </div>
+    </div>
+    <noscript><p class="notice">Ative o JavaScript para consultar o catálogo e utilizar a demonstração.</p></noscript>
+    <footer><span>Projeto acadêmico individual · Procurement V2</span><span>Fonte sintética · moeda não identificada · revisão humana</span></footer>
+  </main>
+</body>
+</html>

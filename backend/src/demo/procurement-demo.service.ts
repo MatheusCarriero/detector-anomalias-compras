@@ -7,7 +7,7 @@ import { execFile } from 'node:child_process';
 import type { ChildProcess } from 'node:child_process';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { CONTRACT, PROTOCOL, SOURCE_SHA256, parseResponse, validateRequest } from './procurement-demo-contract.js';
+import { CONTRACT, PROTOCOL, INFERENCE_PROTOCOL, SOURCE_SHA256, parseResponse, validateRequest } from './procurement-demo-contract.js';
 import type { Action, OperationIdentity } from './procurement-demo-contract.js';
 
 // Fixed paths work in src/demo and dist/demo; HTTP/env cannot override them.
@@ -27,7 +27,9 @@ export class ProcurementDemoService implements OnModuleDestroy {
   private busy = false;
   private stopping = false;
   private child?: ChildProcess;
-  private pending?: Promise<Record<string, unknown>>;
+  private abort?: (error: Error) => void;
+  private terminationUnconfirmed = false;
+  private killAttempted = false;
 
   async catalog() {
     return this.execute('catalog', { contract: CONTRACT, source_sha256: SOURCE_SHA256 });
@@ -36,22 +38,48 @@ export class ProcurementDemoService implements OnModuleDestroy {
     const req = validateRequest(input);
     return this.execute('prepare', req, req.operation);
   }
+  async run(input: unknown) {
+    const req = validateRequest(input);
+    return this.execute('run', req, req.operation);
+  }
   private async execute(action: Action, request: object, expected?: OperationIdentity) {
     if (this.stopping) throw new ServiceUnavailableException('PROCUREMENT_STOPPING');
+    if (this.terminationUnconfirmed) throw new ServiceUnavailableException('PROCUREMENT_TERMINATION_UNCONFIRMED');
     if (this.busy) throw new ConflictException('PROCUREMENT_BUSY');
-    const input = JSON.stringify({ protocol: PROTOCOL, action, request }) + '\n';
+    const input = JSON.stringify({ protocol: action === 'run' ? INFERENCE_PROTOCOL : PROTOCOL, action, request }) + '\n';
     if (Buffer.byteLength(input, 'utf8') > 1024) throw new BadRequestException('PROCUREMENT_INPUT_LIMIT');
     this.busy = true;
+    this.killAttempted = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
     let timedOut = false;
     let inputFailed = false;
-    const operation = new Promise<Record<string, unknown>>((resolve, reject) => {
+    return new Promise<Record<string, unknown>>((resolve, reject) => {
+      let child: ChildProcess | undefined;
+      const cleanup = () => {
+        clearTimeout(timer);
+        child?.stdin?.removeListener('error', inputFailure);
+        if (this.child === child) {
+          this.busy = false;
+          this.terminationUnconfirmed = false;
+          this.child = undefined;
+          this.abort = undefined;
+        }
+      };
+      const abort = (error: Error) => {
+        clearTimeout(timer);
+        this.terminationUnconfirmed = true;
+        reject(error); // HTTP completion does not release the process lock.
+        this.terminate();
+      };
+      this.abort = abort;
+      const inputFailure = () => { inputFailed = true; abort(new BadGatewayException('PROCUREMENT_INPUT_FAILED')); };
       try {
-        this.child = execFile(python, ['-I', '-B', '-X', 'utf8', runner], {
+        child = this.child = execFile(python, ['-I', '-B', '-X', 'utf8', runner], {
           cwd: root, shell: false, windowsHide: true, encoding: 'utf8',
           maxBuffer: 65536, killSignal: 'SIGKILL', env: environment(),
         }, (error, stdout, stderr) => {
-          // Callback runs after close; keep the lock until then, even on HTTP disconnect.
+          // execFile may also invoke this on error before close. Only our close
+          // observer releases the slot; neither error, exit nor kill proves cleanup.
           if (this.stopping) return reject(new ServiceUnavailableException('PROCUREMENT_STOPPING'));
           if (error?.code === 'ERR_CHILD_PROCESS_STDIO_MAXBUFFER'
             || Buffer.byteLength(stdout, 'utf8') > 65536 || Buffer.byteLength(stderr, 'utf8') > 65536) {
@@ -71,34 +99,38 @@ export class ProcurementDemoService implements OnModuleDestroy {
           catch (failure) { reject(failure); }
         });
       } catch {
+        cleanup(); // Synchronous spawn failure: no child was returned.
         reject(new ServiceUnavailableException('PROCUREMENT_EXECUTOR_UNAVAILABLE'));
         return;
       }
       // An explicit timer distinguishes our deadline from unrelated termination.
-      timer = setTimeout(() => { timedOut = true; this.terminate(); }, 30000);
+      child.once('close', () => {
+        cleanup();
+        // Defensive settlement if a transport implementation omits its callback.
+        reject(new BadGatewayException('PROCUREMENT_UNEXPECTED_EXIT'));
+      });
+      timer = setTimeout(() => { timedOut = true; abort(new GatewayTimeoutException('PROCUREMENT_TIMEOUT')); }, 30000);
       timer.unref();
-      const inputFailure = () => { inputFailed = true; this.terminate(); };
       this.child.stdin?.on('error', inputFailure);
       try {
         if (!this.child.stdin) inputFailure();
         else this.child.stdin.end(input, 'utf8');
       } catch { inputFailure(); }
     });
-    this.pending = operation.finally(() => {
-      clearTimeout(timer);
-      this.busy = false;
-      this.child = undefined;
-      this.pending = undefined;
-    });
-    return this.pending;
   }
   private terminate() {
     // Do not report completion or free the slot on kill alone; wait for close.
-    try { this.child?.kill('SIGKILL'); } catch { /* close/error callback owns completion */ }
+    if (!this.child || this.killAttempted) return;
+    this.killAttempted = true;
+    try {
+      if (!this.child.kill('SIGKILL')) this.terminationUnconfirmed = true;
+    } catch { this.terminationUnconfirmed = true; }
   }
-  async onModuleDestroy() {
+  onModuleDestroy(): Promise<void> {
     this.stopping = true;
-    this.terminate();
-    await this.pending?.catch(() => undefined);
+    this.abort?.(new ServiceUnavailableException('PROCUREMENT_STOPPING'));
+    // No unbounded await. Retain only the close/error handlers needed for late
+    // cleanup; stopping remains permanent. This does not claim the child exited.
+    return Promise.resolve();
   }
 }

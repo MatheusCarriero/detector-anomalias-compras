@@ -1,6 +1,6 @@
-import { catalog, failure, packet, preparationRequest, prepared } from '../../test/fixtures/procurement-demo.js';
+import { catalog, failure, packet, preparationRequest, prepared, runPacket, runResult, inferenceProtocol } from '../../test/fixtures/procurement-demo.js';
 import { parseResponse, validateRequest } from './procurement-demo-contract.js';
-import { CONTRACT, FEATURES, OPERATIONS, PROTOCOL, SOURCE_SHA256 } from './procurement-demo-contract.js';
+import { CONTRACT, FEATURES, OPERATIONS, PROTOCOL, SOURCE_SHA256, MODEL, INFERENCE_PROTOCOL, INFERENCE_CONTRACT } from './procurement-demo-contract.js';
 import { readFileSync } from 'node:fs';
 
 describe('Procurement transport contract', () => {
@@ -10,10 +10,23 @@ describe('Procurement transport contract', () => {
     expect(demo).toContain(`CONTRACT_VERSION = "${CONTRACT}"`);
     expect(demo).toContain(`SOURCE_SHA256 = "${SOURCE_SHA256}"`);
     expect(read('demo_runner')).toContain(`PROTOCOL_VERSION = "${PROTOCOL}"`);
+    expect(read('demo_runner')).toContain(`INFERENCE_PROTOCOL_VERSION = "${INFERENCE_PROTOCOL}"`);
+    expect(read('demo_inference')).toContain(`CONTRACT_VERSION = "${INFERENCE_CONTRACT}"`);
+    for (const [key, value] of Object.entries({ ARTIFACT_ID: MODEL.artifact_id,
+      TRUSTED_MODEL_SHA256: MODEL.model_sha256, TRUSTED_METADATA_SHA256: MODEL.metadata_sha256 })) {
+      expect(read('artifact')).toContain(`${key} = "${value}"`);
+    }
     const allowed = demo.split('_ALLOWED_OPERATIONS = (')[1].split('\n)')[0];
     expect([...allowed.matchAll(/\("(PO-[^"]+)", "([0-9-]+)", 1\)/g)].map(match => [match[1], match[2]])).toEqual(OPERATIONS);
     const matrix = read('batch').split('MATRIX_FEATURES = (')[1].split('\n)')[0];
     expect([...matrix.matchAll(/"([a-z0-9_]+)"/g)].map(match => match[1])).toEqual(FEATURES);
+    const inference = read('demo_inference');
+    for (const key of ['score_convention', 'score_semantics', 'score_direction'] as const) {
+      expect(inference).toContain(`"${key}": "${runResult()[key]}"`);
+    }
+    expect(demo).toContain(`"status": "${prepared(true).status}" if unavailable else "${prepared().status}"`);
+    expect(inference).toContain(`"status": "${runResult(true).status}"`);
+    expect(inference).toContain(`result.update(status="${runResult().status}"`);
   });
   it('copies a strictly authorized request', () => {
     const input = preparationRequest();
@@ -77,5 +90,33 @@ describe('Procurement transport contract', () => {
   });
   it('rejects success with failure exit', () => {
     expect(() => parseResponse(packet(catalog()), 2, 'catalog')).toThrow('PROCUREMENT_INVALID_RESPONSE');
+  });
+  it.each([false, true])('validates scored or unavailable results, unavailable=%s', unavailable => {
+    expect(parseResponse(runPacket(runResult(unavailable)), 0, 'run', preparationRequest(unavailable).operation)).toEqual(runResult(unavailable));
+  });
+  const runMutations: Array<[string, (value: ReturnType<typeof runResult>) => void]> = [
+    ['contract', value => { value.contract = 'other'; }],
+    ['score', value => { value.anomaly_score = null; }],
+    ['model', value => { value.model = null; }],
+    ['hash', value => { value.model!.model_sha256 = '0'.repeat(64); }],
+    ['metadata', value => { value.model!.metadata_sha256 = '0'.repeat(64); }],
+    ['domain', value => { value.model!.domain = 'invoice'; }],
+    ['semantics', value => { value.score_semantics = 'fraud_probability'; }],
+    ['features', value => { value.preparation.feature_names.reverse(); }],
+  ];
+  it.each(runMutations)('rejects invalid inference %s', (_name, mutate) => {
+    const value = runResult(); mutate(value);
+    expect(() => parseResponse(runPacket(value), 0, 'run', preparationRequest().operation)).toThrow('PROCUREMENT_INVALID_RESPONSE');
+  });
+  it('refuses score on unavailable operation, unexpected keys and wrong protocol', () => {
+    const value = runResult(true); value.anomaly_score = .25;
+    expect(() => parseResponse(runPacket(value), 0, 'run', preparationRequest(true).operation)).toThrow();
+    expect(() => parseResponse(runPacket({ ...runResult(), risk: 'high' }), 0, 'run', preparationRequest().operation)).toThrow();
+    expect(() => parseResponse(packet(runResult()), 0, 'run', preparationRequest().operation)).toThrow();
+    expect(() => parseResponse(runPacket(runResult()).replace('"anomaly_score":0.25', '"anomaly_score":1e999'), 0, 'run', preparationRequest().operation)).toThrow();
+  });
+  it.each(['MODEL_UNAVAILABLE', 'MODEL_INTEGRITY', 'MODEL_INCOMPATIBLE', 'INVALID_SCORE'])('sanitizes inference error %s', error => {
+    const output = JSON.stringify({ protocol: inferenceProtocol, status: 'technical_error', error: `CLI_${error}` });
+    expect(() => parseResponse(output, 1, 'run', preparationRequest().operation)).toThrow(`PROCUREMENT_${error}`);
   });
 });

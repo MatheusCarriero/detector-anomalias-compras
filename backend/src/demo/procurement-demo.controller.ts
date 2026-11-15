@@ -21,10 +21,22 @@ export class ProcurementDemoController {
   @HttpCode(200)
   @Header('Cache-Control', 'no-store')
   prepare(@Req() request: Request) {
+    this.validateHeaders(request);
+    return this.demo.prepare(request.body as unknown);
+  }
+
+  @Post('runs')
+  @HttpCode(200)
+  @Header('Cache-Control', 'no-store')
+  run(@Req() request: Request) {
+    this.validateHeaders(request);
+    return this.demo.run(request.body as unknown);
+  }
+
+  private validateHeaders(request: Request) {
     if (Object.keys(request.query).length || request.headers['content-encoding'] !== undefined
       || !/^application\/json(?:\s*;|$)/i.test(request.headers['content-type'] ?? '')) {
       throw new BadRequestException('PROCUREMENT_INVALID_REQUEST');
     }
-    return this.demo.prepare(request.body as unknown);
   }
 }

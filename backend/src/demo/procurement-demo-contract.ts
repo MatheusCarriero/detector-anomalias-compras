@@ -4,6 +4,14 @@ import { BadGatewayException, BadRequestException, ServiceUnavailableException }
 // integrity, temporal preparation and all scientific formulas.
 export const CONTRACT = 'procurement-demo/1.0';
 export const PROTOCOL = 'procurement-demo-cli/1.0';
+export const INFERENCE_PROTOCOL = 'procurement-demo-cli/1.1';
+export const INFERENCE_CONTRACT = 'procurement-demo-inference/1.0';
+// P5.14 release pins, identical to artifact.py; never inferred from a response.
+export const MODEL = {
+  domain: 'procurement_v2', artifact_id: 'procurement_v2_isolation_forest_p5_9_v1',
+  model_sha256: 'fa9f21654626307cf139574707fccae543d9f18ea6f6fa272b8c3053b34bc56d',
+  metadata_sha256: '3a78f5014c24cbb3da3bf9e83955b6866b4d18d309fec50cf0efcb779f6a2ed1',
+};
 export const SOURCE_SHA256 = 'fba22a467e5dd800a0af960930d2ca5e2ecbd9d2bc747e37304867d8d031ae21';
 const SOURCE = {
   source_id: 'procurement-spend', source_version: SOURCE_SHA256,
@@ -27,7 +35,7 @@ const DIAGNOSTICS = [
   'supplier_item_lines_90d', 'business_unit_lines_90d',
 ] as const;
 const REASONS = ['insufficient_history', 'zero_denominator', 'zero_iqr', 'partial_window', 'missing_history'];
-export type Action = 'catalog' | 'prepare';
+export type Action = 'catalog' | 'prepare' | 'run';
 export interface OperationIdentity { po_id: string; order_date: string; occurrence: number }
 
 function check(condition: unknown): asserts condition {
@@ -126,6 +134,7 @@ function preparation(result: Record<string, unknown>, expected?: OperationIdenti
 
 // Only validated adapter payloads reach HTTP; stderr/driver text never does.
 export function parseResponse(stdout: string, exit: number, action: Action, expected?: OperationIdentity): Record<string, unknown> {
+  const protocol = action === 'run' ? INFERENCE_PROTOCOL : PROTOCOL;
   let parsed: unknown;
   try { parsed = JSON.parse(stdout); }
   catch { throw new BadGatewayException('PROCUREMENT_INVALID_RESPONSE'); }
@@ -133,23 +142,32 @@ export function parseResponse(stdout: string, exit: number, action: Action, expe
   const status = (parsed as Record<string, unknown>).status;
   if (status !== 'ok') {
     const err = object(parsed, ['protocol', 'status', 'error']);
-    check(err.protocol === PROTOCOL && typeof err.error === 'string');
+    check(err.protocol === protocol && typeof err.error === 'string');
     if (status === 'invalid_request' && exit === 2) {
       check(['CLI_ARGUMENTS', 'CLI_INPUT_SIZE', 'CLI_JSON', 'CLI_REQUEST', 'CLI_PROTOCOL', 'CLI_ACTION'].includes(err.error));
       throw new BadRequestException('PROCUREMENT_INVALID_REQUEST');
     }
     check(status === 'technical_error' && exit === 1);
-    check(['CLI_OUTPUT_SIZE', 'CLI_FAILURE', 'CLI_SOURCE_HASH', 'CLI_SOURCE_PATH', 'CLI_SOURCE_UNAVAILABLE', 'CLI_ADAPTER_FAILURE'].includes(err.error));
-    if (err.error === 'CLI_SOURCE_UNAVAILABLE') throw new ServiceUnavailableException('PROCUREMENT_SOURCE_UNAVAILABLE');
+    const runErrors = action === 'run' ? ['CLI_PREPARATION_INVALID', 'CLI_MODEL_UNAVAILABLE', 'CLI_MODEL_INTEGRITY',
+      'CLI_MODEL_INCOMPATIBLE', 'CLI_MODEL_LOAD_FAILED', 'CLI_INVALID_SCORE', 'CLI_SCORING_FAILED'] : [];
+    check(['CLI_OUTPUT_SIZE', 'CLI_FAILURE', 'CLI_SOURCE_HASH', 'CLI_SOURCE_PATH', 'CLI_SOURCE_UNAVAILABLE', 'CLI_ADAPTER_FAILURE', ...runErrors].includes(err.error));
+    if (err.error === 'CLI_SOURCE_UNAVAILABLE' || err.error === 'CLI_MODEL_UNAVAILABLE') {
+      throw new ServiceUnavailableException(`PROCUREMENT_${err.error.slice(4)}`);
+    }
     throw new BadGatewayException(`PROCUREMENT_${err.error.slice(4)}`);
   }
   const envelope = object(parsed, ['protocol', 'status', 'result']);
-  check(envelope.protocol === PROTOCOL && exit === 0);
+  check(envelope.protocol === protocol && exit === 0);
+  if (action === 'run') return inference(envelope.result, expected);
+  return adapterResult(envelope.result, action, expected);
+}
+
+function adapterResult(payload: unknown, action: 'catalog' | 'prepare', expected?: OperationIdentity) {
   const keys = action === 'catalog' ? ['operations'] : [
     'operation', 'context', 'status', 'feature_contract', 'matrix_contract', 'cutoff_date',
     'window', 'coverage', 'support', 'feature_names', 'values', 'unavailability', 'diagnostics',
   ];
-  const result = object(envelope.result, ['contract', 'source', ...keys]);
+  const result = object(payload, ['contract', 'source', ...keys]);
   check(result.contract === CONTRACT);
   source(result.source);
   if (action === 'catalog') {
@@ -161,5 +179,21 @@ export function parseResponse(stdout: string, exit: number, action: Action, expe
       context(entry.context);
     });
   } else preparation(result, expected);
+  return result;
+}
+
+function inference(payload: unknown, expected?: OperationIdentity) {
+  const result = object(payload, ['contract', 'preparation', 'status', 'anomaly_score', 'model',
+    'score_convention', 'score_semantics', 'score_direction']);
+  check(result.contract === INFERENCE_CONTRACT && result.score_convention === '-score_samples'
+    && result.score_semantics === 'statistical_anomaly' && result.score_direction === 'higher_is_more_anomalous');
+  const prepared = adapterResult(result.preparation, 'prepare', expected);
+  if (prepared.status === 'unavailable') {
+    check(result.status === 'unavailable' && result.anomaly_score === null && result.model === null);
+  } else {
+    check(result.status === 'scored' && finite(result.anomaly_score));
+    const model = object(result.model, Object.keys(MODEL));
+    check(Object.entries(MODEL).every(([key, value]) => model[key] === value));
+  }
   return result;
 }

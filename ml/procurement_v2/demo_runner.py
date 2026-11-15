@@ -1,9 +1,9 @@
 """One bounded JSON request on stdin, one JSON response on stdout, then exit.
 
-Protocol procurement-demo-cli/1.0 wraps the existing adapter request/result.
-Actions: catalog (contract + source_sha256) and prepare (also operation).
+Protocol 1.0 preserves catalog/prepare; 1.1 adds run (the same operation input).
+Only run may lazily load the trusted V2 artifact, after eligible preparation.
 Exit 0 includes eligible AND unavailable preparation; 2 means invalid request;
-1 means technical failure. No model imports, scoring, persistence or retries.
+1 means technical failure. No fitting, persistence, retries or model imports on import.
 The caller must close stdin and enforce process timeout/concurrency limits.
 """
 
@@ -14,11 +14,16 @@ import sys
 from pathlib import Path
 
 PROTOCOL_VERSION = "procurement-demo-cli/1.0"
+INFERENCE_PROTOCOL_VERSION = "procurement-demo-cli/1.1"
 MAX_INPUT_BYTES = 1024
 MAX_OUTPUT_BYTES = 65536
 
 
 class _InvalidRequest(ValueError):
+    pass
+
+
+class _TechnicalError(ValueError):
     pass
 
 
@@ -63,9 +68,10 @@ def _request(payload):
         raise _InvalidRequest("CLI_JSON") from None
     if type(value) is not dict or set(value) != {"protocol", "action", "request"}:
         raise _InvalidRequest("CLI_REQUEST")
-    if value["protocol"] != PROTOCOL_VERSION:
+    if value["protocol"] not in (PROTOCOL_VERSION, INFERENCE_PROTOCOL_VERSION):
         raise _InvalidRequest("CLI_PROTOCOL")
-    if type(value["action"]) is not str or value["action"] not in ("catalog", "prepare"):
+    actions = ("catalog", "prepare", "run") if value["protocol"] == INFERENCE_PROTOCOL_VERSION else ("catalog", "prepare")
+    if type(value["action"]) is not str or value["action"] not in actions:
         raise _InvalidRequest("CLI_ACTION")
     return value
 
@@ -82,7 +88,16 @@ def _dispatch(value, adapter):
         adapter.validate_request(req)  # Reuse exact identity/allowlist before source I/O.
     except adapter.DemoValidationError:
         raise _InvalidRequest("CLI_REQUEST") from None
-    return adapter.prepare_operation(req)
+    if value["action"] == "prepare":
+        return adapter.prepare_operation(req)
+    from ml.procurement_v2.demo_inference import InferenceError, run_operation
+    try:
+        return run_operation(req)
+    except InferenceError as exc:
+        codes = {"PREPARATION_INVALID", "MODEL_UNAVAILABLE", "MODEL_INTEGRITY", "MODEL_INCOMPATIBLE",
+                 "MODEL_LOAD_FAILED", "INVALID_SCORE", "SCORING_FAILED"}
+        code = "CLI_" + str(exc) if str(exc) in codes else "CLI_FAILURE"
+        raise _TechnicalError(code) from None
 
 
 def _encode(value):
@@ -91,8 +106,8 @@ def _encode(value):
                        sort_keys=True, separators=(",", ":")) + "\n").encode("ascii")
 
 
-def _error(status, code):
-    return _encode({"protocol": PROTOCOL_VERSION, "status": status, "error": code})
+def _error(status, code, protocol=PROTOCOL_VERSION):
+    return _encode({"protocol": protocol, "status": status, "error": code})
 
 
 def main(argv=None, *, stdin=None, stdout=None):
@@ -102,6 +117,7 @@ def main(argv=None, *, stdin=None, stdout=None):
     target = sys.stdout.buffer if stdout is None else stdout
     exit_code = 0
     adapter = None
+    protocol = PROTOCOL_VERSION
     # Suppress accidental prints/warnings from dependencies without buffering
     # unbounded debug text. Only the completed protocol packet reaches stdout.
     with contextlib.redirect_stdout(_Discard()), contextlib.redirect_stderr(_Discard()):
@@ -112,24 +128,28 @@ def main(argv=None, *, stdin=None, stdout=None):
             if len(payload) > MAX_INPUT_BYTES:
                 raise _InvalidRequest("CLI_INPUT_SIZE")
             value = _request(payload)
+            protocol = value["protocol"]
             adapter = _adapter()
             result = _dispatch(value, adapter)
             if type(result) is not dict:
                 raise ValueError("invalid adapter response")
-            packet = _encode({"protocol": PROTOCOL_VERSION, "status": "ok", "result": result})
+            packet = _encode({"protocol": protocol, "status": "ok", "result": result})
             if len(packet) > MAX_OUTPUT_BYTES:
-                packet = _error("technical_error", "CLI_OUTPUT_SIZE")
+                packet = _error("technical_error", "CLI_OUTPUT_SIZE", protocol)
                 exit_code = 1
         except _InvalidRequest as exc:
-            packet = _error("invalid_request", str(exc))
+            packet = _error("invalid_request", str(exc), protocol)
             exit_code = 2
+        except _TechnicalError as exc:
+            packet = _error("technical_error", str(exc), protocol)
+            exit_code = 1
         except Exception as exc:  # noqa: BLE001 - CLI boundary never exposes exception text.
             code = "CLI_FAILURE"
             if adapter is not None and isinstance(exc, adapter.DemoValidationError):
                 # Only predefined diagnostics; unrecognized adapter errors remain generic.
                 code = {"source_hash": "CLI_SOURCE_HASH", "source_path": "CLI_SOURCE_PATH",
                         "source_unavailable": "CLI_SOURCE_UNAVAILABLE"}.get(exc.code, "CLI_ADAPTER_FAILURE")
-            packet = _error("technical_error", code)
+            packet = _error("technical_error", code, protocol)
             exit_code = 1
     try:
         target.write(packet)

@@ -3,7 +3,7 @@ import { Test } from '@nestjs/testing';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import request from 'supertest';
 import { DemoModule } from '../src/demo/demo.module.js';
-import { catalog, failure, packet, preparationRequest, prepared } from './fixtures/procurement-demo.js';
+import { catalog, failure, packet, preparationRequest, prepared, runPacket, runResult, inferenceProtocol } from './fixtures/procurement-demo.js';
 
 type Completion = (error: Error | null, stdout: string, stderr: string) => void;
 const mock = vi.hoisted(() => ({ execFile: vi.fn() }));
@@ -18,10 +18,14 @@ describe('Aggregated demo routes, Python mocked and PostgreSQL blocked', () => {
   beforeEach(async () => {
     output = packet(catalog()); exit = 0;
     mock.execFile.mockReset().mockImplementation((_file, _args, _options, done: Completion) => {
+      const child = new EventEmitter();
       const stdin = Object.assign(new EventEmitter(), { end: vi.fn(() => {
-        queueMicrotask(() => done(exit ? Object.assign(new Error('private'), { code: exit }) : null, output, ''));
+        queueMicrotask(() => {
+          done(exit ? Object.assign(new Error('private'), { code: exit }) : null, output, '');
+          child.emit('close');
+        });
       }) });
-      return { stdin, kill: vi.fn() };
+      return Object.assign(child, { stdin, kill: vi.fn() });
     });
     const module = await Test.createTestingModule({ imports: [DemoModule] }).compile();
     app = module.createNestApplication<NestExpressApplication>({ logger: false });
@@ -68,10 +72,27 @@ describe('Aggregated demo routes, Python mocked and PostgreSQL blocked', () => {
     await request(app.getHttpServer()).post('/demo/procurement-v2/prepare').send({ data: 'x'.repeat(1024) }).expect(413);
     expect(mock.execFile).not.toHaveBeenCalled();
   });
-  it('does not implement inference or import routes', async () => {
-    await request(app.getHttpServer()).post('/demo/procurement-v2/runs').send({}).expect(404);
+  it('does not implement GET inference or import routes', async () => {
+    await request(app.getHttpServer()).get('/demo/procurement-v2/runs').expect(404);
     await request(app.getHttpServer()).post('/demo/procurement-v2/operations').send({}).expect(404);
     expect(mock.execFile).not.toHaveBeenCalled();
+  });
+  it.each([false, true])('returns run output without persistence (unavailable=%s)', async unavailable => {
+    output = runPacket(runResult(unavailable));
+    await request(app.getHttpServer()).post('/demo/procurement-v2/runs')
+      .send(preparationRequest(unavailable)).expect(200, runResult(unavailable));
+  });
+  it('refuses external data, query and content type on runs before Python', async () => {
+    await request(app.getHttpServer()).post('/demo/procurement-v2/runs').send({ ...preparationRequest(), features: [1, 2] }).expect(400);
+    await request(app.getHttpServer()).post('/demo/procurement-v2/runs?path=x').send(preparationRequest()).expect(400);
+    await request(app.getHttpServer()).post('/demo/procurement-v2/runs').set('Content-Type', 'text/plain').send('external').expect(400);
+    expect(mock.execFile).not.toHaveBeenCalled();
+  });
+  it('maps missing model to sanitized 503 without a replacement', async () => {
+    output = JSON.stringify({ protocol: inferenceProtocol, status: 'technical_error', error: 'CLI_MODEL_UNAVAILABLE' }); exit = 1;
+    const result = await request(app.getHttpServer()).post('/demo/procurement-v2/runs').send(preparationRequest()).expect(503);
+    expect(result.body.message).toBe('PROCUREMENT_MODEL_UNAVAILABLE');
+    expect(mock.execFile).toHaveBeenCalledOnce();
   });
   it.each([
     [1, failure('technical_error', 'CLI_SOURCE_UNAVAILABLE'), 503],

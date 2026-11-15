@@ -14,7 +14,7 @@
 
 O projeto estuda três domínios independentes de compras. Invoice Anomaly prioriza faturas incomuns com Isolation Forest. Supplier Risk avalia a classificação fornecida pelo dataset com modelos supervisionados. Purchase Risk permanece em definição metodológica, sem modelo implementado.
 
-A infraestrutura NestJS + Prisma + PostgreSQL já existe. **Os modelos acadêmicos ainda não estão integrados ao backend como serviços de inferência, nem possuem uso operacional validado.**
+A infraestrutura NestJS + Prisma + PostgreSQL já existe. Há demonstradores locais de inferência Invoice V1 e Procurement V2, separados do banco. O formulário P4 apenas prepara operações comerciais sintéticas e não calcula risco. **Essas demonstrações não possuem uso operacional validado.**
 
 ## Estado atual
 
@@ -24,7 +24,9 @@ A infraestrutura NestJS + Prisma + PostgreSQL já existe. **Os modelos acadêmic
 | Supplier Risk | Preparação, EDA TRAIN, baselines/ablações, CV exploratória, configuração LR/C congelada e avaliação final única documentada | Procedência da label/índice, validade externa e eventual uso operacional; não reabrir TEST |
 | Purchase Risk | Dataset auditado; unidade em linha de pedido confirmada; decisão C de não implementação registrada | Esclarecer disponibilidade pré-aprovação, semântica e procedência dos campos; feature engineering e modelagem bloqueados pelo gate metodológico |
 
-O backend utiliza TypeScript/ESM, Node 24, NestJS 12 e Prisma 7.10.0. O primeiro incremento PostgreSQL 18 contém 11 tabelas de domínio no schema `app`, com histórico, snapshots e auditoria. A CI offline verifica geração do client, build e testes isolados. As validações conectadas usam um banco sintético e têm execução separada e controlada. O frontend ainda não foi implementado.
+O backend utiliza TypeScript/ESM, Node 24, NestJS 12 e Prisma 7.10.0. O primeiro incremento PostgreSQL 18 contém 11 tabelas de domínio no schema `app`, com histórico, snapshots e auditoria. A CI offline verifica geração do client, build e testes isolados. As validações conectadas usam um banco sintético e têm execução separada e controlada.
+
+As interfaces HTML/CSS/JavaScript são servidas pelo demonstrador NestJS. Após o build, execute `npm.cmd run start:demo` em `backend/`: Invoice V1 e P4 ficam em `http://127.0.0.1:3001/`; a Procurement V2, em `http://127.0.0.1:3001/demo/procurement-v2`. A V2 usa cinco features temporais próprias e um modelo persistido independente; não substitui as 19 features Invoice nem a decisão histórica C sobre a outra fonte Purchase. Consulte o [provisionamento da V2](backend/README.md#procurement-v2--demonstração-local) antes de usar a análise real.
 
 ## Modelos e resultados
 

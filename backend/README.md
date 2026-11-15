@@ -149,6 +149,63 @@ Não grava resultados nem faz retry. O SHA-256 da fixture também é conferido a
 da carga. Os testes de integração em `test_invoice_demo_runner.py` usam mocks;
 scores da demonstração são indicadores de anomalia, não probabilidades de fraude.
 
+### Procurement V2 — demonstração local
+
+A aplicação `DemoModule` mantém três áreas separadas: Invoice V1 (19 features),
+formulário comercial P4 (sem scoring) e Procurement V2 (cinco features temporais).
+A V2 consulta sete operações sintéticas autorizadas, prepara o histórico de 90 dias
+e usa exclusivamente o artefato P5.14. Não há PostgreSQL, persistência, importação
+de compras ou ligação entre o catálogo P4 em BRL e a V2 de moeda não especificada.
+
+Em `backend/`, após provisionar as dependências e executar `npm.cmd run build`,
+inicie `npm.cmd run start:demo`. Abra `http://127.0.0.1:3001/demo/procurement-v2`.
+Não use `npm.cmd start` para esta demonstração: ele inicia a aplicação principal.
+
+| Rota | Comportamento |
+|---|---|
+| `GET /demo/procurement-v2/operations` | Consulta o catálogo; não carrega modelo |
+| `POST /demo/procurement-v2/prepare` | Prepara histórico e features; não calcula score |
+| `POST /demo/procurement-v2/runs` | Reprepara e executa inferência real somente se elegível |
+
+A página abre consultando apenas o catálogo. Selecione uma operação, clique em
+**Consultar histórico** e depois, se elegível, em **Analisar com IA**. Histórico
+insuficiente retorna `unavailable`, sem carregar o modelo. O score decimal é
+`-score_samples`: atipicidade estatística, nunca probabilidade ou confirmação de fraude.
+
+O clone não contém estes arquivos locais, que devem vir da cópia confiável aprovada:
+
+- `data/external/procurement_spend/purchase_orders.csv`;
+- `ml/procurement_v2/artifacts/baseline_v1/model.joblib`, `metadata.json` e `model.sha256`.
+
+Confira a procedência e os SHA-256 contra os pins independentes em
+[`demo.py`](../ml/procurement_v2/demo.py) e [`artifact.py`](../ml/procurement_v2/artifact.py).
+O checksum adjacente não substitui a âncora de confiança do código. Não atualize
+pins para aceitar arquivos diferentes nem retreine para substituir o artefato.
+Preserve LF em `features.py`, `batch.py` e `baseline.py`, conforme `.gitattributes`.
+
+O carregador exige Python **3.14.3**, scikit-learn **1.9.0**, NumPy **2.5.2**,
+pandas **2.3.3**, joblib **1.6.0** e SciPy **1.18.1**. O serviço usa exclusivamente
+o Python da `.venv` na raiz, com `-I -B -X utf8`, sem caminhos recebidos pela API.
+
+**Pendência local de isolamento:** na auditoria P5.15.6A, `pyvenv.cfg` continha
+`include-system-site-packages = true`. Os pins principais estavam corretos dentro
+da venv, mas o ambiente admitia pacotes globais. O P5.15.6B não modifica esse ambiente.
+Para a correção futura: preservar a venv atual; criar outra venv em diretório novo,
+sem `--system-site-packages`, com Python 3.14.3; instalar os requirements fixados
+somente quando autorizado; conferir `pyvenv.cfg`, `sys.path`, versões, origem dos
+pacotes e `pip check` usando `-I -B`. Executar os testes offline selecionados antes
+de substituir controladamente a `.venv` esperada pelo serviço. Não incluir inferência,
+treinamento ou testes científicos reais nessa verificação de ambiente.
+
+O prazo HTTP do subprocesso é de 30 segundos. Timeout, falha de stdin e shutdown
+encerram a espera com erros sanitizados e solicitam término no máximo uma vez.
+Sem confirmação `close`, novas execuções recebem
+`PROCUREMENT_TERMINATION_UNCONFIRMED` (503); o bloqueio não é liberado por `kill()`
+nem por `exit`. Um `close` tardio limpa os recursos. No shutdown não há espera
+indefinida, mas também não há garantia de término de processos remanescentes:
+essa verificação no Windows ainda exige um teste controlado, sem ML. Não reinicie
+automaticamente para contornar um processo de terminação desconhecida.
+
 ### API local do demonstrador — P2
 
 O módulo `InvoiceDemoModule` expõe `POST /demo/invoice-runs` em uma aplicação

@@ -256,3 +256,90 @@ print('inert')
     assert result.returncode == 0
     assert result.stdout.strip() == b"inert"
     assert result.stderr == b""
+
+
+def run_request():
+    req = request("prepare")
+    req.update(protocol="procurement-demo-cli/1.1", action="run")
+    return req
+
+
+def test_inference_requires_new_protocol_and_preserves_old_actions(runner, adapter, monkeypatch):
+    req = run_request()
+    result = {"contract": "procurement-demo-inference/1.0", "status": "scored", "anomaly_score": .25}
+    from ml.procurement_v2 import demo_inference
+    calls = []
+    def run(value):
+        calls.append(copy.deepcopy(value))
+        return result
+    monkeypatch.setattr(demo_inference, "run_operation", run)
+    code, response, _ = invoke(runner, req)
+    assert code == 0 and response == {"protocol": req["protocol"], "status": "ok", "result": result}
+    assert calls == [req["request"]]
+    req["protocol"] = "procurement-demo-cli/1.0"
+    assert invoke(runner, req)[0] == 2
+    assert len(calls) == 1
+    for action in ("catalog", "prepare"):
+        assert invoke(runner, request(action))[1]["protocol"] == "procurement-demo-cli/1.0"
+
+
+@pytest.mark.parametrize("code", ["MODEL_UNAVAILABLE", "MODEL_INTEGRITY", "MODEL_INCOMPATIBLE",
+                                 "MODEL_LOAD_FAILED", "INVALID_SCORE", "SCORING_FAILED", "PREPARATION_INVALID"])
+def test_inference_error_codes_are_sanitized(runner, adapter, monkeypatch, code):
+    from ml.procurement_v2 import demo_inference
+    def rejected(req):
+        raise demo_inference.InferenceError(code)
+    monkeypatch.setattr(demo_inference, "run_operation", rejected)
+    exit_code, response, _ = invoke(runner, run_request())
+    assert exit_code == 1 and response == {"protocol": "procurement-demo-cli/1.1",
+                                          "status": "technical_error", "error": "CLI_" + code}
+
+
+def test_run_invalid_request_and_unknown_failure(runner, adapter, monkeypatch):
+    from ml.procurement_v2 import demo_inference
+    def forbidden(req):
+        raise AssertionError("private/path/password")
+    monkeypatch.setattr(demo_inference, "run_operation", forbidden)
+    req = run_request(); req["request"]["path"] = "untrusted"
+    assert invoke(runner, req)[0] == 2
+    code, response, raw = invoke(runner, run_request())
+    assert code == 1 and response["error"] == "CLI_FAILURE"
+    assert b"private" not in raw
+
+
+def test_run_unavailable_and_output_limit(runner, adapter, monkeypatch):
+    from ml.procurement_v2 import demo_inference
+    monkeypatch.setattr(demo_inference, "run_operation", lambda req: {"status": "unavailable", "anomaly_score": None})
+    assert invoke(runner, run_request())[0] == 0
+    monkeypatch.setattr(runner, "MAX_OUTPUT_BYTES", 256)
+    monkeypatch.setattr(demo_inference, "run_operation", lambda req: {"large": "x" * 300})
+    assert invoke(runner, run_request())[1]["error"] == "CLI_OUTPUT_SIZE"
+
+
+def test_isolated_run_uses_only_simulated_artifact(isolated, tmp_path):
+    script, pin = isolated
+    modules = script.parent
+    (modules / "demo_inference.py").write_bytes((ROOT / "ml/procurement_v2/demo_inference.py").read_bytes())
+    # In this temporary checkout the real model libraries remain tripwires.
+    # The official loaded-model interface is simulated, never a real joblib.
+    (modules / "artifact.py").write_text('''
+ARTIFACT_ID = 'synthetic-fixture'
+TRUSTED_MODEL_SHA256 = 'a' * 64
+TRUSTED_METADATA_SHA256 = 'b' * 64
+class ArtifactError(ValueError): pass
+class Loaded:
+    artifact_id = ARTIFACT_ID
+    model_sha256 = TRUSTED_MODEL_SHA256
+    def score(self, values, *, feature_names):
+        assert len(values) == len(feature_names) == 5
+        return .25
+def load_baseline(): return Loaded()
+''', encoding="utf-8")
+    req = run_request(); req["request"]["source_sha256"] = pin
+    result = subprocess.run([sys.executable, "-I", "-B", "-X", "utf8", str(script)], cwd=tmp_path,
+                            input=json.dumps(req).encode(), capture_output=True, timeout=20, check=False)
+    assert result.returncode == 0 and result.stderr == b""
+    value = json.loads(result.stdout)
+    assert value["protocol"] == "procurement-demo-cli/1.1"
+    assert value["result"]["status"] == "scored" and value["result"]["anomaly_score"] == .25
+    assert not list(tmp_path.rglob("__pycache__"))

@@ -59,3 +59,19 @@ export function prepared(unavailable = false) {
 }
 export function packet(result: unknown) { return JSON.stringify({ protocol, status: 'ok', result }); }
 export function failure(status: string, error: string) { return JSON.stringify({ protocol, status, error }); }
+
+export const inferenceProtocol = 'procurement-demo-cli/1.1';
+export function runResult(unavailable = false) {
+  return {
+    contract: 'procurement-demo-inference/1.0', preparation: prepared(unavailable),
+    status: unavailable ? 'unavailable' : 'scored', anomaly_score: unavailable ? null : 0.25,
+    score_convention: '-score_samples', score_semantics: 'statistical_anomaly',
+    score_direction: 'higher_is_more_anomalous',
+    model: unavailable ? null : {
+      domain: 'procurement_v2', artifact_id: 'procurement_v2_isolation_forest_p5_9_v1',
+      model_sha256: 'fa9f21654626307cf139574707fccae543d9f18ea6f6fa272b8c3053b34bc56d',
+      metadata_sha256: '3a78f5014c24cbb3da3bf9e83955b6866b4d18d309fec50cf0efcb779f6a2ed1',
+    },
+  };
+}
+export function runPacket(result: unknown) { return JSON.stringify({ protocol: inferenceProtocol, status: 'ok', result }); }
