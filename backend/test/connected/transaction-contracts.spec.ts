@@ -25,8 +25,9 @@ afterEach(() => {
 const sql = readFileSync(new URL('../../../prisma/migrations/20261020000100_first_increment/migration.sql', import.meta.url), 'utf8');
 const normalize = (value: string) => value.replace(/\s+/g, ' ').replace(/\s*,\s*/g, ',').trim();
 
-it('maps precisely the eight executable signatures and preserves parameter order/defaults', () => {
-  const expected = catalogContract.functions.filter((fn) => fn.executable);
+it('maps precisely the eight write signatures, separately from the four P4 readers', () => {
+  const expected = catalogContract.functions.filter((fn) => fn.executable && !fn.name.startsWith('p4_'));
+  expect(expected).toHaveLength(8);
   expect(contracts.transactionContracts.map((c) => c.name).sort()).toEqual(expected.map((f) => f.name).sort());
   for (const contract of contracts.transactionContracts) {
     const signature = new RegExp(`CREATE FUNCTION app\\.${contract.name}\\(([\\s\\S]*?)\\)\\s+RETURNS ([\\s\\S]*?)\\s+LANGUAGE`).exec(sql);

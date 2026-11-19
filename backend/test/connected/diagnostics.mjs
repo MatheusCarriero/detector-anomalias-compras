@@ -24,6 +24,8 @@ const codes = new Set([
   'CATALOG_RELATIONS', 'CATALOG_FUNCTIONS', 'CATALOG_COLUMNS', 'CATALOG_CONSTRAINTS',
   'CATALOG_INDEXES', 'CATALOG_TRIGGERS', 'CATALOG_DEFAULT_ACL', 'CATALOG_LOAD',
   'CATALOG_DEFAULT_ACL_FUNCTIONS', 'CATALOG_DEFAULT_ACL_TABLES', 'CATALOG_DEFAULT_ACL_BOTH',
+  'P4_PREFLIGHT', 'P4_FIXTURE_EXISTS', 'P4_PERMISSIONS', 'P4_ROLLBACK', 'P4_CREATE',
+  'P4_IDEMPOTENCY', 'P4_CONCURRENCY', 'P4_HISTORY', 'P4_RECEIPT', 'P4_COMPLETE',
 ]);
 const ownedErrors = new WeakMap();
 const safeCode = (code) => codes.has(code) ? code : 'UNKNOWN';
@@ -102,7 +104,7 @@ export function reportDiagnostic(kind, code) {
 
 export function parseDiagnostic(line) {
   if (typeof line !== 'string' || line.length > 100) return;
-  const match = /^DB_TEST_DIAGNOSTIC_V1 (stage|failure) ([A-Z_]+)$/.exec(line);
+  const match = /^DB_TEST_DIAGNOSTIC_V1 (stage|failure) ([A-Z0-9_]+)$/.exec(line);
   // JS's $ can match before a final newline; require all bytes to match as well.
   if (!match || match[0].length !== line.length || !codes.has(match[2])) return;
   return { kind: match[1], code: match[2] };

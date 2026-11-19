@@ -68,9 +68,9 @@ const relations: CatalogCheck = {
     c.relpersistence='p' AND NOT c.relrowsecurity AND NOT c.relforcerowsecurity
       AND NOT c.relispartition AND NOT EXISTS (SELECT 1 FROM pg_catalog.pg_inherits i
         WHERE i.inhrelid=c.oid OR i.inhparent=c.oid) AS structure_safe,
-    NOT EXISTS (SELECT 1 FROM pg_catalog.unnest(ARRAY['INSERT','UPDATE','DELETE','TRUNCATE','REFERENCES','TRIGGER','MAINTAIN',
+    NOT EXISTS (SELECT 1 FROM pg_catalog.unnest(ARRAY['SELECT','INSERT','UPDATE','DELETE','TRUNCATE','REFERENCES','TRIGGER','MAINTAIN',
       'SELECT WITH GRANT OPTION']) p WHERE pg_catalog.has_table_privilege(current_user,c.oid,p))
-      AND NOT EXISTS (SELECT 1 FROM pg_catalog.unnest(ARRAY['INSERT','UPDATE','REFERENCES','SELECT WITH GRANT OPTION']) p
+      AND NOT EXISTS (SELECT 1 FROM pg_catalog.unnest(ARRAY['SELECT','INSERT','UPDATE','REFERENCES','SELECT WITH GRANT OPTION']) p
         WHERE pg_catalog.has_any_column_privilege(current_user,c.oid,p)) AS privileges_safe,
     NOT EXISTS (SELECT 1 FROM pg_catalog.aclexplode(COALESCE(c.relacl,pg_catalog.acldefault('r',c.relowner))) a WHERE a.grantee=0)
       AND NOT EXISTS (SELECT 1 FROM pg_catalog.pg_attribute a CROSS JOIN LATERAL pg_catalog.aclexplode(a.attacl) acl
@@ -109,7 +109,10 @@ const functions: CatalogCheck = {
     p.prokind='f' AND p.proparallel='u' AND NOT p.proleakproof AND NOT p.proisstrict AS properties_safe,
     NOT pg_catalog.has_function_privilege(current_user,p.oid,'EXECUTE WITH GRANT OPTION') AND
       NOT EXISTS (SELECT 1 FROM pg_catalog.aclexplode(COALESCE(p.proacl,pg_catalog.acldefault('f',p.proowner))) a
-        WHERE a.grantee=0 AND a.privilege_type='EXECUTE') AS grants_safe
+        WHERE a.grantee=0 AND a.privilege_type='EXECUTE')
+      AND (pg_catalog.left(p.proname::text,3)<>'p4_' OR NOT EXISTS (
+        SELECT 1 FROM pg_catalog.aclexplode(COALESCE(p.proacl,pg_catalog.acldefault('f',p.proowner))) a
+        WHERE a.grantee<>p.proowner AND a.grantee<>(SELECT r.oid FROM pg_catalog.pg_roles r WHERE r.rolname=current_user))) AS grants_safe
     FROM pg_catalog.pg_proc p JOIN pg_catalog.pg_namespace n ON n.oid=p.pronamespace
     JOIN pg_catalog.pg_language l ON l.oid=p.prolang WHERE n.nspname='app'`,
   validate(value) {
@@ -239,7 +242,6 @@ const defaultAcl: CatalogCheck = { code: 'CATALOG_DEFAULT_ACL', sql: `SELECT NOT
       WHERE d.defaclrole=n.nspowner AND d.defaclnamespace=n.oid AND d.defaclobjtype='r'
   ) acl WHERE n.nspname='app' AND
     (acl.grantee=0 OR acl.grantee=(SELECT oid FROM pg_catalog.pg_roles WHERE rolname=current_user))
-    AND (acl.grantee=0 OR acl.privilege_type<>'SELECT' OR acl.is_grantable)
  ) AS tables_safe`, validate(value) {
   const result = rows(value);
   if (result.length !== 1 || typeof result[0].functions_safe !== 'boolean' || typeof result[0].tables_safe !== 'boolean') {

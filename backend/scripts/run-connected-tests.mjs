@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { readConnectedTarget, selectConnectedSuite } from '../test/connected/config.ts';
+import { P4_WRITE_CONFIRM, readConnectedTarget, selectConnectedSuite } from '../test/connected/config.ts';
 import { diagnosticCode, diagnosticError, parseDiagnostic } from '../test/connected/diagnostics.mjs';
 
 const backend = fileURLToPath(new URL('../', import.meta.url));
@@ -26,6 +26,7 @@ export async function runConnectedTests(args, env) {
       DB_TEST_TLS: target.tls, DB_TEST_OPERATION: target.operation,
       CONNECTED_TEST_RUNNER: 'bounded-v1',
     });
+    if (target.operation === 'p4-purchases-write') childEnv.DB_TEST_WRITE_CONFIRM = P4_WRITE_CONFIRM;
     phase = 'CHILD_SPAWN';
     return await new Promise((resolve) => {
       // A single thread worker lives inside this owned Node process, not a fork tree.
@@ -112,7 +113,7 @@ export async function runConnectedTests(args, env) {
 if (process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url) {
   const result = await runConnectedTests(process.argv.slice(2), process.env);
   console.log(result === 0
-    ? 'DB_TEST: selected read-only checks completed'
+    ? 'DB_TEST: selected controlled checks completed'
     : 'DB_TEST: refused or failed; no success/cleanup claim. Review configuration and controlled diagnostics.');
   process.exitCode = result;
 }

@@ -1,5 +1,5 @@
 const mocks = vi.hoisted(() => ({
-  create: vi.fn(), listen: vi.fn(), close: vi.fn(), hooks: vi.fn(), parser: vi.fn(),
+  create: vi.fn(), listen: vi.fn(), close: vi.fn(), hooks: vi.fn(), parser: vi.fn(), use: vi.fn(),
 }));
 vi.mock('@nestjs/core', () => ({ NestFactory: { create: mocks.create } }));
 vi.mock('./demo/invoice-demo.module.js', () => ({ InvoiceDemoModule: class {} }));
@@ -12,7 +12,7 @@ beforeEach(() => {
   mocks.close.mockResolvedValue(undefined);
   mocks.create.mockResolvedValue({
     listen: mocks.listen, close: mocks.close, enableShutdownHooks: mocks.hooks,
-    useBodyParser: mocks.parser,
+    useBodyParser: mocks.parser, use: mocks.use,
   });
 });
 
@@ -20,6 +20,9 @@ it('binds only loopback and limits JSON parsing without starting a real server',
   await import('./demo-main.js');
   expect(mocks.create).toHaveBeenCalledWith(expect.any(Function), { logger: false });
   expect(mocks.parser).toHaveBeenCalledWith('json', { limit: '1kb', inflate: false });
+  expect(mocks.use).toHaveBeenCalledOnce();
+  expect(mocks.use.mock.calls[0][0]).toHaveLength(4); // Express error middleware.
+  expect(mocks.parser.mock.invocationCallOrder[0]).toBeLessThan(mocks.use.mock.invocationCallOrder[0]);
   expect(mocks.hooks).toHaveBeenCalledOnce();
   expect(mocks.listen).toHaveBeenCalledWith(3001, '127.0.0.1');
 });

@@ -33,6 +33,23 @@ describe('connected runner protections (offline)', () => {
     expect(log).toHaveBeenCalledWith('DB_TEST: CONFIG_MISSING');
     expect(spawn).not.toHaveBeenCalled();
   });
+  it('refuses P4 writes without confirmation, then forwards only the explicit gate', async () => {
+    const { runConnectedTests } = await import('../../scripts/run-connected-tests.mjs');
+    const env = { ...syntheticEnvironment, DB_TEST_DATABASE: 'synthetic_detector_anomalias_compras_test',
+      DB_TEST_RUNTIME_URL: syntheticEnvironment.DB_TEST_RUNTIME_URL.replace('synthetic_stage0_fixture', 'synthetic_detector_anomalias_compras_test'),
+      DB_TEST_OPERATION: 'p4-purchases-write' };
+    expect(await runConnectedTests(['p4-purchases'], env)).toBe(1);
+    expect(spawn).not.toHaveBeenCalled();
+    log.mockClear();
+    const result = runConnectedTests(['p4-purchases'], { ...env,
+      DB_TEST_WRITE_CONFIRM: 'p4-purchases/1.0:two-persistent-lines' });
+    expect(vi.mocked(spawn).mock.calls[0][2]?.env?.DB_TEST_WRITE_CONFIRM).toBe('p4-purchases/1.0:two-persistent-lines');
+    child.stderr.write('DB_TEST_DIAGNOSTIC_V1 failure P4_ROLLBACK\n');
+    child.stderr.write('raw driver secrets must not escape\n');
+    child.emit('close', 1, null);
+    expect(await result).toBe(1);
+    expect(log.mock.calls).toEqual([['DB_TEST: P4_ROLLBACK']]);
+  });
   it.each([
     ['catalog-permissions', 'identity-read-only'], ['identity-permissions', 'catalog-read-only'],
   ])('refuses mismatched suite %s and operation %s before spawning', async (group, operation) => {

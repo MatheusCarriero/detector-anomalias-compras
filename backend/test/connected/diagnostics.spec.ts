@@ -32,6 +32,12 @@ describe('connected diagnostic boundary (offline)', () => {
       'IDENTITY_QUERY')).toBe('IDENTITY_QUERY');
     expect(own).not.toHaveProperty('cause');
   });
+  it('accepts P4 fixed codes but rejects arbitrary numeric or suffixed diagnostics', () => {
+    expect(parseDiagnostic('DB_TEST_DIAGNOSTIC_V1 failure P4_ROLLBACK')).toEqual({ kind: 'failure', code: 'P4_ROLLBACK' });
+    for (const code of ['P4_SECRET', 'P4_ROLLBACK_123', 'P4_ROLLBACK password', '123']) {
+      expect(parseDiagnostic(`DB_TEST_DIAGNOSTIC_V1 failure ${code}`)).toBeUndefined();
+    }
+  });
   it('keeps the branded category independent of mutated error messages', () => {
     const own = diagnosticError('MODULE_INIT');
     own.message = 'private-sentinel';

@@ -6,8 +6,9 @@ import { syntheticCatalog } from './catalog-fixtures.js';
 const fake = vi.hoisted(() => ({
   connect: vi.fn(), disconnect: vi.fn(), query: vi.fn(), execute: vi.fn(),
   transaction: vi.fn(), adapter: vi.fn(), client: vi.fn(),
-  write: vi.fn(), catalog: vi.fn(),
+  write: vi.fn(), catalog: vi.fn(), p4: vi.fn(),
 }));
+vi.mock('./p4-purchase-checks.js', () => ({ runP4PurchaseChecks: fake.p4 }));
 vi.mock('node:fs', async (importOriginal) => ({
   ...await importOriginal<typeof import('node:fs')>(), writeSync: fake.write,
 }));
@@ -37,7 +38,7 @@ describe('Nest connected harness, with mocked driver and blocked network', { tim
     networkAttempts = 0;
     // Test fixtures replace any ambient database settings, without reading secrets.
     for (const key of Object.keys(process.env)) {
-      if (/^(PG.*|DB_TEST_.*|DATABASE_URL|DIRECT_URL|SHADOW_DATABASE_URL|NODE_OPTIONS|NODE_DEBUG|NODE_DEBUG_NATIVE|NODE_TLS_REJECT_UNAUTHORIZED|DEBUG|CI)$/i.test(key)) vi.stubEnv(key, undefined);
+      if (/^(PG.*|P4_PROVISION_.*|DB_TEST_.*|DATABASE_URL|DIRECT_URL|SHADOW_DATABASE_URL|NODE_OPTIONS|NODE_DEBUG|NODE_DEBUG_NATIVE|NODE_TLS_REJECT_UNAUTHORIZED|DEBUG|CI)$/i.test(key)) vi.stubEnv(key, undefined);
     }
     for (const [key, value] of Object.entries(syntheticEnvironment)) vi.stubEnv(key, value);
     vi.stubEnv('CONNECTED_TEST_RUNNER', 'bounded-v1');
@@ -58,6 +59,63 @@ describe('Nest connected harness, with mocked driver and blocked network', { tim
     await import('./harness.js');
     expect(fake.adapter).not.toHaveBeenCalled();
     expect(fake.connect).not.toHaveBeenCalled();
+  });
+  function enableP4() {
+    vi.stubEnv('DB_TEST_OPERATION', 'p4-purchases-write');
+    vi.stubEnv('DB_TEST_DATABASE', 'synthetic_detector_anomalias_compras_test');
+    vi.stubEnv('DB_TEST_RUNTIME_URL', syntheticEnvironment.DB_TEST_RUNTIME_URL.replace('synthetic_stage0_fixture', 'synthetic_detector_anomalias_compras_test'));
+    vi.stubEnv('DB_TEST_WRITE_CONFIRM', 'p4-purchases/1.0:two-persistent-lines');
+    fake.query.mockResolvedValue([{ ...identity, database: 'synthetic_detector_anomalias_compras_test' }]);
+    const fixture = syntheticCatalog();
+    fake.catalog.mockImplementation(async (sql: string) => {
+      const check = catalogChecks.find(c => c.sql === sql);
+      if (!check) throw new Error('Unexpected fixture SQL');
+      return fixture[check.code];
+    });
+  }
+  it('never constructs a client for P4 with only read authorization or missing write confirmation', async () => {
+    const { inspectP4Purchases } = await import('./harness.js');
+    await expect(inspectP4Purchases()).rejects.toMatchObject({ diagnosticCode: 'SUITE_REFUSED' });
+    enableP4(); vi.stubEnv('DB_TEST_WRITE_CONFIRM', undefined);
+    await expect(inspectP4Purchases()).rejects.toMatchObject({ diagnosticCode: 'CONFIG_TARGET' });
+    expect(fake.adapter).not.toHaveBeenCalled(); expect(fake.p4).not.toHaveBeenCalled();
+  });
+  it('runs P4 only after the read-only identity/catalog transaction resolves, sharing Nest PrismaService', async () => {
+    enableP4();
+    let preflightCompleted = false;
+    const tx = fake.transaction.getMockImplementation()!;
+    fake.transaction.mockImplementation(async (...args: unknown[]) => { const rows = await tx(...args); preflightCompleted = true; return rows; });
+    fake.p4.mockImplementation((service: { transaction: unknown }, enter: (code: string) => void) => {
+      expect(preflightCompleted).toBe(true);
+      expect(service.transaction).toBeTypeOf('function');
+      expect(fake.catalog).toHaveBeenCalledTimes(catalogChecks.length);
+      enter('P4_COMPLETE');
+    });
+    const { inspectP4Purchases } = await import('./harness.js');
+    await expect(inspectP4Purchases()).resolves.toMatchObject({ database: 'synthetic_detector_anomalias_compras_test' });
+    expect(fake.p4).toHaveBeenCalledOnce(); expect(fake.client).toHaveBeenCalledOnce();
+    expect(fake.disconnect).toHaveBeenCalledOnce();
+    expect(process.env.DATABASE_URL).toBeUndefined(); expect(process.env.PGSSLMODE).toBeUndefined();
+  });
+  it('blocks P4 when the catalog fails before writes', async () => {
+    enableP4(); fake.catalog.mockResolvedValue([]);
+    const { inspectP4Purchases } = await import('./harness.js');
+    await expect(inspectP4Purchases()).rejects.toThrow('DB_TEST:');
+    expect(fake.p4).not.toHaveBeenCalled(); expect(fake.disconnect).toHaveBeenCalledOnce();
+  });
+  it('sanitizes P4 failures and still closes the shared module without retrying', async () => {
+    enableP4();
+    fake.p4.mockImplementation((_: unknown, enter: (code: string) => void) => {
+      enter('P4_CONCURRENCY'); throw new Error('PRIVATE_DRIVER_SENTINEL');
+    });
+    const { inspectP4Purchases } = await import('./harness.js');
+    await expect(inspectP4Purchases()).rejects.toMatchObject({ diagnosticCode: 'P4_CONCURRENCY' });
+    expect(fake.p4).toHaveBeenCalledOnce(); expect(fake.disconnect).toHaveBeenCalledOnce();
+    const output = fake.write.mock.calls.map(([, frame]) => String(frame)).join('');
+    expect(output).not.toContain('PRIVATE_DRIVER_SENTINEL');
+    expect(output).not.toContain('HARNESS_OK');
+    expect(output).not.toContain('TX_ERROR_UNKNOWN');
+    expect(process.env.DATABASE_URL).toBeUndefined();
   });
   it('requires a separately selected catalog operation before constructing the adapter', async () => {
     const { inspectRuntimeCatalog } = await import('./harness.js');

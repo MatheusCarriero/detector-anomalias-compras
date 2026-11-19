@@ -28,7 +28,11 @@ export async function inspectRuntimeCatalog() {
   return inspectRuntime('catalog-read-only');
 }
 
-async function inspectRuntime(operation: 'identity-read-only' | 'catalog-read-only') {
+export async function inspectP4Purchases() {
+  return inspectRuntime('p4-purchases-write');
+}
+
+async function inspectRuntime(operation: ReturnType<typeof readConnectedTarget>['operation']) {
   let target: ReturnType<typeof readConnectedTarget>;
   try {
     if (unusable) throw diagnosticError('HARNESS_UNUSABLE');
@@ -109,7 +113,7 @@ async function inspectRuntime(operation: 'identity-read-only' | 'catalog-read-on
         FROM pg_catalog.pg_roles r
         JOIN pg_catalog.pg_stat_ssl s ON s.pid = pg_catalog.pg_backend_pid()
         WHERE r.rolname = current_user`;
-      if (operation === 'catalog-read-only') {
+      if (operation === 'catalog-read-only' || operation === 'p4-purchases-write') {
         validateIdentity(result, target, enter);
         enter('CATALOG_LOAD');
         const { catalogChecks } = await import('./catalog-checks.js');
@@ -127,6 +131,14 @@ async function inspectRuntime(operation: 'identity-read-only' | 'catalog-read-on
     if (loggedFailure) throw diagnosticError(loggedFailure);
     validateIdentity(rows, target, enter);
     identity = { database: target.database, runtimeRole: target.runtimeRole, serverVersion: rows[0].server_version as number };
+    if (operation === 'p4-purchases-write') {
+      // The read-only identity/catalog transaction has committed before any write.
+      enter('P4_PREFLIGHT');
+      const { PrismaService } = await import('../../src/prisma/prisma.service.js');
+      const { runP4PurchaseChecks } = await import('./p4-purchase-checks.js');
+      const service = module.select(PrismaModule).get(PrismaService, { strict: true });
+      await runP4PurchaseChecks(service, enter);
+    }
   } catch (error) {
     const code = diagnosticCode(error, stage);
     reportDiagnostic('failure', code);

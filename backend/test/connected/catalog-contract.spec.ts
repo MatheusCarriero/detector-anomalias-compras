@@ -25,7 +25,8 @@ describe('pinned migration catalog contract (offline)', () => {
       args: ['uuid', 'uuid', 'jsonb', 'uuid', 'uuid', 'text', 'text'], defaults: 3,
       definer: true, language: 'sql', volatility: 'v', result: 'record', returns_set: true,
     });
-    expect(catalogContract.functions.filter((x) => x.executable)).toHaveLength(8);
+    expect(catalogContract.functions.filter((x) => x.executable && !x.name.startsWith('p4_'))).toHaveLength(8);
+    expect(catalogContract.functions.filter((x) => x.executable && x.name.startsWith('p4_'))).toHaveLength(4);
     expect(catalogContract.functions.every((x) => x.body.length > 20)).toBe(true);
     expect(catalogContract.triggers.find((x) => x.name === 'record_versions_consistency')).toMatchObject({
       table: 'record_versions', function_name: 'check_version_deferred', deferrable: true, deferred: true, type: 5,
