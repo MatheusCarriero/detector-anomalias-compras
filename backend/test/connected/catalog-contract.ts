@@ -66,7 +66,8 @@ const allowed = new Set([
   'observe_source(text,text,uuid,uuid,text,text,text,text,jsonb,text)',
   'capture_line(uuid,uuid)', 'seal_snapshot(uuid,uuid)',
 ]);
-const functions = Array.from(sql.matchAll(/CREATE FUNCTION app\.(\w+)\(([\s\S]*?)\)\s+RETURNS ([\s\S]*?)\s+LANGUAGE (sql|plpgsql)([\s\S]*?)\s+AS \$\$([\s\S]*?)\$\$;/g), (match) => {
+function parseFunctions(source: string, executable: ReadonlySet<string>, p4 = false) {
+  return Array.from(source.matchAll(/CREATE FUNCTION app\.(\w+)\(([\s\S]*?)\)\s+RETURNS ([\s\S]*?)\s+LANGUAGE (sql|plpgsql)([\s\S]*?)\s+AS \$\$([\s\S]*?)\$\$;/g), (match) => {
   const [, name, parameters, result, language, options, body] = match;
   const args = parameters.trim() ? parameters.split(',').map((arg) => pgType(arg.trim().split(/\s+/)[1])) : [];
   return { name, args, defaults: (parameters.match(/DEFAULT/g) ?? []).length,
@@ -80,9 +81,12 @@ const functions = Array.from(sql.matchAll(/CREATE FUNCTION app\.(\w+)\(([\s\S]*?
     result: result.startsWith('TABLE(') ? 'record' : pgType(result.trim()),
     returns_set: result.startsWith('TABLE('), language, definer: options.includes('SECURITY DEFINER'),
     volatility: options.includes('IMMUTABLE') ? 'i' : options.includes('STABLE') ? 's' : 'v',
-    config: name === 'snapshot_digest' ? ['DateStyle=ISO, YMD', 'TimeZone=UTC', 'search_path=pg_catalog, app'] : ['search_path=pg_catalog, app'],
-    body: body.trim(), executable: allowed.has(`${name}(${args.join(',')})`) };
-});
+    config: p4 ? ['search_path=pg_catalog, app, pg_temp'] : name === 'snapshot_digest'
+      ? ['DateStyle=ISO, YMD', 'TimeZone=UTC', 'search_path=pg_catalog, app'] : ['search_path=pg_catalog, app'],
+    body: body.trim(), executable: executable.has(`${name}(${args.join(',')})`) };
+  });
+}
+const functions = parseFunctions(sql, allowed);
 
 const triggers: Trigger[] = [];
 for (const match of sql.matchAll(/^CREATE (CONSTRAINT )?TRIGGER (\w+) (BEFORE|AFTER) ([A-Z ]+) ON app\.(\w+)\s+([\s\S]*?)EXECUTE FUNCTION app\.(\w+)\(([^)]*)\);/gm)) {
@@ -102,9 +106,26 @@ const generatedTriggers: [string[], string, number][] = [
 for (const [owners, name, type] of generatedTriggers) {
   for (const table of owners) triggers.push({ table, name, type, function_name: 'deny_mutation', deferrable: false, deferred: false, args_hex: '' });
 }
-export const catalogContract = { tables, columns, constraints, indexes, functions, triggers };
 if (tables.length !== 11 || constraints.filter((x) => x.kind === 'f').length !== 32 ||
   constraints.filter((x) => x.kind === 'c').length !== 13 || indexes.length !== 52 ||
   functions.length !== 26 || functions.filter((x) => x.executable).length !== 8 || triggers.length !== 30) {
   throw diagnosticError('CATALOG_CONTRACT');
 }
+// Complementary migration: the original contract/hash above remains unchanged.
+const p4Sql = readFileSync(new URL('../../../prisma/migrations/20261116000100_p4_read_interfaces/migration.sql', import.meta.url), 'utf8')
+  .replaceAll('\r\n', '\n');
+export const p4MigrationHash = createHash('sha256').update(p4Sql).digest('hex');
+if (p4MigrationHash !== 'c63333bbd5a025c64b51ab60fb2ac02b4c8c5df90dd7843c54361f48ad6291aa') {
+  throw diagnosticError('CATALOG_CONTRACT');
+}
+const p4Allowed = new Set([
+  'p4_v1_context()', 'p4_v1_receipt_by_key(uuid)', 'p4_v1_receipt_by_id(uuid)',
+  'p4_v1_history(integer,timestamp with time zone,uuid)',
+]);
+const p4Functions = parseFunctions(p4Sql, p4Allowed, true);
+if (p4Functions.length !== 5 || p4Functions.filter((fn) => fn.executable).length !== 4
+    || p4Functions.filter((fn) => !fn.executable).map((fn) => fn.name).join() !== 'p4_v1_checked_receipt') {
+  throw diagnosticError('CATALOG_CONTRACT');
+}
+export const catalogContract = { tables, columns, constraints, indexes,
+  functions: [...functions, ...p4Functions], triggers };

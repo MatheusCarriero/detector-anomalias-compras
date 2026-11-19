@@ -17,6 +17,7 @@
     "start:debug": "nest start --debug --watch",
     "start:prod": "node dist/main",
     "start:demo": "node dist/demo-main.js",
+    "start:p4": "node dist/p4-main.js",
     "lint": "oxlint --type-aware src/ test/",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -26,6 +27,7 @@
     "test:connected:offline": "vitest run test/connected/",
     "test:runtime:read": "node scripts/run-connected-tests.mjs identity-permissions",
     "test:runtime:catalog": "node scripts/run-connected-tests.mjs catalog-permissions",
+    "test:runtime:p4": "node scripts/run-connected-tests.mjs p4-purchases",
     "test:runtime:contracts": "node scripts/run-connected-tests.mjs sql-contracts",
     "test:runtime:concurrency": "node scripts/run-connected-tests.mjs concurrency"
   },

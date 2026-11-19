@@ -101,15 +101,18 @@
       <section class="purchase-section" aria-labelledby="purchase-title">
         <div class="purchase-heading">
           <div>
-            <p class="eyebrow">Preparação comercial · P4</p>
-            <h2 id="purchase-title">Preparação de compra</h2>
+            <p class="eyebrow">Cadastro manual · P4</p>
+            <h2 id="purchase-title">Compras em BRL</h2>
           </div>
           <span class="data-badge">Sem avaliação de risco</span>
         </div>
         <p class="purchase-intro">Monte uma operação de exemplo com materiais de construção civil.
           Fornecedores, produtos e departamentos deste catálogo são fictícios.</p>
         <p class="purchase-boundary">Este formulário não calcula scores nem avalia risco. Os dados preenchidos
-          não são enviados ao modelo e não alteram o ranking Invoice acima. Produto ainda não é uma feature do modelo.</p>
+          não são enviados ao modelo e não alteram o ranking Invoice acima. Compras manuais em BRL não possuem
+          compatibilidade científica comprovada com a Procurement V2. Análise: <code>unavailable</code>.</p>
+        <p id="purchase-catalog-status" class="run-status" role="status" aria-live="polite">Aguardando catálogo da API local.</p>
+        <button id="purchase-catalog-reload" class="purchase-secondary" type="button">Recarregar catálogo</button>
 
         <div class="purchase-layout">
           <form id="purchase-form" class="panel purchase-form" novalidate autocomplete="off" aria-labelledby="purchase-form-title">
@@ -141,7 +144,7 @@
               <div class="purchase-field">
                 <label for="purchase-date">Data da operação</label>
                 <input id="purchase-date" type="date" required aria-describedby="purchase-date-hint purchase-date-error">
-                <p id="purchase-date-hint" class="field-hint">Data informada para o exemplo; não representa uma aprovação.</p>
+                <p id="purchase-date-hint" class="field-hint">Data comercial, até hoje em America/Sao_Paulo. Datas retroativas são aceitas; o registro terá seu próprio horário.</p>
                 <p id="purchase-date-error" class="field-error"></p>
               </div>
               <div class="purchase-field">
@@ -168,7 +171,7 @@
               <output id="purchase-total" for="purchase-quantity purchase-unit-price" aria-live="polite">—</output>
               <p>Quantidade × preço unitário, sem frete, impostos ou descontos adicionais.</p>
             </div>
-            <button id="purchase-prepare" class="run-button" type="submit" disabled>Preparar resumo</button>
+            <button id="purchase-prepare" class="run-button" type="submit" disabled>Conferir resumo</button>
             <p id="purchase-status" class="run-status" role="status" aria-live="polite" aria-atomic="true">Preencha a operação para preparar o resumo.</p>
             <noscript><p class="noscript-message">Ative o JavaScript para calcular o total e preparar o resumo local.</p></noscript>
           </form>
@@ -178,16 +181,39 @@
               <p class="eyebrow">Conferência da operação</p>
               <h3 id="purchase-summary-title">Resumo preparado</h3>
               <dl id="purchase-summary-values"></dl>
-              <p class="session-note">Resumo não salvo. Nenhum score, percentual ou classificação de risco foi produzido.</p>
+              <p class="session-note">Confira os dados antes de cadastrar. Nenhum score, percentual ou classificação de risco será produzido.</p>
+              <button id="purchase-save" class="run-button" type="button" disabled>Cadastrar compra</button>
             </section>
-            <aside class="purchase-local-note" aria-label="Limites da preparação">
-              <h3>Apenas nesta página</h3>
-              <p>O preenchimento e o cálculo ficam no navegador, sem envio ao backend, persistência ou histórico.
-                Recarregar a página descarta a operação.</p>
+            <aside class="purchase-local-note" aria-label="Estado do cadastro">
+              <h3>Confirmação e segurança do envio</h3>
+              <p>Chave de idempotência: <code id="purchase-key"></code></p>
+              <p id="purchase-receipt" role="status" aria-live="polite"></p>
+              <div class="purchase-actions">
+                <button id="purchase-check" class="purchase-secondary" type="button" disabled>Consultar mesma chave</button>
+                <button id="purchase-retry" class="purchase-secondary" type="button" disabled>Repetir mesmo envio</button>
+                <button id="purchase-new" class="purchase-secondary" type="button" disabled>Preparar outra compra</button>
+              </div>
+              <p>Se a resposta falhar, os dados e a chave ficam na sessão desta aba, inclusive ao recarregar.
+                Não feche a aba, limpe seus dados nem inicie outra compra para contornar um envio incerto.
+                A consulta não grava; a repetição explícita usa exatamente a mesma chave e conteúdo.</p>
               <p>As faixas de preenchimento são limites desta demonstração. Não representam regras de aprovação ou de risco.</p>
             </aside>
           </div>
         </div>
+        <section class="panel purchase-history" aria-labelledby="purchase-history-title">
+          <h3 id="purchase-history-title">Histórico persistente</h3>
+          <p>Compras manuais do P4 no banco sintético. A data comercial pode ser anterior ao registro.</p>
+          <button id="purchase-history-load" class="purchase-secondary" type="button">Consultar / atualizar histórico</button>
+          <p id="purchase-history-status" class="run-status" role="status" aria-live="polite">A consulta será realizada ao clicar no botão.</p>
+          <div class="purchase-history-scroll" role="region" aria-label="Histórico de compras; role horizontalmente para ver todas as colunas" tabindex="0">
+            <table>
+              <caption class="visually-hidden">Compras P4 por data de registro, com análise por IA indisponível</caption>
+              <thead><tr><th scope="col">ID</th><th scope="col">Data comercial</th><th scope="col">Registrada em (local)</th><th scope="col">Fornecedor</th><th scope="col">Produto</th><th scope="col">Departamento</th><th scope="col">Quantidade</th><th scope="col">Preço (BRL)</th><th scope="col">Total (BRL)</th><th scope="col">Análise IA</th></tr></thead>
+              <tbody id="purchase-history-rows"></tbody>
+            </table>
+          </div>
+          <button id="purchase-history-more" class="purchase-secondary" type="button" disabled>Carregar mais</button>
+        </section>
       </section>
     </main>
     <footer class="site-footer"><span>Projeto acadêmico individual</span><span>Invoice · Demonstração sintética</span></footer>

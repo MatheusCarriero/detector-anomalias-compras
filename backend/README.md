@@ -154,8 +154,9 @@ scores da demonstração são indicadores de anomalia, não probabilidades de fr
 A aplicação `DemoModule` mantém três áreas separadas: Invoice V1 (19 features),
 formulário comercial P4 (sem scoring) e Procurement V2 (cinco features temporais).
 A V2 consulta sete operações sintéticas autorizadas, prepara o histórico de 90 dias
-e usa exclusivamente o artefato P5.14. Não há PostgreSQL, persistência, importação
-de compras ou ligação entre o catálogo P4 em BRL e a V2 de moeda não especificada.
+e usa exclusivamente o artefato P5.14. A V2 não usa PostgreSQL nem persistência,
+importação de compras ou ligação com o catálogo P4 em BRL. Sua moeda permanece
+não especificada. O P4 possui integração independente, descrita abaixo.
 
 Em `backend/`, após provisionar as dependências e executar `npm.cmd run build`,
 inicie `npm.cmd run start:demo`. Abra `http://127.0.0.1:3001/demo/procurement-v2`.
@@ -642,6 +643,272 @@ These categories locate a failure but do not certify its underlying cause or
 authorize another connection. After a failed controlled run, share only the fixed
 codes, review the indicated stage and obtain authorization before retrying. Do not
 enable raw driver/debug output, relax identity checks or use an owner credential.
+
+### P4.7A — testes transacionais preparados, execução separada
+
+`npm.cmd run test:runtime:p4` seleciona exclusivamente
+`test/connected/p4-purchases/*.integration.test.ts`. Os testes convencionais,
+E2E e CI offline não coletam esse arquivo. Os comandos genéricos
+`test:runtime:contracts` e `test:runtime:concurrency` continuam bloqueados.
+Esta preparação não comprova execução no PostgreSQL: exige autorização separada.
+
+A suíte reutiliza o NestJS/PrismaService e o mesmo pool. Antes de escrever,
+confere identidade, PostgreSQL 18, schema, catálogo estrutural/ACLs e corpos das
+funções contra as duas migrations fixadas. As migrations e o provisionamento P4.6
+precisam estar concluídos; o executor não os aplica. Usa somente `detector_runtime`,
+`127.0.0.1:5432`, `synthetic_detector_anomalias_compras_test`, transporte explícito
+`local-plaintext`. Recusa outros destinos, credenciais administrativas, variáveis
+`P4_PROVISION_*`, configurações conflitantes e execução em CI.
+
+Manifesto fixo (`p4-purchase/1.0`, origem `manual`, namespace `p4-manual/1.0`,
+data comercial **2026-11-16**, moeda **BRL**):
+
+| Chave UUID de idempotência | Fornecedor / produto / departamento | Quantidade × preço | Prazo | Resultado esperado |
+|---|---|---|---|---|
+| `47000001-0000-4000-8000-000000000001` | `sup-obra` / `prod-cimento` / `dep-obras` | 2 × 48,50 = 97,00 | 30 dias | Uma linha persistente; repetição idêntica e conflito de conteúdo |
+| `47000002-0000-4000-8000-000000000002` | `sup-base` / `prod-tijolo` / `dep-almoxarifado` | 100 × 1,26 = 126,00 | 15 dias | Duas requisições simultâneas, uma linha persistente |
+| `47000003-0000-4000-8000-000000000003` | `sup-estrutura` / `prod-argamassa` / `dep-manutencao` | 1 × 23,90 = 23,90 | À vista | Tentativa revertida, sem registro persistente |
+
+Os UUIDs internos são gerados pelo banco; não são os UUIDs de idempotência.
+Todas as compras permanecem com análise `unavailable`, sem inferência V2.
+A primeira tentativa inválida usa quantidade zero e deve ser recusada pelo contrato.
+O teste de rollback transacional usa o terceiro conteúdo válido, força as constraints
+diferidas e provoca `22023` com `p4_v1_history(0,NULL,NULL)` antes do commit.
+Confere ausência de identidade/recibo/origem órfã por meio dos leitores autorizados.
+As onze verificações de acesso direto usam `SELECT 1 ... LIMIT 0`, cada uma em
+transação somente leitura independente, exigindo precisamente `42501`.
+`42601`, `25P02`, tabela ausente ou sucesso inesperado são falhas da suíte.
+
+São necessárias as permissões já previstas: USAGE em `app`, EXECUTE em
+`register_source_identity`, `observe_source`, `write_purchase_order_line`,
+`resolve_source_identity` e nos quatro leitores `p4_v1_*` públicos. O catálogo
+confere também as demais funções originalmente autorizadas, sem executá-las.
+Não há SELECT/DML direto, acesso ao helper privado, credencial de migrador,
+provisionamento, migration, snapshot novo ou limpeza por DELETE/TRUNCATE.
+As verificações de versão/origem/auditoria dependem das invariantes dos leitores
+e de seus corpos verificados. Uma contagem independente das linhas de auditoria
+exige inspeção administrativa somente leitura separada, fora deste harness.
+
+O rendezvous da concorrência espera no máximo 1,5 s por duas transações que já
+observaram a chave ausente. Preserva os limites existentes: maxWait 2 s,
+transação 10 s, statement 5 s e lock 2 s. A inspeção inicial conserva seus
+limites próprios. O caso P4 possui orçamento total de teste de 30 s; o processo
+mantém 45 s mais até 5 s para confirmar término forçado, e fechamento Nest de 3 s.
+Esses limites não provam rollback em uma interrupção abrupta.
+
+**Execução futura, somente após autorização para este manifesto:** em `backend/`,
+execute o build offline. Em uma sessão PowerShell limpa, forneça
+`DB_TEST_RUNTIME_URL` por um meio seguro, sem imprimir/gravar credenciais. A URL
+deve identificar exatamente o endpoint, banco e `detector_runtime` acima, com
+senha, sem parâmetros de query. Não use `DATABASE_URL` ou `P4_PROVISION_URL`.
+
+```powershell
+npm.cmd run build
+$env:DB_TEST_CONFIRM = 'synthetic-only'
+$env:DB_TEST_HOST = '127.0.0.1'
+$env:DB_TEST_PORT = '5432'
+$env:DB_TEST_DATABASE = 'synthetic_detector_anomalias_compras_test'
+$env:DB_TEST_RUNTIME = 'detector_runtime'
+$env:DB_TEST_TLS = 'local-plaintext'
+$env:DB_TEST_OPERATION = 'p4-purchases-write'
+$env:DB_TEST_WRITE_CONFIRM = 'p4-purchases/1.0:two-persistent-lines'
+if (-not $env:DB_TEST_RUNTIME_URL) { throw 'Credencial runtime não configurada' }
+try {
+  npm.cmd run test:runtime:p4
+  $p4Exit = $LASTEXITCODE
+} finally {
+  'DB_TEST_CONFIRM','DB_TEST_HOST','DB_TEST_PORT','DB_TEST_DATABASE',
+  'DB_TEST_RUNTIME','DB_TEST_TLS','DB_TEST_OPERATION','DB_TEST_WRITE_CONFIRM',
+  'DB_TEST_RUNTIME_URL' | ForEach-Object { Remove-Item "Env:$_" -ErrorAction SilentlyContinue }
+}
+"Código de saída: $p4Exit"
+```
+
+Esperado: código 0 e conclusão dos checks; erros usam códigos fixos `P4_*` e os
+diagnósticos existentes, sem mensagens de driver ou dados dos recibos. Não repetir
+automaticamente: quaisquer chaves do manifesto já presentes causam
+`P4_FIXTURE_EXISTS` antes das escritas. Mesmo uma execução parcialmente falha pode
+ter confirmado uma compra anterior. Não trocar UUIDs, excluir evidências ou presumir
+limpeza; obter inspeção/autorização antes de outra tentativa. Em sucesso ficam
+duas linhas, suas revisões iniciais, origens, mapeamentos e auditoria. O histórico
+é percorrido em páginas unitárias, com limite de 100 páginas; não pressupõe banco
+vazio nem deve ser executado junto com outros escritores.
+
+### P4.8A — API local de compras persistentes
+
+Inicialização separada: `npm.cmd run start:p4`, somente em
+`http://127.0.0.1:3002`. Importa `PurchaseModule` e o PrismaModule existente,
+sem outro pool. `main.ts`, `AppModule`, Invoice V1 e Procurement V2 permanecem
+independentes. O formulário P4 em `3001` usa o proxy restrito descrito em P4.8B.
+Não há autenticação humana ou inferência de compras manuais nesta API.
+
+| Método e rota | Resultado |
+|---|---|
+| `GET /p4/catalog` | Catálogo sintético controlado: fornecedores, departamentos e produtos; moeda BRL |
+| `POST /p4/purchases` | Contrato `p4-purchase/1.0`; 201 na criação, 200 na repetição idêntica, 409 no conflito |
+| `GET /p4/purchases/by-key/:key` | Compra pela chave UUID v4 de idempotência, sem criar registros |
+| `GET /p4/purchases/:id` | Compra por UUID interno |
+| `GET /p4/purchases?limit=20` | Histórico persistente; limite entre 1 e 100 |
+
+Para a página seguinte, enviar **juntos** `after_recorded_at` e `after_id` com
+os valores de `next_cursor`, preservando timestamp e UUID. A ordenação é por
+registro decrescente, com desempate por UUID; não há snapshot entre páginas.
+Os leitores e escritores SQL existentes são reutilizados, sem SELECT direto.
+
+O POST aceita somente JSON UTF-8 sem compressão, até 4 KiB, sem query parameters,
+e exige `X-P4-Local: p4-purchase/1.0`. A chave permanece no campo
+`idempotency_key` do corpo; não há segunda chave HTTP independente. Exemplo
+estrutural de corpo (substituir a chave por um UUID v4 autorizado antes de usar):
+
+```json
+{
+  "contract": "p4-purchase/1.0",
+  "origin": "manual",
+  "idempotency_key": "<UUID v4 da submissão>",
+  "purchase": {
+    "supplier_id": "sup-obra",
+    "product_id": "prod-cimento",
+    "department_id": "dep-obras",
+    "quantity": 3,
+    "unit_price": "0.10",
+    "currency": "BRL",
+    "purchase_date": "2026-11-03",
+    "payment_days": 30
+  }
+}
+```
+
+O total é calculado pelo contrato existente com centavos inteiros: neste exemplo,
+`"0.30"`. Preço/total permanecem strings decimais; não enviar total, identidade
+técnica, score ou análise no corpo. Datas retroativas válidas são aceitas; futuras
+são recusadas segundo America/Sao_Paulo. `recorded_at` vem da revisão no banco.
+
+As respostas possuem `contract` e `purchase`, ou `items`/`next_cursor` no histórico.
+O POST inclui `outcome: created|replay`. O recibo público contém ID interno,
+chave de idempotência, data de registro, revisão, dados comerciais e `analysis`:
+`unavailable`, motivo `manual_source_incompatible_with_procurement_v2` e explicação.
+Não divulga UUIDs internos de origem/versão, hashes de armazenamento ou usuário
+técnico. Erros usam `{contract,error:{code,message}}`; entrada inválida retorna
+400, restrição local 403, ausência 404, conflito 409, corpo excessivo 413, mídia
+inválida 415, falha interna/integridade 500 e indisponibilidade 503. Nenhum erro
+retorna SQL, mensagens do driver, caminhos, senhas ou stacks. Falha/timeout de POST
+não comprova ausência de commit: consultar a **mesma chave** antes de repetir.
+
+**Antes da primeira execução conectada:** confirmar as duas migrations,
+provisionamento P4.6, identidade/permissões runtime e ausência de outro processo
+ocupando `3002`. A inicialização conecta ao banco; não faz migrations, seed nem
+cadastro automático. Após autorização, em sessão PowerShell limpa, fornecer
+`DATABASE_URL` por meio seguro, exclusivamente para `detector_runtime` em
+`127.0.0.1:5432/synthetic_detector_anomalias_compras_test`, com senha, sem parâmetros
+de query ou fragmento. Não usar credenciais de migrador, `DB_TEST_*`, `PG*` ou
+`P4_PROVISION_*`; configurações conflitantes, debug/preload e CI são recusados.
+
+```powershell
+# Em backend/, build offline. Não inicia servidor nem conecta ao banco.
+npm.cmd run build
+# Somente após autorização para iniciar a API conectada:
+$env:P4_API_CONFIRM = 'local-synthetic-p4/1.0'
+$env:P4_API_TLS = 'local-plaintext'
+npm.cmd run start:p4
+```
+
+O bind e a validação de host/peer são fixos; `PORT` não muda o endereço. Não há
+CORS. `Origin` deve estar ausente (cliente local) ou ser `http://127.0.0.1:3002`;
+chamadas de outras páginas e headers de proxy são recusados. O header público
+`X-P4-Local` é proteção contra requisições de navegador entre origens, **não
+autenticação**. Outros processos/usuários com acesso ao computador não são
+isolados por essa proteção. Não publicar esta API por proxy/túnel.
+
+Primeiro validar somente GET do catálogo e histórico, depois as buscas dos
+registros P4.7 existentes por ID e chave. Um POST com nova chave exige autorização
+específica; conferir criação, repetição, conflito e ausência de score. Não executar
+novamente a suíte P4.7 com suas chaves já persistidas. Encerrar o servidor com
+Ctrl+C e remover `DATABASE_URL`, `P4_API_CONFIRM` e `P4_API_TLS` da sessão. Os testes
+`purchases.e2e-spec.ts` usam o repositório real com Prisma simulado; não atestam
+uma nova execução conectada do HTTP contra PostgreSQL.
+
+### P4.8B — formulário e histórico pela mesma origem
+
+Após `npm.cmd run build`, inicie o demonstrador com `npm.cmd run start:demo` e
+abra `http://127.0.0.1:3001/`. A API P4 deve estar iniciada separadamente em
+`127.0.0.1:3002`, conforme P4.8A; o demonstrador não carrega Prisma nem recebe
+credenciais. Identifique processos existentes antes de iniciar outra instância.
+
+O navegador usa `/demo/p4/catalog`, `/demo/p4/purchases` e as buscas por
+ID/chave na mesma origem. O proxy aceita somente essas rotas, métodos e parâmetros,
+valida loopback/Host/Origin e encaminha exclusivamente a `127.0.0.1:3002`, sem
+cookies, autenticação, headers de encaminhamento, redirects ou retries. Usa prazo
+total de 15 s, resposta máxima de 256 KiB e até oito requisições simultâneas. A API
+continua sem CORS e com suas permissões originais. Não publicar nenhuma das portas
+por túnel/proxy externo; estas proteções locais não autenticam uma pessoa.
+
+O catálogo é consultado ao abrir a página; não há cadastro ou inferência automática.
+Preencha, clique em **Conferir resumo** e, somente quando autorizado a gravar,
+**Cadastrar compra**. O histórico é consultado explicitamente, em páginas de 20.
+Cada envio preserva chave e payload no `sessionStorage` **antes** do POST. Em falha,
+timeout ou resposta inválida, os campos ficam bloqueados; **Consultar mesma chave**
+não grava e **Repetir mesmo envio** reutiliza os mesmos dados. Até um 404 após timeout
+não comprova ausência de commit. Não feche a aba, limpe a sessão ou use outra aba
+para contornar um resultado incerto. Recarregar recupera a pendência sem reenviá-la.
+Conflitos de conteúdo exigem conferência manual, sem gerar outra chave automaticamente.
+
+**Preparar outra compra** só é liberado após recibo confirmado. Sem armazenamento
+de sessão utilizável, o cadastro é bloqueado. A data comercial aceita retroatividade
+e rejeita futuro em America/Sao_Paulo; preço e total usam centavos exatos. A análise
+permanece `unavailable`, por incompatibilidade científica com a V2. Os testes de
+página/proxy usam dados e API simulados, sem acessar PostgreSQL ou executar Python.
+
+### P4.9A — reprodução e recuperação local
+
+Pré-requisitos: Node 24/npm 11, dependências dos dois lockfiles, PostgreSQL 18
+local e banco sintético `synthetic_detector_anomalias_compras_test` em
+`127.0.0.1:5432`, schema `app`. Em clone limpo, instalar na raiz e em `backend/`
+com `npm.cmd ci --ignore-scripts --no-fund --no-audit`; executar o build no backend.
+O P4 não depende de Python, CSV ou artefatos ML para cadastrar/consultar compras.
+Os demonstradores de inferência continuam exigindo seus artefatos próprios.
+
+As duas migrations e o provisionamento P4.6 precisam estar concluídos: BRL,
+usuário técnico, três fornecedores, três departamentos e seis mapeamentos
+canônicos. Reutilizar os procedimentos revisados deste guia e do [banco](../prisma/README.md),
+com autorização própria; iniciar a aplicação nunca aplica migration ou provisiona.
+O responsável informou a validação real de P4.7/P4.8, inclusive 201/200/409 e
+cadastro pelo navegador. A revisão P4.9A executa somente verificações offline;
+não certifica novamente permissões efetivas ou o estado de outra instância.
+
+1. Identificar os listeners de 3001/3002 (`Get-NetTCPConnection -State Listen`)
+   e seus processos (`Get-Process -Id <PID>`), sem exibir argumentos/credenciais.
+   Não encerrar processos desconhecidos. Para atualizar assets/código, encerrar
+   a própria sessão do demonstrador com Ctrl+C antes do build e reiniciá-la.
+2. Na sessão exclusiva da API, fornecer `DATABASE_URL` por meio seguro para
+   `detector_runtime`, com alvo exato e sem query; definir `P4_API_CONFIRM` e
+   `P4_API_TLS` como em P4.8A, então `npm.cmd run start:p4`. Não usar migrador
+   na aplicação nem colocar credenciais em arquivos publicados ou comandos compartilhados.
+3. Em outro terminal, sem credenciais de banco, executar `npm.cmd run start:demo`
+   e abrir **http://127.0.0.1:3001/** (não `localhost`). Conferir catálogo e
+   histórico antes de autorizar um novo cadastro. O proxy não inicia a API.
+4. Após confirmar uma compra, conferir UUID, valor, chave e histórico. O botão
+   permanece desabilitado para aquela submissão; **Preparar outra compra** inicia
+   uma nova. Idempotência não é detecção de duplicidade comercial: duas chaves
+   diferentes podem cadastrar duas operações com valores idênticos.
+5. Em timeout, rede indisponível ou erro, preservar aba/chave/payload. Consultar
+   a mesma chave após restabelecer a API; repetir apenas o envio original por
+   ação explícita. Não interpretar 404 como prova de rollback, nem trocar a chave
+   para contornar 409. Um conflito/inconsistência exige conferência manual.
+6. Antes de fechar a aba, resolver pendências e guardar a chave se necessário:
+   `sessionStorage` sobrevive ao recarregamento, mas não garante recuperação após
+   fechar a aba, limpar dados ou trocar de navegador. A consulta por chave da API
+   permite recuperar um recibo conhecido sem criar outra compra.
+7. Para encerrar, concluir/reconciliar requisições pendentes e usar Ctrl+C nos
+   terminais próprios. A API desconecta o Prisma; o demo cancela seus requests
+   pendentes, o que **não prova rollback** no servidor. Remover as variáveis
+   `DATABASE_URL`, `P4_API_CONFIRM` e `P4_API_TLS` da sessão da API.
+
+Limites: uma origem sintética, catálogo fixo, sem autenticação humana, edição,
+exclusão ou análise por IA de compras manuais. Histórico usa revisão 1, cursor
+por registro/UUID e não fornece snapshot entre páginas; atualizar para ver novas
+compras. A interface consulta 20 itens por página. O proxy aceita JSON até 1 KiB
+(a API direta, 4 KiB) e sanitiza inclusive erros do parser antes do controller.
+O transporte sem TLS é exclusivo do loopback; não expor por rede, túnel ou CORS.
 
 ### Offline CI
 

@@ -2,6 +2,7 @@ import { Socket } from 'node:net';
 import { catalogChecks } from './catalog-checks.js';
 import { syntheticCatalog } from './catalog-fixtures.js';
 import { canonicalExpression } from './catalog-expression.js';
+import { catalogContract, migrationHash } from './catalog-contract.js';
 
 describe('catalog inspections with synthetic projections and blocked sockets', () => {
   let attempts = 0;
@@ -47,6 +48,18 @@ describe('catalog inspections with synthetic projections and blocked sockets', (
     ['CATALOG_FUNCTIONS', 'internal_write_record', 'executable', true],
     ['CATALOG_FUNCTIONS', 'write_supplier', 'config', ['search_path=public, app']],
     ['CATALOG_FUNCTIONS', 'write_supplier', 'body', 'SELECT secret_sentinel'],
+    ['CATALOG_FUNCTIONS', 'p4_v1_context', 'definer', false],
+    ['CATALOG_FUNCTIONS', 'p4_v1_context', 'volatility', 'v'],
+    ['CATALOG_FUNCTIONS', 'p4_v1_context', 'result', 'text'],
+    ['CATALOG_FUNCTIONS', 'p4_v1_context', 'config', ['search_path=app, public']],
+    ['CATALOG_FUNCTIONS', 'p4_v1_context', 'owner_safe', false],
+    ['CATALOG_FUNCTIONS', 'p4_v1_context', 'properties_safe', false],
+    ['CATALOG_FUNCTIONS', 'p4_v1_context', 'grants_safe', false],
+    ['CATALOG_FUNCTIONS', 'p4_v1_receipt_by_key', 'args', ['text']],
+    ['CATALOG_FUNCTIONS', 'p4_v1_receipt_by_id', 'executable', false],
+    ['CATALOG_FUNCTIONS', 'p4_v1_history', 'args', ['integer', 'timestamp without time zone', 'uuid']],
+    ['CATALOG_FUNCTIONS', 'p4_v1_checked_receipt', 'executable', true],
+    ['CATALOG_FUNCTIONS', 'p4_v1_checked_receipt', 'definer', true],
     ['CATALOG_CONSTRAINTS', 'departments_head_fk', 'deferred', false],
     ['CATALOG_CONSTRAINTS', 'snapshot_members_supplier_fk', 'foreign_columns', ['id', 'department_owner_id']],
     ['CATALOG_CONSTRAINTS', 'record_versions_chain_check', 'expression', 'revision_no > 0 OR ((revision_no = 1) = (supersedes_version_id IS NULL))'],
@@ -73,6 +86,40 @@ describe('catalog inspections with synthetic projections and blocked sockets', (
     const fixture = syntheticCatalog().CATALOG_FUNCTIONS;
     fixture.push({ ...fixture.find((r) => r.name === 'write_supplier')!, args: ['text'] });
     expect(() => catalogChecks[2].validate(fixture)).toThrow('CATALOG_FUNCTIONS');
+  });
+  it('preserves the original migration and adds exactly the reviewed P4 read interfaces', () => {
+    expect(migrationHash).toBe('4bc2d19996d1adc10ab05a68eeb17b78153e3725c8d0bcb1c6781fc88848311f');
+    expect(catalogContract.tables).toHaveLength(11);
+    expect(catalogContract.functions).toHaveLength(31);
+    expect(catalogContract.functions.filter((fn) => fn.executable)).toHaveLength(12);
+    const p4 = catalogContract.functions.filter((fn) => fn.name.startsWith('p4_'));
+    expect(p4.map((fn) => `${fn.name}(${fn.args.join(',')})`).sort()).toEqual([
+      'p4_v1_checked_receipt(uuid)', 'p4_v1_context()',
+      'p4_v1_history(integer,timestamp with time zone,uuid)',
+      'p4_v1_receipt_by_id(uuid)', 'p4_v1_receipt_by_key(uuid)',
+    ]);
+    for (const fn of p4) {
+      expect(fn).toMatchObject({ result: 'jsonb', returns_set: false, defaults: 0,
+        language: 'plpgsql', volatility: 's', config: ['search_path=pg_catalog, app, pg_temp'],
+        definer: fn.name !== 'p4_v1_checked_receipt', executable: fn.name !== 'p4_v1_checked_receipt' });
+    }
+  });
+  it('checks effective table and column SELECT privileges, including inherited and PUBLIC access', () => {
+    const query = catalogChecks.find((c) => c.code === 'CATALOG_RELATIONS')!.sql;
+    const tablePrivileges = /ARRAY\[([^\]]+)\]\) p WHERE pg_catalog.has_table_privilege/.exec(query)?.[1];
+    const columnPrivileges = /ARRAY\[([^\]]+)\]\) p\s+WHERE pg_catalog.has_any_column_privilege/.exec(query)?.[1];
+    expect(tablePrivileges?.split(',')).toContain("'SELECT'");
+    expect(columnPrivileges?.split(',')).toContain("'SELECT'");
+    expect(query).toContain('pg_catalog.has_table_privilege(current_user,c.oid,p)');
+    expect(query).toContain('pg_catalog.has_any_column_privilege(current_user,c.oid,p)');
+  });
+  it('rejects an unmigrated catalog and unapproved functions in the P4 namespace', () => {
+    const check = catalogChecks.find((c) => c.code === 'CATALOG_FUNCTIONS')!;
+    const fixture = syntheticCatalog().CATALOG_FUNCTIONS;
+    expect(() => check.validate(fixture.filter((fn) => !String(fn.name).startsWith('p4_'))))
+      .toThrow('CATALOG_FUNCTIONS');
+    fixture.push({ ...fixture.find((fn) => fn.name === 'p4_v1_context')!, name: 'p4_v1_unreviewed' });
+    expect(() => check.validate(fixture)).toThrow('CATALOG_FUNCTIONS');
   });
   it('accepts PostgreSQL default casts and zero-argument defaults', () => {
     expect(canonicalExpression('gen_random_uuid()')).toBe(canonicalExpression('pg_catalog.gen_random_uuid()'));
@@ -109,6 +156,7 @@ describe('catalog inspections with synthetic projections and blocked sockets', (
     ['global EXECUTE granted directly to runtime', false, true, 'FUNCTIONS'],
     ['schema EXECUTE grant added to restricted global defaults', false, true, 'FUNCTIONS'],
     ['table DML granted to runtime', true, false, 'TABLES'],
+    ['table SELECT without grant option granted to runtime', true, false, 'TABLES'],
     ['table SELECT WITH GRANT OPTION granted to runtime', true, false, 'TABLES'],
     ['table SELECT granted to PUBLIC', true, false, 'TABLES'],
     ['unsafe function and table defaults', false, false, 'BOTH'],
@@ -132,7 +180,7 @@ describe('catalog inspections with synthetic projections and blocked sockets', (
       expect(query).toContain(`d.defaclrole=n.nspowner AND d.defaclnamespace=n.oid AND d.defaclobjtype='${type}'`);
     }
     expect(query.match(/UNION ALL/g)).toHaveLength(2);
-    expect(query).toContain("acl.privilege_type<>'SELECT' OR acl.is_grantable");
+    expect(query).not.toContain("acl.privilege_type<>'SELECT'");
     expect(query).toContain("acl.grantee=0 OR acl.grantee=(SELECT oid FROM pg_catalog.pg_roles WHERE rolname=current_user)");
   });
 });

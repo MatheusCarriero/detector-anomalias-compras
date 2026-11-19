@@ -14,7 +14,7 @@
 
 O projeto estuda três domínios independentes de compras. Invoice Anomaly prioriza faturas incomuns com Isolation Forest. Supplier Risk avalia a classificação fornecida pelo dataset com modelos supervisionados. Purchase Risk permanece em definição metodológica, sem modelo implementado.
 
-A infraestrutura NestJS + Prisma + PostgreSQL já existe. Há demonstradores locais de inferência Invoice V1 e Procurement V2, separados do banco. O formulário P4 apenas prepara operações comerciais sintéticas e não calcula risco. **Essas demonstrações não possuem uso operacional validado.**
+A infraestrutura NestJS + Prisma + PostgreSQL já existe. Há demonstradores locais de inferência Invoice V1 e Procurement V2, separados do banco. O formulário P4 cadastra compras manuais sintéticas em BRL e consulta seu histórico persistente por uma API local independente; sua análise por IA permanece indisponível. **Essas demonstrações não possuem uso operacional validado.**
 
 ## Estado atual
 
@@ -26,7 +26,7 @@ A infraestrutura NestJS + Prisma + PostgreSQL já existe. Há demonstradores loc
 
 O backend utiliza TypeScript/ESM, Node 24, NestJS 12 e Prisma 7.10.0. O primeiro incremento PostgreSQL 18 contém 11 tabelas de domínio no schema `app`, com histórico, snapshots e auditoria. A CI offline verifica geração do client, build e testes isolados. As validações conectadas usam um banco sintético e têm execução separada e controlada.
 
-As interfaces HTML/CSS/JavaScript são servidas pelo demonstrador NestJS. Após o build, execute `npm.cmd run start:demo` em `backend/`: Invoice V1 e P4 ficam em `http://127.0.0.1:3001/`; a Procurement V2, em `http://127.0.0.1:3001/demo/procurement-v2`. A V2 usa cinco features temporais próprias e um modelo persistido independente; não substitui as 19 features Invoice nem a decisão histórica C sobre a outra fonte Purchase. Consulte o [provisionamento da V2](backend/README.md#procurement-v2--demonstração-local) antes de usar a análise real.
+As interfaces HTML/CSS/JavaScript são servidas pelo demonstrador NestJS. Após o build, execute `npm.cmd run start:demo` em `backend/`: Invoice V1 e P4 ficam em `http://127.0.0.1:3001/`; a Procurement V2, em `http://127.0.0.1:3001/demo/procurement-v2`. O cadastro P4 depende da API separada em `127.0.0.1:3002`, iniciada com `npm.cmd run start:p4` após configurar o banco sintético; consulte a [operação local do P4](backend/README.md#p49a--reprodução-e-recuperação-local). A V2 usa cinco features temporais próprias e um modelo persistido independente; não substitui as 19 features Invoice nem a decisão histórica C sobre a outra fonte Purchase. Consulte o [provisionamento da V2](backend/README.md#procurement-v2--demonstração-local) antes de usar a análise real.
 
 ## Modelos e resultados
 

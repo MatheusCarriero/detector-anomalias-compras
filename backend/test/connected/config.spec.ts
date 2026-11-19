@@ -23,6 +23,24 @@ describe('connected test configuration (offline)', () => {
       operation: 'identity-read-only', tls: 'local-plaintext',
     });
   });
+  it('requires a distinct write confirmation and the exact P4 database endpoint', () => {
+    const env = { ...valid, DB_TEST_DATABASE: 'synthetic_detector_anomalias_compras_test',
+      DB_TEST_RUNTIME_URL: valid.DB_TEST_RUNTIME_URL.replace('synthetic_stage0_fixture', 'synthetic_detector_anomalias_compras_test'),
+      DB_TEST_OPERATION: 'p4-purchases-write', DB_TEST_WRITE_CONFIRM: 'p4-purchases/1.0:two-persistent-lines',
+      CONNECTED_TEST_RUNNER: 'bounded-v1' };
+    expect(connectedTestOptions(env).include).toEqual(['test/connected/p4-purchases/*.integration.test.ts']);
+    for (const value of [undefined, '', 'yes']) {
+      expect(() => readConnectedTarget({ ...env, DB_TEST_WRITE_CONFIRM: value })).toThrow();
+    }
+    for (const [key, value] of [['DB_TEST_HOST', '[::1]'], ['DB_TEST_PORT', '5433'],
+      ['DB_TEST_DATABASE', 'synthetic_other'], ['DB_TEST_RUNTIME', 'detector_migrator']]) {
+      expect(() => readConnectedTarget({ ...env, [key]: value })).toThrow();
+    }
+    expect(() => readConnectedTarget({ ...valid, DB_TEST_WRITE_CONFIRM: env.DB_TEST_WRITE_CONFIRM })).toThrow();
+    expect(() => selectConnectedSuite('p4-purchases', 'identity-read-only')).toThrow('SUITE_REFUSED');
+    expect(() => selectConnectedSuite('sql-contracts')).toThrow('SUITE_REFUSED');
+    expect(() => selectConnectedSuite('concurrency')).toThrow('SUITE_REFUSED');
+  });
   it('selects catalog inspection only with its distinct operation', () => {
     const env = { ...valid, DB_TEST_OPERATION: 'catalog-read-only', CONNECTED_TEST_RUNNER: 'bounded-v1' };
     expect(readConnectedTarget(env).operation).toBe('catalog-read-only');
@@ -46,6 +64,7 @@ describe('connected test configuration (offline)', () => {
     ['DB_TEST_OPERATION', 'contracts'], ['DB_TEST_OPERATION', 'concurrency'],
     ['DATABASE_URL', valid.DB_TEST_RUNTIME_URL],
     ['DB_TEST_MIGRATION_URL', 'must-not-be-inherited'],
+    ['P4_PROVISION_URL', 'must-not-be-inherited'],
     ['DB_TEST_UNRECOGNIZED', 'typo'], ['PGOPTIONS', '-c role=postgres'],
     ['PGSSLMODE', 'no-verify'], ['PGSERVICE', 'production'],
     ['NODE_OPTIONS', '--import=unexpected.mjs'], ['NODE_TLS_REJECT_UNAUTHORIZED', '0'],

@@ -108,6 +108,145 @@ pertence à futura aplicação. Não guardar tokens/senhas em conteúdo ou conte
 O cadastramento inicial de usuários/moedas exige administração separada; não há
 seed de pessoas reais ou catálogo inventado.
 
+### Leituras restritas do P4 — complemento preparado offline
+
+A migration `20261116000100_p4_read_interfaces` acrescenta quatro interfaces
+`SECURITY DEFINER`, sob o proprietário existente de `app`, sem alterar as 11
+tabelas, os oito writers ou a migration inicial. **Ainda não foi aplicada nem
+validada no PostgreSQL.** O repositório P4 depende deste complemento e do
+provisionamento abaixo; não existe fallback para SELECT direto.
+
+| Função em `app` | Retorno JSONB `p4-storage/1.0` |
+|---|---|
+| `p4_v1_context()` | Ator técnico ativo, BRL e mapeamentos dos três fornecedores e três departamentos de `p4-catalog/1.0` |
+| `p4_v1_receipt_by_key(uuid)` | Recibo pela chave de idempotência, ou `status=absent` |
+| `p4_v1_receipt_by_id(uuid)` | Recibo de criação pela identidade interna, ou `status=absent` |
+| `p4_v1_history(integer,timestamptz,uuid)` | Até 100 recibos, ordenados por `recorded_at DESC, id DESC`, com cursor ou `null` |
+
+O cursor inicial usa dois NULLs; páginas seguintes usam o par devolvido. A
+paginação representa histórico de criação (revisão 1), sem prometer uma visão
+congelada entre requisições. Não há consulta de conteúdo arbitrário de outras
+origens. Antes do retorno, são conferidos namespace `p4-manual/1.0`, tipo,
+identidade resolvida, versão, origem, chave, contrato `p4-purchase/1.0`, conteúdo
+e mapeamentos autorizados. Recibos inconsistentes, inclusive órfãos P4, geram
+SQLSTATE `23514`; contexto não provisionado/inativo gera `55000`; argumentos
+inválidos das interfaces geram `22023`. Ausência legítima é distinta desses erros.
+
+O helper privado `p4_v1_checked_receipt(uuid)` centraliza a conferência e não é
+executável pelo runtime. As quatro interfaces públicas são `STABLE`, com
+`search_path=pg_catalog,app,pg_temp`, SQL qualificado e sem escrita ou SQL
+dinâmico. Apenas suas assinaturas recebem EXECUTE para `detector_runtime`.
+Não há GRANT SELECT nas tabelas. CREATE, REVOKE de PUBLIC/runtime e GRANT das
+quatro assinaturas permanecem na mesma transação. A migration não altera defaults:
+confere a ACL global efetiva do proprietário e os grants adicionais de `app`,
+exigindo EXECUTE somente para o proprietário. PUBLIC implícito, outros beneficiários
+ou ausência de EXECUTE do proprietário interrompem a aplicação com `42501`.
+Também são recusados grants CREATE em `app` para outros beneficiários e papéis
+não superusuários que possam criar por herança ou assumir o proprietário via
+SET ROLE. Outros administradores não superusuários exigem revisão explícita;
+superusuários continuam sendo uma responsabilidade administrativa separada.
+Nenhuma permissão é corrigida automaticamente. Um banco novo com o default global
+PUBLIC EXECUTE precisa de configuração administrativa separada antes deste complemento.
+
+O SQL valida estrutura e associações; o NestJS recalcula o hash do conteúdo
+canônico P4.2. `jsonb::text` não substitui a serialização ordenada desse contrato.
+A data comercial deve ser válida e não posterior ao dia de `recorded_at` da
+revisão, em `America/Sao_Paulo`; compras retroativas e do próprio dia são aceitas.
+SQL e leitura do repositório usam esse instante fixo, não o relógio da consulta.
+A submissão de uma compra nova continua validada pelo relógio do servidor no P4.2.
+O fluxo permanece `register_source_identity → observe_source(identity_id=NULL)
+→ write_purchase_order_line → resolve_source_identity → recibo → constraints
+imediatas → commit`. A versão aponta para a referência imutável; a identidade
+canônica aponta para a linha. Não se inventa revisão 2 nem se altera uma origem
+para contornar o trigger. Produto, unidade e prazo permanecem na entrada original.
+A análise de compras manuais continua `unavailable`, incompatível com a V2.
+
+**Provisionamento sintético preparado offline, não executado:**
+
+1. Confirmar banco sintético, proprietário e papel runtime separado; revisar e
+   aplicar o complemento apenas com autorização própria. Conferir as 11 tabelas,
+   oito writers, quatro leitores e helper privado pelo harness de catálogos.
+2. Em transação administrativa separada, conferir/criar BRL e um usuário ativo
+   com `auth_issuer=p4-demo`, `auth_subject=manual-purchase-service`. Esses campos
+   identificam um ator técnico; não são credenciais nem autenticação humana.
+3. Provisionar fornecedores `sup-obra`, `sup-base`, `sup-estrutura` e departamentos
+   `dep-obras`, `dep-manutencao`, `dep-almoxarifado`, com os nomes exatos de
+   `backend/src/purchases/purchase-catalog.ts`. Usar os writers existentes para
+   criar versão/auditoria e registrar/resolver as identidades em `p4-catalog/1.0`.
+   Os UUIDs são internos; os identificadores externos estáveis permitem conferir
+   uma repetição. Divergência ou identidade não resolvida interrompe o procedimento;
+   não sobrescrever nem remapear silenciosamente. Não criar tabela de produtos.
+4. Validar `p4_v1_context()` com runtime e, em autorização posterior para escrita,
+   testar cadastro, replay, conflito, rollback e concorrência com dados sintéticos.
+   Incluir recibos inválidos/órfãos, isolamento de namespace, paginação, negação de
+   SELECT direto e EXECUTE do helper. Os testes offline usam mocks/inspeção textual;
+   não comprovam compilação PL/pgSQL, ACL efetiva ou concorrência real.
+
+O executor administrativo é `backend/src/purchases/purchase-provision-cli.ts`; sua rotina está
+em `backend/src/purchases/purchase-provisioning.ts`, fora dos módulos/endpoints
+NestJS. Reutiliza o catálogo P4.2 e o driver `pg` já instalado, com uma única
+conexão administrativa dedicada à execução, sem alterar o pool da aplicação.
+Não é um seed automático nem é chamado por build, CI ou inicialização do servidor.
+
+Antes da futura execução autorizada, confirmar a aplicação das duas migrations
+e executar a inspeção de catálogo somente leitura. A rotina também exige seus
+checksums registrados, PostgreSQL 18, schema `app` pertencente a
+`detector_migrator`, runtime restrito e as assinaturas permitidas. Não aplica
+migrations nem corrige privilégios. Recusa superusuário e papéis administrativos
+amplos; usa somente o proprietário identificado, sem fallback para runtime.
+
+Preparar primeiro o build, sem credenciais:
+
+```powershell
+# Partindo da raiz do projeto:
+Set-Location backend
+npm.cmd run build
+```
+
+Somente após autorização específica, em um processo local com ambiente limpo,
+fornecer `P4_PROVISION_URL` por meio seguro, sem imprimir/gravar sua senha. A URL
+deve usar `detector_migrator`, `127.0.0.1:5432` e exclusivamente
+`synthetic_detector_anomalias_compras_test`, sem query string ou fragmento.
+O schema é qualificado pelo SQL; não adicionar `?schema=app`. Outras variáveis
+de banco (`PG*`, `DATABASE_URL`, `DB_TEST_*`), CI e opções de debug são recusadas.
+
+```powershell
+$env:P4_PROVISION_CONFIRM = 'synthetic-p4-catalog/1.0'
+$env:P4_PROVISION_TLS = 'local-plaintext'
+node dist/purchases/purchase-provision-cli.js --execute-synthetic-p4
+```
+
+Remover as três variáveis `P4_PROVISION_*` do processo após o uso. Não compartilhar
+a URL. O transporte sem TLS é exclusivo do loopback identificado. Há limites de
+3 s para conexão, 5 s por instrução, 2 s para locks e 60 s para o processo.
+
+A transação bloqueia brevemente alterações nas seis tabelas de cadastro/origem,
+confere/cria `BRL` (`Real brasileiro`) e o ator
+`p4-demo/manual-purchase-service` (`Serviço técnico P4 — catálogo sintético`),
+sem e-mail ou departamento. Reutilização exige compatibilidade exata. Fornecedores
+têm país/status/tier nulos; departamentos têm `code` nulo, sem inferir classificações.
+Para os seis cadastros versionados, a sequência é identidade → origem com
+`source_identity_id=NULL` → writer → resolução da identidade. São verificados
+revisão 1, projeção, origem, hash, auditoria e contexto final; constraints diferidas
+são forçadas antes do commit. Uma repetição íntegra não cria versões/origens extras.
+
+Moeda e usuário não são proprietários tipados de `source_identities` no schema
+existente. Sua procedência fica em observações imutáveis de `p4-catalog/1.0`,
+com UUID interno no conteúdo e auditoria `source_observe`; não se inventa uma
+versão de entidade que o banco não suporta. Não há criação de papel PostgreSQL,
+produto, compra, credencial humana ou análise V2.
+
+Em erro, a rotina tenta rollback e encerra a conexão. Timeout, interrupção ou
+perda da resposta ao COMMIT podem deixar o resultado desconhecido: não alegar
+rollback nem repetir automaticamente; inspecionar o estado somente leitura.
+Os testes usam mocks e fixtures e não certificam locks, rollback, permissões ou
+integridade referencial reais. Esses pontos permanecem para execução autorizada.
+
+O contrato de catálogo conectado agora exige as duas migrations revisadas,
+preservando o hash da primeira. Executá-lo antes do complemento deve recusar o
+catálogo incompleto. Os testes históricos de `tests/database/` continuam cobrindo
+o primeiro incremento; não constituem validação conectada deste complemento.
+
 ### Dinheiro e tempo
 
 - Montantes: NUMERIC(24,6); preço unitário: NUMERIC(24,8); quantidade: NUMERIC(20,6).
@@ -154,7 +293,7 @@ não é evidência selada nem pode ser apresentado como aprovação/scoring.
 
 Não usar `db push`, `migrate reset` ou migração regenerada somente do schema para
 substituir o SQL revisado. Prisma não descreve todas as invariantes. A migration
-única contém BEGIN/COMMIT e não pode ser editada depois de aplicada. Correções
+inicial contém BEGIN/COMMIT e não pode ser editada depois de aplicada. Correções
 posteriores precisam de uma nova migration e revisão.
 
 ## Operação offline
@@ -196,8 +335,10 @@ no papel proprietário. Não usar um papel preexistente com grants desconhecidos
 Na etapa de implantação, conferir grants herdados/default ACLs: `REVOKE ... FROM
 PUBLIC` não remove privilégios individuais preexistentes.
 
-Conceder apenas USAGE no schema, leituras necessárias e EXECUTE nas oito
-interfaces públicas listadas acima. Não conceder EXECUTE em helpers,
+Conceder apenas USAGE no schema e EXECUTE nas oito interfaces públicas de escrita
+do primeiro incremento. Com a migration complementar P4, acrescentam-se as quatro
+interfaces de leitura restrita descritas neste guia, sem SELECT direto nas tabelas.
+Não conceder EXECUTE em helpers,
 `internal_write_record` ou funções de trigger; nem INSERT/UPDATE/DELETE/TRUNCATE,
 CREATE/ALTER ou poder de desativar triggers. Não usar `GRANT ... ON ALL FUNCTIONS`.
 As funções públicas de escrita e os validadores diferidos usam SECURITY DEFINER
