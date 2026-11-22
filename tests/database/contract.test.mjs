@@ -25,10 +25,10 @@ test("local dependencies are pinned and installation never applies migrations", 
   assert.equal(pkg.scripts.test, "node --test tests/database/contract.test.mjs");
 });
 
-test("Prisma scope is exactly the approved eleven tables in app", () => {
+test("Prisma scope preserves the eleven original tables plus two comparability tables", () => {
   const schema = read("prisma/schema.prisma");
   const models = [...schema.matchAll(/^model (\w+) \{([\s\S]*?)^\}/gm)];
-  assert.equal(models.length, 11);
+  assert.equal(models.length, 13);
   const tables = models.map(([, , body]) => {
     assert.match(body, /@@schema\("app"\)/);
     const table = body.match(/@@map\("(\w+)"\)/);
@@ -37,6 +37,7 @@ test("Prisma scope is exactly the approved eleven tables in app", () => {
   }).sort();
   assert.deepEqual(tables, [
     "audit_events", "currencies", "decision_snapshots", "departments",
+    "p4_comparability_definitions", "p4_comparability_revisions",
     "purchase_order_lines", "record_versions", "snapshot_members",
     "source_identities", "source_references", "suppliers", "users",
   ]);
