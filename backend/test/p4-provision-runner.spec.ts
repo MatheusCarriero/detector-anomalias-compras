@@ -19,6 +19,23 @@ function dependencies() {
 }
 
 describe('P4 provisioning CLI guards (offline)', () => {
+  it('requires a distinct profile, target and confirmation for comparability provisioning', async () => {
+    const cfg = { ...env, P4_PROVISION_PROFILE: 'comparability-v1', P4_PROVISION_CONFIRM: 'synthetic-p4-comparability-catalog/1.0',
+      P4_PROVISION_URL: env.P4_PROVISION_URL.replace('synthetic_detector_anomalias_compras_test', 'synthetic_p4_comparability_test') };
+    expect(provisionConfig(args, cfg).database).toBe('synthetic_p4_comparability_test');
+    for (const [key, value] of [['P4_PROVISION_PROFILE', undefined], ['P4_PROVISION_PROFILE', 'unknown'],
+      ['P4_PROVISION_CONFIRM', env.P4_PROVISION_CONFIRM], ['P4_PROVISION_URL', env.P4_PROVISION_URL]] as const) {
+      const d = dependencies(); expect((await runProvision(args, { ...cfg, [key]: value }, d)).ok).toBe(false);
+      expect(d.client.connect).not.toHaveBeenCalled();
+    }
+    const d = dependencies(); const core = await d.loadCore();
+    d.loadCore.mockResolvedValue({ ...core, P4_COMPARABILITY_MIGRATIONS: Array.from({ length: 3 }, (_, i) => ({ ...core.P4_MIGRATIONS[0], name: `fixture-${i}` })) });
+    expect((await runProvision(args, cfg, d)).ok).toBe(true);
+    expect(d.readMigration).toHaveBeenCalledTimes(3); expect(d.provisionP4).toHaveBeenCalledExactlyOnceWith(d.client, 'comparability-v1');
+    const bad = dependencies();
+    expect(await runProvision(args, cfg, bad)).toEqual({ ok: false, code: 'LOCAL_ARTIFACT' });
+    expect(bad.client.connect).not.toHaveBeenCalled();
+  });
   beforeEach(() => {
     vi.spyOn(net.Socket.prototype, 'connect').mockImplementation(() => { throw new Error('Network forbidden in offline tests'); });
   });

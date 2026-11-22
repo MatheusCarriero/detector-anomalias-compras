@@ -1,6 +1,7 @@
 import { Socket } from 'node:net';
 import { connectedTestOptions, readConnectedTarget, selectConnectedSuite } from './config.js';
 import { syntheticEnvironment as valid } from './fixtures.js';
+import { COMPARABILITY_DATABASE, COMPARABILITY_WRITE_CONFIRM } from './config.js';
 
 describe('connected test configuration (offline)', () => {
   let attempts = 0;
@@ -22,6 +23,24 @@ describe('connected test configuration (offline)', () => {
       database: 'synthetic_stage0_fixture', runtimeRole: 'detector_runtime',
       operation: 'identity-read-only', tls: 'local-plaintext',
     });
+  });
+  it.each(['comparability-read-only', 'p4-comparability-write'])('gates the new %s profile to a distinct disposable target', operation => {
+    const env = { ...valid, DB_TEST_OPERATION: operation, DB_TEST_DATABASE: COMPARABILITY_DATABASE,
+      DB_TEST_RUNTIME_URL: valid.DB_TEST_RUNTIME_URL.replace('synthetic_stage0_fixture', COMPARABILITY_DATABASE),
+      ...(operation.endsWith('write') ? { DB_TEST_WRITE_CONFIRM: COMPARABILITY_WRITE_CONFIRM } : {}),
+      CONNECTED_TEST_RUNNER: 'bounded-v1' };
+    expect(readConnectedTarget(env).database).toBe(COMPARABILITY_DATABASE);
+    expect(connectedTestOptions(env).include).toEqual([operation.endsWith('write')
+      ? 'test/connected/p4-comparability/*.integration.test.ts' : 'test/connected/comparability-catalog/*.integration.test.ts']);
+    for (const [key, value] of [['DB_TEST_DATABASE', 'synthetic_detector_anomalias_compras_test'], ['DB_TEST_PORT', '5433'],
+      ['DB_TEST_RUNTIME', 'detector_migrator'], ['DB_TEST_HOST', '[::1]'], ['DB_TEST_TLS', 'verify-full']]) {
+      expect(() => readConnectedTarget({ ...env, [key]: value })).toThrow();
+    }
+    if (operation.endsWith('write')) {
+      for (const value of [undefined, 'yes', 'p4-purchases/1.0:two-persistent-lines']) {
+        expect(() => readConnectedTarget({ ...env, DB_TEST_WRITE_CONFIRM: value })).toThrow();
+      }
+    }
   });
   it('requires a distinct write confirmation and the exact P4 database endpoint', () => {
     const env = { ...valid, DB_TEST_DATABASE: 'synthetic_detector_anomalias_compras_test',

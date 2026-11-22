@@ -1,28 +1,32 @@
 import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { pathToFileURL } from 'node:url';
-import type { ProvisionClient } from './purchase-provisioning.js';
+import type { ProvisionClient, ProvisionProfile } from './purchase-provisioning.js';
 
 function fail(code: string): never { throw new Error(`P4_PROVISION_${code}`); }
 
 export function provisionConfig(args: string[], env: NodeJS.ProcessEnv) {
   if (args.length !== 1 || args[0] !== '--execute-synthetic-p4') fail('OPT_IN_REQUIRED');
-  const allowed = ['P4_PROVISION_CONFIRM', 'P4_PROVISION_URL', 'P4_PROVISION_TLS'];
+  const allowed = ['P4_PROVISION_CONFIRM', 'P4_PROVISION_URL', 'P4_PROVISION_TLS', 'P4_PROVISION_PROFILE'];
   for (const [key, value] of Object.entries(env)) {
     if (value && ((key.toUpperCase().startsWith('P4_PROVISION_') && !allowed.includes(key))
       || /^(PG.*|DB_TEST_.*|DATABASE_URL|DIRECT_URL|SHADOW_DATABASE_URL|NODE_OPTIONS|NODE_DEBUG.*|DEBUG|CI|NODE_TLS_REJECT_UNAUTHORIZED)$/i.test(key))) fail('CONFIG_CONFLICT');
   }
-  if (env.P4_PROVISION_CONFIRM !== 'synthetic-p4-catalog/1.0' || env.P4_PROVISION_TLS !== 'local-plaintext'
+  const profile = env.P4_PROVISION_PROFILE ?? 'p4-v1';
+  if (!['p4-v1', 'comparability-v1'].includes(profile)) fail('CONFIG_REQUIRED');
+  const extended = profile === 'comparability-v1';
+  const database = extended ? 'synthetic_p4_comparability_test' : 'synthetic_detector_anomalias_compras_test';
+  if (env.P4_PROVISION_CONFIRM !== (extended ? 'synthetic-p4-comparability-catalog/1.0' : 'synthetic-p4-catalog/1.0') || env.P4_PROVISION_TLS !== 'local-plaintext'
     || typeof env.P4_PROVISION_URL !== 'string') fail('CONFIG_REQUIRED');
   let url: URL; let password: string;
   try { url = new URL(env.P4_PROVISION_URL); password = decodeURIComponent(url.password); }
   catch { fail('CONFIG_URL'); }
   if (!['postgresql:', 'postgres:'].includes(url.protocol) || url.hostname !== '127.0.0.1' || url.port !== '5432'
-    || url.pathname !== '/synthetic_detector_anomalias_compras_test' || url.username !== 'detector_migrator'
+    || url.pathname !== `/${database}` || url.username !== 'detector_migrator'
     || url.search || url.hash || !password || Array.from(env.P4_PROVISION_URL + password)
       .some(character => character.charCodeAt(0) <= 32 || character.charCodeAt(0) === 127)) fail('CONFIG_URL');
   // Explicit options: pg cannot fall back to PG*, a Unix socket, or another DB.
-  return { host: '127.0.0.1', port: 5432, database: 'synthetic_detector_anomalias_compras_test',
+  return { host: '127.0.0.1', port: 5432, database,
     user: 'detector_migrator', password, ssl: false, application_name: 'p4-synthetic-provision-v1',
     connectionTimeoutMillis: 3000, statement_timeout: 5000, query_timeout: 8000,
     idle_in_transaction_session_timeout: 8000, options: '-c search_path=pg_catalog' };
@@ -34,8 +38,9 @@ interface AdminClient extends ProvisionClient {
   on(event: 'error', listener: (error: Error) => void): unknown;
 }
 interface Dependencies {
-  loadCore?: () => Promise<{ provisionP4: (client: ProvisionClient) => Promise<unknown>;
-    P4_MIGRATIONS: readonly { name: string; hash: string }[] }>;
+  loadCore?: () => Promise<{ provisionP4: (client: ProvisionClient, profile?: ProvisionProfile) => Promise<unknown>;
+    P4_MIGRATIONS: readonly { name: string; hash: string }[];
+    P4_COMPARABILITY_MIGRATIONS?: readonly { name: string; hash: string }[] }>;
   createClient?: (config: ReturnType<typeof provisionConfig>) => Promise<AdminClient>;
   readMigration?: (name: string) => Promise<Buffer>;
   nodeVersion?: string;
@@ -62,8 +67,11 @@ export async function runProvision(args: string[], env: NodeJS.ProcessEnv, {
   try {
     const config = provisionConfig(args, env);
     if (nodeVersion.split('.')[0] !== '24') fail('NODE_VERSION');
-    const { provisionP4, P4_MIGRATIONS } = await loadCore();
-    for (const migration of P4_MIGRATIONS) {
+    const { provisionP4, P4_MIGRATIONS, P4_COMPARABILITY_MIGRATIONS } = await loadCore();
+    const extended = env.P4_PROVISION_PROFILE === 'comparability-v1';
+    const migrations = extended ? P4_COMPARABILITY_MIGRATIONS : P4_MIGRATIONS;
+    if (!migrations || (extended && migrations.length !== 3)) fail('LOCAL_ARTIFACT');
+    for (const migration of migrations) {
       const bytes = await readMigration(migration.name);
       // Same canonical LF policy as the existing SQL catalog contract; a Git
       // checkout's CRLF conversion is not a change to the reviewed migration.
@@ -72,7 +80,7 @@ export async function runProvision(args: string[], env: NodeJS.ProcessEnv, {
     phase = 'CONNECT'; client = await createClient(config);
     client.on('error', () => { asynchronousError = true; }); // No raw driver output.
     await client.connect(); if (asynchronousError) fail('CONNECT'); phase = 'DATABASE';
-    const value = await provisionP4(client);
+    const value = extended ? await provisionP4(client, 'comparability-v1') : await provisionP4(client);
     result = asynchronousError ? { ok: false, code: 'COMMIT_UNKNOWN' } : { ok: true, value };
   } catch (error) { result = { ok: false, code: safeCode(error, phase) }; }
   finally {
