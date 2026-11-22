@@ -16,6 +16,8 @@ const messages = {
   P4_ROUTE_NOT_FOUND: [404, 'Rota não encontrada.'],
   P4_METHOD_NOT_ALLOWED: [405, 'Método não permitido.'],
   P4_IDEMPOTENCY_CONFLICT: [409, 'A chave de idempotência já está associada a outro conteúdo.'],
+  P4_COMPARABILITY_INVALID: [400, 'Metadados inválidos ou incompatíveis com o recibo da compra.'],
+  P4_COMPARABILITY_CONFLICT: [409, 'Revisão ou definição conflitante. Consulte a revisão antes de reenviar.'],
   P4_PAYLOAD_TOO_LARGE: [413, 'O corpo da requisição excede o limite de 4 KiB.'],
   P4_UNSUPPORTED_MEDIA: [415, 'Envie somente JSON UTF-8 sem compressão.'],
   P4_SERVICE_UNAVAILABLE: [503, 'Serviço indisponível. Se enviou uma compra, consulte a mesma chave antes de tentar novamente.'],
