@@ -8,7 +8,7 @@ export function canonicalExpression(source: string): string {
   const fail = (): never => { throw diagnosticError('CATALOG_DEFINITION'); };
   if (typeof source !== 'string' || source.length > 20000) return fail();
   const tokens: string[] = [];
-  const lexer = /\s+|'(?:[^']|'')*'|"(?:[^"]|"")*"|[a-zA-Z_][a-zA-Z_0-9.]*|[0-9]+|::|<>|>=|<=|[=~><(),[\]]/gy;
+  const lexer = /\s+|'(?:[^']|'')*'|"(?:[^"]|"")*"|[a-zA-Z_][a-zA-Z_0-9.]*|[0-9]+|::|<>|>=|<=|[=~><+\-(),[\]]/gy;
   let offset = 0;
   while (offset < source.length) {
     lexer.lastIndex = offset;
@@ -39,6 +39,13 @@ export function canonicalExpression(source: string): string {
       else if (peek() === '(') {
         at++;
         const args = peek() === ')' ? (at++, []) : list(')');
+        // convert_to(text, name) resolves an untyped encoding literal to name.
+        // pg_get_expr prints that resolved cast. Preserve the type in the tree;
+        // do not strip name casts from other calls, columns or comparisons.
+        if (name === 'convert_to' && args.length === 2 &&
+          typeof args[1] === 'string' && args[1].startsWith('literal:')) {
+          args[1] = ['name', args[1]];
+        }
         left = [`call:${name}`, ...args];
       }
       else left = `id:${name}`;
@@ -49,14 +56,23 @@ export function canonicalExpression(source: string): string {
       // https://www.postgresql.org/docs/18/sql-syntax-lexical.html#SQL-PRECEDENCE
       const power = op === 'OR' ? 1 : op === 'AND' ? 2 : op === 'IS' ? 4 :
         ['=', '<>', '>', '<', '>=', '<='].includes(op) ? 5 :
-        ['IN', 'NOT'].includes(op) ? 6 : op === '~' ? 7 : op === '::' ? 8 : -1;
+        ['IN', 'NOT', 'BETWEEN'].includes(op) ? 6 : op === '~' ? 7 : ['+', '-'].includes(op) ? 8 : op === '::' ? 9 : -1;
       if (power < min) break;
       at++;
       if (op === '::') {
+        if (peek() === 'NAME' || peek() === 'PG_CATALOG.NAME') {
+          at++;
+          if (typeof left !== 'string' || !left.startsWith('literal:')) return fail();
+          left = ['name', left];
+          continue;
+        }
         take('TEXT');
         // PostgreSQL adds text casts to text literals and these varchar fields.
         if (!(typeof left === 'string' && (left.startsWith('literal:') ||
           ['id:code', 'id:country_code', 'id:content_hash'].includes(left)))) left = ['text', left];
+      } else if (op === 'BETWEEN') {
+        const lower = expression(7); take('AND'); const upper = expression(7);
+        left = ['AND', ['>=', left, lower], ['<=', left, upper]];
       } else if (op === 'IS') {
         const not = peek() === 'NOT'; if (not) at++;
         take('NULL'); left = [not ? 'not-null' : 'null', left];

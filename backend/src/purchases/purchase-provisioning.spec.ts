@@ -1,4 +1,4 @@
-import { provisionP4, type ProvisionClient } from './purchase-provisioning.js';
+import { provisionP4, P4_COMPARABILITY_MIGRATIONS, type ProvisionClient } from './purchase-provisioning.js';
 
 // This fake models returned rows and transaction rollback, not PostgreSQL SQL
 // evaluation. Real ACLs, locks and deferred triggers require connected approval.
@@ -82,6 +82,47 @@ function fixture() {
 }
 
 describe('P4 administrative provisioning (offline)', () => {
+  function extended() {
+    const f = fixture(); f.who.database = 'synthetic_p4_comparability_test';
+    f.applied.push({ migration_name: P4_COMPARABILITY_MIGRATIONS[2].name,
+      checksum: P4_COMPARABILITY_MIGRATIONS[2].hash, complete: true, rolled_back: false });
+    Object.assign(f.grants, { comparability_safe: true }); return f;
+  }
+  it('explicitly provisions the 13-table profile without changing the legacy profile', async () => {
+    const f = extended();
+    const first = await provisionP4(f.client, 'comparability-v1');
+    expect(first.suppliers).toHaveLength(3); expect(first.departments).toHaveLength(3);
+    const before = structuredClone(f.db);
+    const repeated = await provisionP4(f.client, 'comparability-v1');
+    expect(repeated.user.created).toBe(false); expect(f.db).toEqual(before);
+    const check = f.calls.find(c => c.sql.includes('/* p4:permissions */'))!;
+    expect(check.values.slice(1)).toEqual([13, 41]);
+    expect(check.values[0]).toHaveLength(14);
+    expect(check.values[0]).toEqual(expect.arrayContaining(['app.p4_cmp_write(text,jsonb)', 'app.p4_cmp_read(uuid,integer)']));
+  });
+  it('refuses the comparability profile on the existing P4 database before any write', async () => {
+    const f = fixture(); await expect(provisionP4(f.client, 'comparability-v1')).rejects.toThrow('P4_PROVISION_TARGET');
+    expect(f.db).toEqual(empty());
+    expect(f.calls.some(c => /INSERT INTO|^LOCK TABLE/.test(c.sql))).toBe(false);
+  });
+  it.each(['missing', 'checksum', 'unfinished', 'unexpected', 'duplicate', 'legacy-profile', 'privileges'])
+  ('refuses an unsafe extended preflight: %s', async scenario => {
+    const f = extended();
+    if (scenario === 'missing') f.applied.pop();
+    if (scenario === 'checksum') f.applied[2].checksum = '0'.repeat(64);
+    if (scenario === 'unfinished') f.applied[2].complete = false;
+    if (scenario === 'unexpected') f.applied.push({ ...f.applied[2], migration_name: 'unknown' });
+    if (scenario === 'duplicate') f.applied.push({ ...f.applied[2] });
+    if (scenario === 'privileges') Object.assign(f.grants, { comparability_safe: false });
+    await expect(provisionP4(f.client, scenario === 'legacy-profile' ? 'p4-v1' : 'comparability-v1')).rejects.toThrow(/P4_PROVISION_/);
+    expect(f.db).toEqual(empty()); expect(f.calls.some(c => /INSERT INTO|^LOCK TABLE/.test(c.sql))).toBe(false);
+  });
+  it('still accepts resolved attempts for the extended profile and rejects unresolved ones', async () => {
+    const f = extended(); f.applied.unshift({ ...f.applied[2], checksum: 'old', complete: false, rolled_back: true });
+    await expect(provisionP4(f.client, 'comparability-v1')).resolves.toHaveProperty('suppliers');
+    f.applied[0].rolled_back = false;
+    await expect(provisionP4(f.client, 'comparability-v1')).rejects.toThrow('P4_PROVISION_MIGRATIONS');
+  });
   it('rolls back on identity refusal before any catalog write', async () => {
     const calls: string[] = [];
     const client: ProvisionClient = { query: async (text) => {

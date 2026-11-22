@@ -5,15 +5,19 @@ const required = [
   'DB_TEST_RUNTIME', 'DB_TEST_RUNTIME_URL', 'DB_TEST_TLS', 'DB_TEST_OPERATION',
 ];
 export const P4_WRITE_CONFIRM = 'p4-purchases/1.0:two-persistent-lines';
+export const COMPARABILITY_WRITE_CONFIRM = 'p4-comparability/1.0:disposable-only';
+export const COMPARABILITY_DATABASE = 'synthetic_p4_comparability_test';
 
 export function readConnectedTarget(env: NodeJS.ProcessEnv) {
   try {
     if (required.some((key) => !env[key])) throw diagnosticError('CONFIG_MISSING');
     const p4 = env.DB_TEST_OPERATION === 'p4-purchases-write';
+    const comparability = ['comparability-read-only', 'p4-comparability-write'].includes(env.DB_TEST_OPERATION!);
+    const comparabilityWrite = env.DB_TEST_OPERATION === 'p4-comparability-write';
     for (const [key, value] of Object.entries(env)) {
       const upper = key.toUpperCase();
       if (value && (
-        (upper.startsWith('DB_TEST_') && !required.includes(key) && !(p4 && key === 'DB_TEST_WRITE_CONFIRM')) ||
+        (upper.startsWith('DB_TEST_') && !required.includes(key) && !((p4 || comparabilityWrite) && key === 'DB_TEST_WRITE_CONFIRM')) ||
         /^(PG.*|P4_PROVISION_.*|DATABASE_URL|DIRECT_URL|SHADOW_DATABASE_URL|NODE_OPTIONS|NODE_DEBUG|NODE_DEBUG_NATIVE|NODE_TLS_REJECT_UNAUTHORIZED|DEBUG|CI)$/.test(upper)
       )) throw diagnosticError('CONFIG_CONFLICT');
     }
@@ -23,7 +27,9 @@ export function readConnectedTarget(env: NodeJS.ProcessEnv) {
     const portText = env.DB_TEST_PORT!;
     if (
       env.DB_TEST_CONFIRM !== 'synthetic-only' ||
-      !['identity-read-only', 'catalog-read-only', 'p4-purchases-write'].includes(env.DB_TEST_OPERATION!) ||
+      !['identity-read-only', 'catalog-read-only', 'p4-purchases-write', 'comparability-read-only', 'p4-comparability-write'].includes(env.DB_TEST_OPERATION!) ||
+      (comparability && (host !== '127.0.0.1' || portText !== '5432' || database !== COMPARABILITY_DATABASE)) ||
+      (comparabilityWrite && env.DB_TEST_WRITE_CONFIRM !== COMPARABILITY_WRITE_CONFIRM) ||
       (p4 && (env.DB_TEST_WRITE_CONFIRM !== P4_WRITE_CONFIRM || host !== '127.0.0.1' ||
         portText !== '5432' || database !== 'synthetic_detector_anomalias_compras_test')) ||
       env.DB_TEST_TLS !== 'local-plaintext' ||
@@ -46,7 +52,7 @@ export function readConnectedTarget(env: NodeJS.ProcessEnv) {
     return Object.freeze({
       host, port: Number(portText), database, runtimeUrl,
       runtimeRole: 'detector_runtime' as const,
-      operation: env.DB_TEST_OPERATION as 'identity-read-only' | 'catalog-read-only' | 'p4-purchases-write',
+      operation: env.DB_TEST_OPERATION as 'identity-read-only' | 'catalog-read-only' | 'p4-purchases-write' | 'comparability-read-only' | 'p4-comparability-write',
       tls: 'local-plaintext' as const,
     });
   } catch (error) {
@@ -60,7 +66,9 @@ export type ConnectedTarget = ReturnType<typeof readConnectedTarget>;
 export function selectConnectedSuite(group: string, operation?: ConnectedTarget['operation']) {
   const expected = group === 'identity-permissions' ? 'identity-read-only'
     : group === 'catalog-permissions' ? 'catalog-read-only'
-      : group === 'p4-purchases' ? 'p4-purchases-write' : undefined;
+      : group === 'p4-purchases' ? 'p4-purchases-write'
+        : group === 'comparability-catalog' ? 'comparability-read-only'
+          : group === 'p4-comparability' ? 'p4-comparability-write' : undefined;
   if (!expected || (operation !== undefined && operation !== expected)) {
     throw diagnosticError('SUITE_REFUSED');
   }
@@ -73,7 +81,9 @@ export function connectedTestOptions(env: NodeJS.ProcessEnv) {
     throw diagnosticError('RUNNER_REQUIRED');
   }
   return {
-    include: [selectConnectedSuite(target.operation === 'p4-purchases-write' ? 'p4-purchases'
+    include: [selectConnectedSuite(target.operation === 'p4-comparability-write' ? 'p4-comparability'
+      : target.operation === 'comparability-read-only' ? 'comparability-catalog'
+      : target.operation === 'p4-purchases-write' ? 'p4-purchases'
       : target.operation === 'catalog-read-only' ? 'catalog-permissions' : 'identity-permissions', target.operation)],
     pool: 'threads' as const, maxWorkers: 1, fileParallelism: false,
     retry: 0, passWithNoTests: false, testTimeout: 15000, hookTimeout: 5000,

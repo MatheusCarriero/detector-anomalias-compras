@@ -66,7 +66,7 @@ const allowed = new Set([
   'observe_source(text,text,uuid,uuid,text,text,text,text,jsonb,text)',
   'capture_line(uuid,uuid)', 'seal_snapshot(uuid,uuid)',
 ]);
-function parseFunctions(source: string, executable: ReadonlySet<string>, p4 = false) {
+export function parseFunctions(source: string, executable: ReadonlySet<string>, p4 = false) {
   return Array.from(source.matchAll(/CREATE FUNCTION app\.(\w+)\(([\s\S]*?)\)\s+RETURNS ([\s\S]*?)\s+LANGUAGE (sql|plpgsql)([\s\S]*?)\s+AS \$\$([\s\S]*?)\$\$;/g), (match) => {
   const [, name, parameters, result, language, options, body] = match;
   const args = parameters.trim() ? parameters.split(',').map((arg) => pgType(arg.trim().split(/\s+/)[1])) : [];

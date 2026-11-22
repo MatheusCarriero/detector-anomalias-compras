@@ -28,6 +28,8 @@
     "test:runtime:read": "node scripts/run-connected-tests.mjs identity-permissions",
     "test:runtime:catalog": "node scripts/run-connected-tests.mjs catalog-permissions",
     "test:runtime:p4": "node scripts/run-connected-tests.mjs p4-purchases",
+    "test:runtime:comparability:catalog": "node scripts/run-connected-tests.mjs comparability-catalog",
+    "test:runtime:comparability": "node scripts/run-connected-tests.mjs p4-comparability",
     "test:runtime:contracts": "node scripts/run-connected-tests.mjs sql-contracts",
     "test:runtime:concurrency": "node scripts/run-connected-tests.mjs concurrency"
   },

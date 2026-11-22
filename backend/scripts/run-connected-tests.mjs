@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { P4_WRITE_CONFIRM, readConnectedTarget, selectConnectedSuite } from '../test/connected/config.ts';
+import { P4_WRITE_CONFIRM, COMPARABILITY_WRITE_CONFIRM, readConnectedTarget, selectConnectedSuite } from '../test/connected/config.ts';
 import { diagnosticCode, diagnosticError, parseDiagnostic } from '../test/connected/diagnostics.mjs';
 
 const backend = fileURLToPath(new URL('../', import.meta.url));
@@ -27,6 +27,7 @@ export async function runConnectedTests(args, env) {
       CONNECTED_TEST_RUNNER: 'bounded-v1',
     });
     if (target.operation === 'p4-purchases-write') childEnv.DB_TEST_WRITE_CONFIRM = P4_WRITE_CONFIRM;
+    if (target.operation === 'p4-comparability-write') childEnv.DB_TEST_WRITE_CONFIRM = COMPARABILITY_WRITE_CONFIRM;
     phase = 'CHILD_SPAWN';
     return await new Promise((resolve) => {
       // A single thread worker lives inside this owned Node process, not a fork tree.

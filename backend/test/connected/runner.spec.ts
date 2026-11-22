@@ -33,6 +33,16 @@ describe('connected runner protections (offline)', () => {
     expect(log).toHaveBeenCalledWith('DB_TEST: CONFIG_MISSING');
     expect(spawn).not.toHaveBeenCalled();
   });
+  it('forwards only the comparability gate and sanitizes its diagnostics', async () => {
+    const { runConnectedTests } = await import('../../scripts/run-connected-tests.mjs');
+    const env = { ...syntheticEnvironment, DB_TEST_DATABASE: 'synthetic_p4_comparability_test', DB_TEST_OPERATION: 'p4-comparability-write',
+      DB_TEST_RUNTIME_URL: syntheticEnvironment.DB_TEST_RUNTIME_URL.replace('synthetic_stage0_fixture', 'synthetic_p4_comparability_test') };
+    expect(await runConnectedTests(['p4-comparability'], env)).toBe(1); expect(spawn).not.toHaveBeenCalled(); log.mockClear();
+    const result = runConnectedTests(['p4-comparability'], { ...env, DB_TEST_WRITE_CONFIRM: 'p4-comparability/1.0:disposable-only' });
+    expect(vi.mocked(spawn).mock.calls[0][2]?.env?.DB_TEST_WRITE_CONFIRM).toBe('p4-comparability/1.0:disposable-only');
+    child.stderr.write('DB_TEST_DIAGNOSTIC_V1 failure CMP_SESSIONS\nprivate details\n'); child.emit('close', 1, null);
+    expect(await result).toBe(1); expect(log.mock.calls).toEqual([['DB_TEST: CMP_SESSIONS']]);
+  });
   it('refuses P4 writes without confirmation, then forwards only the explicit gate', async () => {
     const { runConnectedTests } = await import('../../scripts/run-connected-tests.mjs');
     const env = { ...syntheticEnvironment, DB_TEST_DATABASE: 'synthetic_detector_anomalias_compras_test',

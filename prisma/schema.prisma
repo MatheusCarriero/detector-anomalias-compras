@@ -54,6 +54,7 @@ model User {
   events         AuditEvent[]
   versions       RecordVersion[]
   snapshots      DecisionSnapshot[]
+  comparabilityRevisions P4ComparabilityRevision[]
 
   @@unique([authIssuer, authSubject], map: "users_auth_identity_key")
   @@index([departmentId], map: "users_department_idx")
@@ -100,6 +101,7 @@ model PurchaseOrderLine {
   currentVersion   RecordVersion @relation("LineHead", fields: [currentVersionId, id], references: [id, purchaseLineOwnerId], onDelete: NoAction, onUpdate: NoAction, map: "purchase_order_lines_head_fk")
   versions         RecordVersion[] @relation("LineOwner")
   identities       SourceIdentity[]
+  comparabilityRevisions P4ComparabilityRevision[] @relation("P4CmpPurchase")
 
   @@index([currentVersionId], map: "purchase_order_lines_head_idx")
   @@index([supplierId], map: "purchase_order_lines_supplier_idx")
@@ -150,6 +152,7 @@ model SourceReference {
   identity           SourceIdentity? @relation(fields: [sourceIdentityId, sourceNamespace, sourceEntityKind], references: [id, sourceNamespace, sourceEntityKind], onDelete: Restrict, onUpdate: Restrict, map: "source_references_scope_fk")
   versions           RecordVersion[]
   events             AuditEvent[]
+  comparabilityRevision P4ComparabilityRevision?
 
   @@index([sourceIdentityId, recordedAt], map: "source_references_identity_time_idx")
   @@map("source_references")
@@ -191,6 +194,7 @@ model RecordVersion {
   lineMembers         SnapshotMember[] @relation("MemberLine")
   beforeEvents        AuditEvent[] @relation("AuditBefore")
   afterEvents         AuditEvent[] @relation("AuditAfter")
+  comparabilityRevisions P4ComparabilityRevision[] @relation("P4CmpVersion")
 
   @@unique([id, supplierOwnerId], map: "record_versions_supplier_pair")
   @@unique([id, departmentOwnerId], map: "record_versions_department_pair")
@@ -279,5 +283,50 @@ model AuditEvent {
   @@index([sourceReferenceId], map: "audit_events_source_idx")
   @@index([snapshotId], map: "audit_events_snapshot_idx")
   @@map("audit_events")
+  @@schema("app")
+}
+
+// E.4 SQL owns immutable-row/truncate triggers, validation and runtime grants.
+// These models describe storage; the application calls restricted SQL routines.
+model P4ComparabilityDefinition {
+  kind              String @db.Text
+  definitionId      String @map("definition_id") @db.Text
+  definitionVersion String @map("definition_version") @db.Text
+  declaredValue     Json @map("declared_value") @db.JsonB
+  originalText      String @map("original_text") @db.Text
+  textSha256        String @map("text_sha256") @db.Text
+
+  @@id([kind, definitionId, definitionVersion], map: "p4_cmp_definitions_pk")
+  @@map("p4_comparability_definitions")
+  @@schema("app")
+}
+
+model P4ComparabilityRevision {
+  id                 String @id(map: "p4_cmp_revisions_pk") @db.Uuid
+  purchaseId         String @map("purchase_id") @db.Uuid
+  purchaseVersionId  String @map("purchase_version_id") @db.Uuid
+  purchaseHash       String @map("purchase_hash") @db.Text
+  revision           Int
+  previousId         String? @unique(map: "p4_cmp_predecessor_key") @map("previous_id") @db.Uuid
+  previousRevision   Int? @map("previous_revision")
+  previousHash       String? @map("previous_hash") @db.Text
+  canonicalContent   String @map("canonical_content") @db.Text
+  contentSha256      String @map("content_sha256") @db.Text
+  definitions        Json @db.JsonB
+  sourceReferenceId  String @unique(map: "p4_cmp_source_key") @map("source_reference_id") @db.Uuid
+  actorUserId        String @map("actor_user_id") @db.Uuid
+  recordedAt         DateTime @default(dbgenerated("clock_timestamp()")) @map("recorded_at") @db.Timestamptz(3)
+  purchase           PurchaseOrderLine @relation("P4CmpPurchase", fields: [purchaseId], references: [id], onDelete: Restrict, onUpdate: Restrict, map: "p4_cmp_purchase_fk")
+  purchaseVersion    RecordVersion @relation("P4CmpVersion", fields: [purchaseVersionId, purchaseId], references: [id, purchaseLineOwnerId], onDelete: Restrict, onUpdate: Restrict, map: "p4_cmp_version_fk")
+  predecessor        P4ComparabilityRevision? @relation("P4CmpChain", fields: [previousId, purchaseId, previousRevision, previousHash], references: [id, purchaseId, revision, contentSha256], onDelete: Restrict, onUpdate: Restrict, map: "p4_cmp_previous_fk")
+  successors         P4ComparabilityRevision[] @relation("P4CmpChain")
+  sourceReference    SourceReference @relation(fields: [sourceReferenceId], references: [id], onDelete: Restrict, onUpdate: Restrict, map: "p4_cmp_source_fk")
+  actor              User @relation(fields: [actorUserId], references: [id], onDelete: Restrict, onUpdate: Restrict, map: "p4_cmp_actor_fk")
+
+  @@unique([purchaseId, revision], map: "p4_cmp_purchase_revision_key")
+  @@unique([id, purchaseId, revision, contentSha256], map: "p4_cmp_chain_key")
+  @@index([purchaseVersionId], map: "p4_cmp_version_idx")
+  @@index([actorUserId], map: "p4_cmp_actor_idx")
+  @@map("p4_comparability_revisions")
   @@schema("app")
 }

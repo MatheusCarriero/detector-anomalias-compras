@@ -12,6 +12,10 @@ export const P4_MIGRATIONS = Object.freeze([
   { name: '20261020000100_first_increment', hash: '4bc2d19996d1adc10ab05a68eeb17b78153e3725c8d0bcb1c6781fc88848311f' },
   { name: '20261116000100_p4_read_interfaces', hash: 'c63333bbd5a025c64b51ab60fb2ac02b4c8c5df90dd7843c54361f48ad6291aa' },
 ]);
+export const P4_COMPARABILITY_MIGRATIONS = Object.freeze([...P4_MIGRATIONS,
+  { name: '20261119000100_p4_comparability', hash: '35955a7de1374ba2971ff55f2082ddd6923d3fa9f2b6690ca220b03cb4eae95d' },
+]);
+export type ProvisionProfile = 'p4-v1' | 'comparability-v1';
 const namespace = PURCHASE_CATALOG.version;
 const contract = 'p4-provision/1.0';
 const actorState = { display_name: 'Serviço técnico P4 — catálogo sintético', email: null,
@@ -42,7 +46,9 @@ function original(kind: string, sourceId: string, state: object, databaseId?: st
 }
 function hash(value: object) { return createHash('sha256').update(JSON.stringify(value), 'utf8').digest('hex'); }
 
-async function preflight(client: ProvisionClient) {
+async function preflight(client: ProvisionClient, profile: ProvisionProfile) {
+  const extended = profile === 'comparability-v1';
+  const expectedMigrations = extended ? P4_COMPARABILITY_MIGRATIONS : P4_MIGRATIONS;
   const who = single((await client.query(`/* p4:identity */ SELECT session_user::text AS session_user,
     current_user::text AS current_user, pg_catalog.current_database() AS database,
     pg_catalog.host(pg_catalog.inet_server_addr()) AS host, pg_catalog.inet_server_port() AS port,
@@ -53,7 +59,7 @@ async function preflight(client: ProvisionClient) {
     NOT EXISTS (SELECT 1 FROM pg_catalog.pg_stat_ssl WHERE pid=pg_catalog.pg_backend_pid() AND ssl) AS plaintext
     FROM pg_catalog.pg_namespace n JOIN pg_catalog.pg_roles r ON r.rolname=current_user WHERE n.nspname='app'`)).rows);
   requireValue(who.session_user === 'detector_migrator' && who.current_user === 'detector_migrator'
-    && who.database === 'synthetic_detector_anomalias_compras_test' && who.host === '127.0.0.1'
+    && who.database === (extended ? 'synthetic_p4_comparability_test' : 'synthetic_detector_anomalias_compras_test') && who.host === '127.0.0.1'
     && who.port === 5432 && typeof who.version === 'number' && who.version >= 180000 && who.version < 190000
     && who.owner === 'detector_migrator' && who.restricted === true && who.plaintext === true
     && who.read_only === 'off', 'TARGET');
@@ -64,11 +70,11 @@ async function preflight(client: ProvisionClient) {
   // Prisma retains resolved attempts. Their old checksums are historical, not
   // approvals of the current SQL. An unresolved failure must never be filtered
   // out merely because another attempt of the same migration succeeded.
-  requireValue(migrations.every(row => P4_MIGRATIONS.some(m => m.name === row.migration_name)
+  requireValue(migrations.every(row => expectedMigrations.some(m => m.name === row.migration_name)
     && typeof row.rolled_back === 'boolean'
     && (!row.rolled_back || row.complete === false)), 'MIGRATIONS');
   const applied = migrations.filter(row => row.rolled_back === false);
-  requireValue(applied.length === P4_MIGRATIONS.length && P4_MIGRATIONS.every(m => {
+  requireValue(applied.length === expectedMigrations.length && expectedMigrations.every(m => {
     const matches = applied.filter(row => row.migration_name === m.name);
     return matches.length === 1 && matches[0].checksum === m.hash && matches[0].complete === true;
   }), 'MIGRATIONS');
@@ -90,8 +96,8 @@ async function preflight(client: ProvisionClient) {
         SELECT 1 FROM pg_catalog.unnest(ARRAY['SELECT','INSERT','UPDATE','REFERENCES']) p
         WHERE pg_catalog.has_any_column_privilege(r.oid,c.oid,p)))) AS tables_safe,
     (SELECT pg_catalog.count(*) FROM pg_catalog.pg_class c WHERE c.relnamespace=n.oid AND c.relkind='r'
-      AND c.relname<>'_prisma_migrations')=11 AS table_count_safe,
-    (SELECT pg_catalog.count(*) FROM pg_catalog.pg_proc p WHERE p.pronamespace=n.oid)=31
+      AND c.relname<>'_prisma_migrations')=$2::integer AS table_count_safe,
+    (SELECT pg_catalog.count(*) FROM pg_catalog.pg_proc p WHERE p.pronamespace=n.oid)=$3::integer
       AND NOT EXISTS (SELECT 1 FROM pg_catalog.pg_proc p WHERE p.pronamespace=n.oid AND
         (p.proowner<>n.nspowner OR NOT pg_catalog.has_function_privilege(current_user,p.oid,'EXECUTE') OR EXISTS (
           SELECT 1 FROM pg_catalog.aclexplode(COALESCE(p.proacl,pg_catalog.acldefault('f',p.proowner))) a
@@ -100,10 +106,17 @@ async function preflight(client: ProvisionClient) {
       pg_catalog.has_function_privilege(r.oid,p.oid,'EXECUTE') IS DISTINCT FROM
       (p.oid::regprocedure::text=ANY($1::text[]))) AS allowlist_safe,
     (SELECT pg_catalog.count(*) FROM pg_catalog.pg_proc p WHERE p.pronamespace=n.oid
-      AND p.oid::regprocedure::text=ANY($1::text[]))=12 AS allowlist_complete,
+      AND p.oid::regprocedure::text=ANY($1::text[]))=pg_catalog.cardinality($1::text[]) AS allowlist_complete,
     NOT EXISTS (SELECT 1 FROM pg_catalog.pg_proc p WHERE p.pronamespace=n.oid AND p.proname LIKE 'p4_v1_%'
       AND (p.proconfig IS DISTINCT FROM ARRAY['search_path=pg_catalog, app, pg_temp']::text[] OR p.provolatile<>'s'
-        OR p.prosecdef IS DISTINCT FROM (p.proname<>'p4_v1_checked_receipt'))) AS readers_safe
+        OR p.prosecdef IS DISTINCT FROM (p.proname<>'p4_v1_checked_receipt'))) AS readers_safe,
+    $2::integer=11 OR ((SELECT pg_catalog.count(*) FROM pg_catalog.pg_proc p
+      WHERE p.pronamespace=n.oid AND p.proname LIKE 'p4_cmp_%')=10 AND NOT EXISTS (
+        SELECT 1 FROM pg_catalog.pg_proc p WHERE p.pronamespace=n.oid AND p.proname LIKE 'p4_cmp_%'
+          AND (p.proconfig IS DISTINCT FROM ARRAY['search_path=pg_catalog, app, pg_temp']::text[]
+            OR p.prosecdef IS DISTINCT FROM (p.proname IN ('p4_cmp_read','p4_cmp_write'))
+            OR EXISTS (SELECT 1 FROM pg_catalog.aclexplode(COALESCE(p.proacl,pg_catalog.acldefault('f',p.proowner))) a
+              WHERE a.grantee<>p.proowner AND (a.grantee<>r.oid OR p.proname NOT IN ('p4_cmp_read','p4_cmp_write')))))) AS comparability_safe
     FROM pg_catalog.pg_namespace n CROSS JOIN pg_catalog.pg_roles r
     WHERE n.nspname='app' AND r.rolname='detector_runtime'`, [[
     'app.write_supplier(uuid,uuid,jsonb,uuid,uuid,text,text)', 'app.write_department(uuid,uuid,jsonb,uuid,uuid,text,text)',
@@ -112,9 +125,11 @@ async function preflight(client: ProvisionClient) {
     'app.observe_source(text,text,uuid,uuid,text,text,text,text,jsonb,text)', 'app.capture_line(uuid,uuid)', 'app.seal_snapshot(uuid,uuid)',
     'app.p4_v1_context()', 'app.p4_v1_receipt_by_key(uuid)', 'app.p4_v1_receipt_by_id(uuid)',
     'app.p4_v1_history(integer,timestamp with time zone,uuid)',
-  ]])).rows);
+    ...(extended ? ['app.p4_cmp_write(text,jsonb)', 'app.p4_cmp_read(uuid,integer)'] : []),
+  ], extended ? 13 : 11, extended ? 41 : 31])).rows);
   const keys = ['runtime_restricted', 'runtime_schema_safe', 'schema_safe', 'tables_safe', 'table_count_safe',
     'functions_safe', 'allowlist_safe', 'allowlist_complete', 'readers_safe'];
+  if (extended) keys.push('comparability_safe');
   requireValue(keys.every(key => permission[key] === true), 'PERMISSION');
 }
 
@@ -202,12 +217,13 @@ async function entity(client: ProvisionClient, kind: Kind, entry: { id: string; 
   return { source_id: entry.id, id: row.entity_id, created };
 }
 
-export async function provisionP4(client: ProvisionClient) {
+export async function provisionP4(client: ProvisionClient, profile: ProvisionProfile = 'p4-v1') {
+  requireValue(profile === 'p4-v1' || profile === 'comparability-v1', 'TARGET');
   let begun = false; let committing = false;
   try {
     await client.query('BEGIN ISOLATION LEVEL READ COMMITTED'); begun = true;
     await client.query("SET LOCAL search_path=pg_catalog; SET LOCAL statement_timeout='5s'; SET LOCAL lock_timeout='2s'; SET LOCAL idle_in_transaction_session_timeout='8s'");
-    await preflight(client);
+    await preflight(client, profile);
     // This short administrative bootstrap serializes catalog changes, including
     // callers that do not cooperate with an advisory lock. Never used by HTTP.
     await client.query('LOCK TABLE app.currencies,app.users,app.suppliers,app.departments,app.source_identities,app.source_references IN SHARE ROW EXCLUSIVE MODE');

@@ -31,6 +31,12 @@ export async function inspectRuntimeCatalog() {
 export async function inspectP4Purchases() {
   return inspectRuntime('p4-purchases-write');
 }
+export async function inspectComparabilityCatalog() {
+  return inspectRuntime('comparability-read-only');
+}
+export async function inspectP4Comparability() {
+  return inspectRuntime('p4-comparability-write');
+}
 
 async function inspectRuntime(operation: ReturnType<typeof readConnectedTarget>['operation']) {
   let target: ReturnType<typeof readConnectedTarget>;
@@ -113,10 +119,12 @@ async function inspectRuntime(operation: ReturnType<typeof readConnectedTarget>[
         FROM pg_catalog.pg_roles r
         JOIN pg_catalog.pg_stat_ssl s ON s.pid = pg_catalog.pg_backend_pid()
         WHERE r.rolname = current_user`;
-      if (operation === 'catalog-read-only' || operation === 'p4-purchases-write') {
+      if (operation !== 'identity-read-only') {
         validateIdentity(result, target, enter);
         enter('CATALOG_LOAD');
-        const { catalogChecks } = await import('./catalog-checks.js');
+        const catalogChecks = operation === 'comparability-read-only' || operation === 'p4-comparability-write'
+          ? (await import('./comparability-catalog.js')).comparabilityCatalogChecks
+          : (await import('./catalog-checks.js')).catalogChecks;
         for (const check of catalogChecks) {
           enter(check.code);
           // Static, reviewed SELECTs only. No caller-supplied SQL or app routines.
@@ -138,6 +146,12 @@ async function inspectRuntime(operation: ReturnType<typeof readConnectedTarget>[
       const { runP4PurchaseChecks } = await import('./p4-purchase-checks.js');
       const service = module.select(PrismaModule).get(PrismaService, { strict: true });
       await runP4PurchaseChecks(service, enter);
+    }
+    if (operation === 'p4-comparability-write') {
+      enter('CMP_PREFLIGHT');
+      const { PrismaService } = await import('../../src/prisma/prisma.service.js');
+      const { runComparabilityChecks } = await import('./comparability-checks.js');
+      await runComparabilityChecks(module.select(PrismaModule).get(PrismaService, { strict: true }), enter);
     }
   } catch (error) {
     const code = diagnosticCode(error, stage);

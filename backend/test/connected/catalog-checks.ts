@@ -1,5 +1,5 @@
 import { isDeepStrictEqual } from 'node:util';
-import { catalogContract as contract } from './catalog-contract.js';
+import { catalogContract } from './catalog-contract.js';
 import { canonicalExpression } from './catalog-expression.js';
 import type { CatalogCheck } from './catalog-types.js';
 import { diagnosticError } from './diagnostics.mjs';
@@ -37,6 +37,7 @@ const columnsOf = (alias: string, keys: string, relation: string) =>
   `ARRAY(SELECT a.attname::text FROM pg_catalog.unnest(${alias}.${keys}) WITH ORDINALITY key_column(num, pos)
     JOIN pg_catalog.pg_attribute a ON a.attrelid=${relation} AND a.attnum=key_column.num ORDER BY key_column.pos)`;
 
+export function buildCatalogChecks(contract: typeof catalogContract): CatalogCheck[] {
 const roles = flags(`SELECT
   NOT pg_catalog.has_parameter_privilege(current_user,'session_replication_role','SET') AND
     NOT pg_catalog.has_parameter_privilege(current_user,'session_replication_role','SET WITH GRANT OPTION') AND
@@ -253,4 +254,7 @@ const defaultAcl: CatalogCheck = { code: 'CATALOG_DEFAULT_ACL', sql: `SELECT NOT
   if (!tables_safe) throw diagnosticError('CATALOG_DEFAULT_ACL_TABLES');
 } };
 
-export const catalogChecks: readonly CatalogCheck[] = [roles, relations, functions, columns, constraints, indexes, triggers, defaultAcl];
+return [roles, relations, functions, columns, constraints, indexes, triggers, defaultAcl];
+}
+
+export const catalogChecks: readonly CatalogCheck[] = buildCatalogChecks(catalogContract);

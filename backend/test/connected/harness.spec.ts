@@ -2,13 +2,15 @@ import { Socket } from 'node:net';
 import { syntheticEnvironment } from './fixtures.js';
 import { catalogChecks } from './catalog-checks.js';
 import { syntheticCatalog } from './catalog-fixtures.js';
+import { comparabilityCatalogContract, comparabilityCatalogChecks } from './comparability-catalog.js';
 
 const fake = vi.hoisted(() => ({
   connect: vi.fn(), disconnect: vi.fn(), query: vi.fn(), execute: vi.fn(),
   transaction: vi.fn(), adapter: vi.fn(), client: vi.fn(),
-  write: vi.fn(), catalog: vi.fn(), p4: vi.fn(),
+  write: vi.fn(), catalog: vi.fn(), p4: vi.fn(), comparability: vi.fn(),
 }));
 vi.mock('./p4-purchase-checks.js', () => ({ runP4PurchaseChecks: fake.p4 }));
+vi.mock('./comparability-checks.js', () => ({ runComparabilityChecks: fake.comparability }));
 vi.mock('node:fs', async (importOriginal) => ({
   ...await importOriginal<typeof import('node:fs')>(), writeSync: fake.write,
 }));
@@ -73,6 +75,47 @@ describe('Nest connected harness, with mocked driver and blocked network', { tim
       return fixture[check.code];
     });
   }
+  function enableComparability(write: boolean) {
+    enableP4();
+    vi.stubEnv('DB_TEST_OPERATION', write ? 'p4-comparability-write' : 'comparability-read-only');
+    vi.stubEnv('DB_TEST_DATABASE', 'synthetic_p4_comparability_test');
+    vi.stubEnv('DB_TEST_RUNTIME_URL', syntheticEnvironment.DB_TEST_RUNTIME_URL.replace('synthetic_stage0_fixture', 'synthetic_p4_comparability_test'));
+    vi.stubEnv('DB_TEST_WRITE_CONFIRM', write ? 'p4-comparability/1.0:disposable-only' : undefined);
+    fake.query.mockResolvedValue([{ ...identity, database: 'synthetic_p4_comparability_test' }]);
+    const fixture = syntheticCatalog(comparabilityCatalogContract);
+    fake.catalog.mockImplementation(async (sql: string) => fixture[comparabilityCatalogChecks.find(c => c.sql === sql)!.code]);
+  }
+  it('inspects the extended profile read-only without invoking a writer', async () => {
+    enableComparability(false); const { inspectComparabilityCatalog } = await import('./harness.js');
+    await expect(inspectComparabilityCatalog()).resolves.toHaveProperty('database', 'synthetic_p4_comparability_test');
+    expect(fake.comparability).not.toHaveBeenCalled(); expect(fake.p4).not.toHaveBeenCalled();
+    expect(fake.disconnect).toHaveBeenCalledOnce();
+  });
+  it('executes comparability only after its read-only catalog transaction resolves', async () => {
+    enableComparability(true); let completed = false; const tx = fake.transaction.getMockImplementation()!;
+    fake.transaction.mockImplementation(async (...args: unknown[]) => { const r = await tx(...args); completed = true; return r; });
+    fake.comparability.mockImplementation((service: { transaction: unknown }) => { expect(completed).toBe(true); expect(service.transaction).toBeTypeOf('function'); });
+    const { inspectP4Comparability } = await import('./harness.js');
+    await expect(inspectP4Comparability()).resolves.toHaveProperty('database', 'synthetic_p4_comparability_test');
+    expect(fake.comparability).toHaveBeenCalledOnce(); expect(fake.p4).not.toHaveBeenCalled();
+    expect(fake.client).toHaveBeenCalledOnce(); expect(fake.disconnect).toHaveBeenCalledOnce();
+  });
+  it('blocks comparability before writes when catalog/ACL checks fail', async () => {
+    enableComparability(true); fake.catalog.mockResolvedValue([]);
+    const { inspectP4Comparability } = await import('./harness.js');
+    await expect(inspectP4Comparability()).rejects.toThrow('DB_TEST:');
+    expect(fake.comparability).not.toHaveBeenCalled(); expect(fake.disconnect).toHaveBeenCalledOnce();
+  });
+  it('sanitizes a comparability failure and closes resources without retrying', async () => {
+    enableComparability(true); fake.comparability.mockImplementation((_: unknown, enter: (c: string) => void) => {
+      enter('CMP_CONCURRENCY'); throw new Error('private database details');
+    });
+    const { inspectP4Comparability } = await import('./harness.js');
+    await expect(inspectP4Comparability()).rejects.toThrow('CMP_CONCURRENCY');
+    expect(fake.comparability).toHaveBeenCalledOnce(); expect(fake.disconnect).toHaveBeenCalledOnce();
+    expect(fake.write.mock.calls.flat().join()).not.toContain('private database details');
+    expect(process.env.DATABASE_URL).toBeUndefined();
+  });
   it('never constructs a client for P4 with only read authorization or missing write confirmation', async () => {
     const { inspectP4Purchases } = await import('./harness.js');
     await expect(inspectP4Purchases()).rejects.toMatchObject({ diagnosticCode: 'SUITE_REFUSED' });

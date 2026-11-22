@@ -3,7 +3,8 @@ import { catalogContract as contract } from './catalog-contract.js';
 // Artificial catalog projections only; no environment, model or dataset access.
 // The successful default ACL projection assumes separately hardened global defaults.
 // It is not the state guaranteed by applying the migration alone.
-export function syntheticCatalog(): Record<string, Record<string, unknown>[]> {
+export function syntheticCatalog(selected = contract): Record<string, Record<string, unknown>[]> {
+  const contract = selected;
   return structuredClone({
     CATALOG_ROLES: [{ triggers_protected: true, no_memberships: true, no_role_admin: true,
       database_safe: true, no_schema_create: true, schema_safe: true }],
