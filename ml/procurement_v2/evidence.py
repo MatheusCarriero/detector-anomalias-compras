@@ -1,8 +1,9 @@
 """Deterministic evidence envelope for Procurement V2 preparation.
 
-This module validates and packages an existing preparation result. It does not
-read source files, access the network, fit a model, calculate scores, or certify
-the provenance of the underlying source.
+Creation and verification rebuild preparation through the demo adapter using
+its fixed, hash-pinned local CSV. No supplied historical aggregate is trusted.
+This requires the source to be available, but never loads a model, calculates
+scores, accesses the network or certifies the source's real-world provenance.
 """
 
 import copy
@@ -227,6 +228,24 @@ def _validate_prepared(prepared):
         if values != expected_values:
             raise EvidenceValidationError("feature_value_mismatch")
 
+    # The envelope carries aggregates, not historical rows. Agreement between
+    # its two feature representations (or a fresh digest) cannot prove the
+    # mathematics. Reuse the adapter's source verification, compound identity,
+    # temporal selection and P5.6 calculation without duplicating formulas.
+    try:
+        canonical = demo.prepare_operation({
+            "contract": demo.CONTRACT_VERSION,
+            "source_sha256": demo.SOURCE_SHA256,
+            "operation": dict(identity),
+        })
+    except demo.DemoValidationError:
+        raise EvidenceValidationError("source_verification_failed") from None
+    # Compare the complete preparation, including the four diagnostic-only
+    # features, references, context, support and unavailable/partial results.
+    # Canonical JSON also distinguishes booleans from numeric counts.
+    if _sha256(prepared) != _sha256(canonical):
+        raise EvidenceValidationError("canonical_preparation_mismatch")
+
 
 def _sha256(value):
     try:
@@ -240,7 +259,11 @@ def _sha256(value):
 
 
 def create_evidence(prepared):
-    """Create a deterministic evidence envelope from a validated preparation."""
+    """Create evidence after rebuilding preparation from the trusted local CSV.
+
+    Requires the fixed source; unavailable/corrupt source is a validation error,
+    not a statistically unavailable operation. No model or inference is used.
+    """
     _validate_prepared(prepared)
     result = {
         "contract": CONTRACT_VERSION,
@@ -259,10 +282,12 @@ def create_evidence(prepared):
 
 
 def verify_evidence(evidence):
-    """Verify payload integrity and contract consistency; return True if valid.
+    """Verify integrity and canonical source-backed preparation; return True.
 
     SHA-256 detects changes to the canonical payload. It is not a digital
     signature and does not authenticate who created the evidence.
+    Even a correctly rehashed payload must match a fresh preparation from the
+    adapter's fixed, independently hash-pinned source. No cached fallback is used.
     """
     _keys(evidence, _EVIDENCE_KEYS, "invalid_evidence_structure")
     if evidence["contract"] != CONTRACT_VERSION:
