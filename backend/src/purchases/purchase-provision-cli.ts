@@ -13,10 +13,11 @@ export function provisionConfig(args: string[], env: NodeJS.ProcessEnv) {
       || /^(PG.*|DB_TEST_.*|DATABASE_URL|DIRECT_URL|SHADOW_DATABASE_URL|NODE_OPTIONS|NODE_DEBUG.*|DEBUG|CI|NODE_TLS_REJECT_UNAUTHORIZED)$/i.test(key))) fail('CONFIG_CONFLICT');
   }
   const profile = env.P4_PROVISION_PROFILE ?? 'p4-v1';
-  if (!['p4-v1', 'comparability-v1'].includes(profile)) fail('CONFIG_REQUIRED');
-  const extended = profile === 'comparability-v1';
-  const database = extended ? 'synthetic_p4_comparability_test' : 'synthetic_detector_anomalias_compras_test';
-  if (env.P4_PROVISION_CONFIRM !== (extended ? 'synthetic-p4-comparability-catalog/1.0' : 'synthetic-p4-catalog/1.0') || env.P4_PROVISION_TLS !== 'local-plaintext'
+  if (!['p4-v1', 'comparability-v1', 'p4-api-comparability-v1'].includes(profile)) fail('CONFIG_REQUIRED');
+  const database = profile === 'comparability-v1' ? 'synthetic_p4_comparability_test' : 'synthetic_detector_anomalias_compras_test';
+  const confirmation = profile === 'p4-api-comparability-v1' ? 'synthetic-p4-api-comparability-catalog/1.0'
+    : profile === 'comparability-v1' ? 'synthetic-p4-comparability-catalog/1.0' : 'synthetic-p4-catalog/1.0';
+  if (env.P4_PROVISION_CONFIRM !== confirmation || env.P4_PROVISION_TLS !== 'local-plaintext'
     || typeof env.P4_PROVISION_URL !== 'string') fail('CONFIG_REQUIRED');
   let url: URL; let password: string;
   try { url = new URL(env.P4_PROVISION_URL); password = decodeURIComponent(url.password); }
@@ -68,7 +69,9 @@ export async function runProvision(args: string[], env: NodeJS.ProcessEnv, {
     const config = provisionConfig(args, env);
     if (nodeVersion.split('.')[0] !== '24') fail('NODE_VERSION');
     const { provisionP4, P4_MIGRATIONS, P4_COMPARABILITY_MIGRATIONS } = await loadCore();
-    const extended = env.P4_PROVISION_PROFILE === 'comparability-v1';
+    // provisionConfig has already checked the explicit profile and confirmation.
+    const profile = (env.P4_PROVISION_PROFILE ?? 'p4-v1') as ProvisionProfile;
+    const extended = profile !== 'p4-v1';
     const migrations = extended ? P4_COMPARABILITY_MIGRATIONS : P4_MIGRATIONS;
     if (!migrations || (extended && migrations.length !== 3)) fail('LOCAL_ARTIFACT');
     for (const migration of migrations) {
@@ -80,7 +83,7 @@ export async function runProvision(args: string[], env: NodeJS.ProcessEnv, {
     phase = 'CONNECT'; client = await createClient(config);
     client.on('error', () => { asynchronousError = true; }); // No raw driver output.
     await client.connect(); if (asynchronousError) fail('CONNECT'); phase = 'DATABASE';
-    const value = extended ? await provisionP4(client, 'comparability-v1') : await provisionP4(client);
+    const value = extended ? await provisionP4(client, profile) : await provisionP4(client);
     result = asynchronousError ? { ok: false, code: 'COMMIT_UNKNOWN' } : { ok: true, value };
   } catch (error) { result = { ok: false, code: safeCode(error, phase) }; }
   finally {

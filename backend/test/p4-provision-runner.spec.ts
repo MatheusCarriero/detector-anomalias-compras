@@ -7,6 +7,8 @@ import { provisionConfig, runProvision } from '../src/purchases/purchase-provisi
 const env = { P4_PROVISION_CONFIRM: 'synthetic-p4-catalog/1.0', P4_PROVISION_TLS: 'local-plaintext',
   P4_PROVISION_URL: 'postgresql://detector_migrator:fixture-secret@127.0.0.1:5432/synthetic_detector_anomalias_compras_test' };
 const args = ['--execute-synthetic-p4'];
+const apiEnv = { ...env, P4_PROVISION_PROFILE: 'p4-api-comparability-v1',
+  P4_PROVISION_CONFIRM: 'synthetic-p4-api-comparability-catalog/1.0' };
 const file = fileURLToPath(new URL('../src/purchases/purchase-provision-cli.ts', import.meta.url));
 function dependencies() {
   const bytes = Buffer.from('synthetic migration fixture');
@@ -19,6 +21,45 @@ function dependencies() {
 }
 
 describe('P4 provisioning CLI guards (offline)', () => {
+  it('requires the new API profile confirmation and checks all three files before invoking its transaction', async () => {
+    expect(provisionConfig(args, apiEnv)).toMatchObject({ host: '127.0.0.1', port: 5432,
+      database: 'synthetic_detector_anomalias_compras_test', user: 'detector_migrator', ssl: false });
+    const d = dependencies(); const core = await d.loadCore();
+    d.loadCore.mockResolvedValue({ ...core, P4_COMPARABILITY_MIGRATIONS: Array.from({ length: 3 }, (_, i) => ({ ...core.P4_MIGRATIONS[0], name: `fixture-${i}` })) });
+    expect((await runProvision(args, apiEnv, d)).ok).toBe(true);
+    expect(d.readMigration.mock.calls.map(call => call[0])).toEqual(['fixture-0', 'fixture-1', 'fixture-2']);
+    expect(d.provisionP4).toHaveBeenCalledExactlyOnceWith(d.client, 'p4-api-comparability-v1');
+    expect(d.client.end).toHaveBeenCalledTimes(1);
+  });
+  it.each([undefined, '', 'synthetic-p4-catalog/1.0', 'synthetic-p4-comparability-catalog/1.0'])
+  ('rejects absent or legacy confirmation for the API profile (%#)', async confirmation => {
+    const d = dependencies();
+    expect(await runProvision(args, { ...apiEnv, P4_PROVISION_CONFIRM: confirmation }, d)).toEqual({ ok: false, code: 'CONFIG_REQUIRED' });
+    expect(d.loadCore).not.toHaveBeenCalled(); expect(d.createClient).not.toHaveBeenCalled();
+  });
+  it.each([undefined, 'p4-v1', 'comparability-v1'])('does not reuse the new confirmation in an old/default profile (%#)', async profile => {
+    const d = dependencies();
+    expect((await runProvision(args, { ...apiEnv, P4_PROVISION_PROFILE: profile }, d)).ok).toBe(false);
+    expect(d.createClient).not.toHaveBeenCalled();
+  });
+  it.each([
+    env.P4_PROVISION_URL.replace('synthetic_detector_anomalias_compras_test', 'synthetic_p4_comparability_test'),
+    env.P4_PROVISION_URL.replace('detector_migrator:', 'detector_runtime:'),
+    env.P4_PROVISION_URL.replace('127.0.0.1', 'localhost'), env.P4_PROVISION_URL.replace('5432', '5433'),
+  ])('rejects altered API provisioning connection coordinates (%#)', async url => {
+    const d = dependencies();
+    expect(await runProvision(args, { ...apiEnv, P4_PROVISION_URL: url }, d)).toEqual({ ok: false, code: 'CONFIG_URL' });
+    expect(d.createClient).not.toHaveBeenCalled();
+  });
+  it.each(['missing', 'two-files', 'bad-third-checksum'])('rejects invalid local API migration artifacts before constructing a client: %s', async scenario => {
+    const d = dependencies(); const core = await d.loadCore();
+    if (scenario !== 'missing') d.loadCore.mockResolvedValue({ ...core, P4_COMPARABILITY_MIGRATIONS:
+      Array.from({ length: scenario === 'two-files' ? 2 : 3 }, (_, i) => ({ ...core.P4_MIGRATIONS[0], name: `fixture-${i}` })) });
+    if (scenario === 'bad-third-checksum') d.readMigration.mockResolvedValueOnce(Buffer.from('synthetic migration fixture'))
+      .mockResolvedValueOnce(Buffer.from('synthetic migration fixture')).mockResolvedValueOnce(Buffer.from('changed'));
+    expect(await runProvision(args, apiEnv, d)).toEqual({ ok: false, code: 'LOCAL_ARTIFACT' });
+    expect(d.createClient).not.toHaveBeenCalled();
+  });
   it('requires a distinct profile, target and confirmation for comparability provisioning', async () => {
     const cfg = { ...env, P4_PROVISION_PROFILE: 'comparability-v1', P4_PROVISION_CONFIRM: 'synthetic-p4-comparability-catalog/1.0',
       P4_PROVISION_URL: env.P4_PROVISION_URL.replace('synthetic_detector_anomalias_compras_test', 'synthetic_p4_comparability_test') };

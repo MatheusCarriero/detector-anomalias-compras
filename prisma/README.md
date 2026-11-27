@@ -1,8 +1,9 @@
-# Primeiro incremento do banco operacional
+# Banco operacional P4
 
-PostgreSQL 18, Prisma ORM 7.10.0, schema `app`. Este incremento não é um pipeline
-Purchase nem uma implantação dos modelos acadêmicos. Não há importador, seed,
-API, autenticação, scoring ou acesso aos datasets.
+PostgreSQL 18, Prisma ORM 7.10.0, schema `app`. O P4 atual possui três migrations,
+cadastro e histórico via API local e metadados de comparabilidade versionados.
+Não há importador, seed automático, autenticação humana ou scoring ML das compras.
+O banco não é um pipeline Purchase nem acessa datasets acadêmicos.
 
 ## Estado da entrega
 
@@ -24,10 +25,12 @@ reutilizar uma contagem antiga de testes como comprovação de uma nova execuç�
 | Core | `currencies`, `departments`, `users`, `suppliers` |
 | Procurement | `purchase_order_lines` |
 | Audit | `source_identities`, `source_references`, `record_versions`, `decision_snapshots`, `snapshot_members`, `audit_events` |
+| Comparabilidade P4 | `p4_comparability_definitions`, `p4_comparability_revisions` |
 
-São 11 tabelas de domínio. Quando Prisma Migrate for usado com uma URL que
+São 13 tabelas de domínio na estrutura atual: 11 do primeiro incremento e duas
+da migration `20261119000100_p4_comparability`. Quando Prisma Migrate for usado com uma URL que
 seleciona `schema=app`, sua tabela técnica `_prisma_migrations` deverá ficar nesse
-schema e ser conferida separadamente. Não representa uma 12ª entidade de negócio.
+schema e ser conferida separadamente. Ela não é uma tabela de domínio.
 
 O bootstrap da migration aceita `app` ausente, vazio ou contendo somente a
 tabela técnica do Prisma e seus objetos associados, sob o mesmo proprietário
@@ -108,12 +111,12 @@ pertence à futura aplicação. Não guardar tokens/senhas em conteúdo ou conte
 O cadastramento inicial de usuários/moedas exige administração separada; não há
 seed de pessoas reais ou catálogo inventado.
 
-### Leituras restritas do P4 — complemento preparado offline
+### Leituras restritas do P4
 
 A migration `20261116000100_p4_read_interfaces` acrescenta quatro interfaces
 `SECURITY DEFINER`, sob o proprietário existente de `app`, sem alterar as 11
-tabelas, os oito writers ou a migration inicial. **Ainda não foi aplicada nem
-validada no PostgreSQL.** O repositório P4 depende deste complemento e do
+tabelas originais, os oito writers ou a migration inicial. Sua aplicação e validação
+devem ser conferidas em cada ambiente. O repositório P4 depende deste complemento e do
 provisionamento abaixo; não existe fallback para SELECT direto.
 
 | Função em `app` | Retorno JSONB `p4-storage/1.0` |
@@ -161,11 +164,12 @@ canônica aponta para a linha. Não se inventa revisão 2 nem se altera uma orig
 para contornar o trigger. Produto, unidade e prazo permanecem na entrada original.
 A análise de compras manuais continua `unavailable`, incompatível com a V2.
 
-**Provisionamento sintético preparado offline, não executado:**
+**Provisionamento sintético — execução explícita e autorizada:**
 
 1. Confirmar banco sintético, proprietário e papel runtime separado; revisar e
-   aplicar o complemento apenas com autorização própria. Conferir as 11 tabelas,
-   oito writers, quatro leitores e helper privado pelo harness de catálogos.
+   aplicar as migrations apenas com autorização própria. Na instalação atual,
+   conferir 13 tabelas, oito writers originais, quatro leitores P4 e duas interfaces
+   de comparabilidade; helpers e triggers permanecem inacessíveis ao runtime.
 2. Em transação administrativa separada, conferir/criar BRL e um usuário ativo
    com `auth_issuer=p4-demo`, `auth_subject=manual-purchase-service`. Esses campos
    identificam um ator técnico; não são credenciais nem autenticação humana.
@@ -188,12 +192,24 @@ NestJS. Reutiliza o catálogo P4.2 e o driver `pg` já instalado, com uma única
 conexão administrativa dedicada à execução, sem alterar o pool da aplicação.
 Não é um seed automático nem é chamado por build, CI ou inicialização do servidor.
 
-Antes da futura execução autorizada, confirmar a aplicação das duas migrations
+Antes da execução autorizada para a API atual, confirmar a aplicação das três migrations
 e executar a inspeção de catálogo somente leitura. A rotina também exige seus
 checksums registrados, PostgreSQL 18, schema `app` pertencente a
 `detector_migrator`, runtime restrito e as assinaturas permitidas. Não aplica
 migrations nem corrige privilégios. Recusa superusuário e papéis administrativos
 amplos; usa somente o proprietário identificado, sem fallback para runtime.
+
+| `P4_PROVISION_PROFILE` | Banco autorizado | Migrations / tabelas | `P4_PROVISION_CONFIRM` |
+|---|---|---|---|
+| `p4-v1` (padrão legado) | `synthetic_detector_anomalias_compras_test` | 2 / 11 | `synthetic-p4-catalog/1.0` |
+| `comparability-v1` | `synthetic_p4_comparability_test` | 3 / 13 | `synthetic-p4-comparability-catalog/1.0` |
+| `p4-api-comparability-v1` | `synthetic_detector_anomalias_compras_test` | 3 / 13 | `synthetic-p4-api-comparability-catalog/1.0` |
+
+Não há detecção ou troca automática de perfil. Os perfis com três migrations
+exigem 41 funções no schema e exatamente 14 interfaces executáveis pelo runtime,
+incluindo `app.p4_cmp_write(text,jsonb)` e `app.p4_cmp_read(uuid,integer)`.
+O perfil legado continua rejeitando a terceira migration. Ver a
+[sequência de instalação nova](../backend/README.md#p49a--reprodução-e-recuperação-local).
 
 Preparar primeiro o build, sem credenciais:
 
@@ -211,12 +227,13 @@ O schema é qualificado pelo SQL; não adicionar `?schema=app`. Outras variávei
 de banco (`PG*`, `DATABASE_URL`, `DB_TEST_*`), CI e opções de debug são recusadas.
 
 ```powershell
-$env:P4_PROVISION_CONFIRM = 'synthetic-p4-catalog/1.0'
+$env:P4_PROVISION_PROFILE = 'p4-api-comparability-v1'
+$env:P4_PROVISION_CONFIRM = 'synthetic-p4-api-comparability-catalog/1.0'
 $env:P4_PROVISION_TLS = 'local-plaintext'
 node dist/purchases/purchase-provision-cli.js --execute-synthetic-p4
 ```
 
-Remover as três variáveis `P4_PROVISION_*` do processo após o uso. Não compartilhar
+Remover as quatro variáveis `P4_PROVISION_*` do processo após o uso. Não compartilhar
 a URL. O transporte sem TLS é exclusivo do loopback identificado. Há limites de
 3 s para conexão, 5 s por instrução, 2 s para locks e 60 s para o processo.
 
@@ -242,7 +259,7 @@ rollback nem repetir automaticamente; inspecionar o estado somente leitura.
 Os testes usam mocks e fixtures e não certificam locks, rollback, permissões ou
 integridade referencial reais. Esses pontos permanecem para execução autorizada.
 
-O contrato de catálogo conectado agora exige as duas migrations revisadas,
+O contrato de catálogo conectado legado (`p4-v1`) exige as duas migrations revisadas,
 preservando o hash da primeira. Executá-lo antes do complemento deve recusar o
 catálogo incompleto. Os testes históricos de `tests/database/` continuam cobrindo
 o primeiro incremento; não constituem validação conectada deste complemento.
@@ -338,6 +355,9 @@ PUBLIC` não remove privilégios individuais preexistentes.
 Conceder apenas USAGE no schema e EXECUTE nas oito interfaces públicas de escrita
 do primeiro incremento. Com a migration complementar P4, acrescentam-se as quatro
 interfaces de leitura restrita descritas neste guia, sem SELECT direto nas tabelas.
+Com a terceira migration, acrescentam-se exclusivamente
+`app.p4_cmp_write(text,jsonb)` e `app.p4_cmp_read(uuid,integer)` para comparabilidade,
+sem acesso direto às duas novas tabelas. A allowlist atual soma 14 interfaces.
 Não conceder EXECUTE em helpers,
 `internal_write_record` ou funções de trigger; nem INSERT/UPDATE/DELETE/TRUNCATE,
 CREATE/ALTER ou poder de desativar triggers. Não usar `GRANT ... ON ALL FUNCTIONS`.

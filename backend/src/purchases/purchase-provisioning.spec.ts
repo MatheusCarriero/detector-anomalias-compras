@@ -88,6 +88,67 @@ describe('P4 administrative provisioning (offline)', () => {
       checksum: P4_COMPARABILITY_MIGRATIONS[2].hash, complete: true, rolled_back: false });
     Object.assign(f.grants, { comparability_safe: true }); return f;
   }
+  function apiCatalog() {
+    const f = extended(); f.who.database = 'synthetic_detector_anomalias_compras_test'; return f;
+  }
+  it('provisions the API database with three migrations and reuses the same catalog on replay', async () => {
+    const f = apiCatalog(); const first = await provisionP4(f.client, 'p4-api-comparability-v1');
+    expect(first.user.created && first.currency.created).toBe(true);
+    expect(f.db.entities).toHaveLength(6); expect(f.db.identities).toHaveLength(6); expect(f.db.sources).toHaveLength(8);
+    const check = f.calls.find(c => c.sql.includes('/* p4:permissions */'))!;
+    expect(check.values.slice(1)).toEqual([13, 41]);
+    expect(check.values[0]).toHaveLength(14);
+    expect(check.values[0]).toEqual(expect.arrayContaining(['app.p4_cmp_write(text,jsonb)', 'app.p4_cmp_read(uuid,integer)']));
+    expect(f.calls.at(-2)?.sql).toBe('SET CONSTRAINTS ALL IMMEDIATE'); expect(f.calls.at(-1)?.sql).toBe('COMMIT');
+    const before = structuredClone(f.db); f.calls.length = 0;
+    const repeated = await provisionP4(f.client, 'p4-api-comparability-v1');
+    expect(repeated.user).toEqual({ id: first.user.id, created: false });
+    expect(repeated.currency).toEqual({ id: first.currency.id, created: false });
+    expect(repeated.suppliers).toEqual(first.suppliers.map(x => ({ ...x, created: false })));
+    expect(repeated.departments).toEqual(first.departments.map(x => ({ ...x, created: false })));
+    expect(f.db).toEqual(before);
+    expect(f.calls.some(c => /INSERT INTO|\/\* p4:(observe|register|resolve|write-)/.test(c.sql))).toBe(false);
+  });
+  it.each(['two-migrations', 'unfinished', 'unexpected', 'duplicate', 'unresolved'])
+  ('rejects invalid API migration history before catalog writes: %s', async scenario => {
+    const f = apiCatalog();
+    if (scenario === 'two-migrations') f.applied.pop();
+    if (scenario === 'unfinished') f.applied[2].complete = false;
+    if (scenario === 'unexpected') f.applied.push({ ...f.applied[2], migration_name: 'unknown' });
+    if (scenario === 'duplicate') f.applied.push({ ...f.applied[2] });
+    if (scenario === 'unresolved') f.applied.unshift({ ...f.applied[0], complete: false });
+    await expect(provisionP4(f.client, 'p4-api-comparability-v1')).rejects.toThrow('P4_PROVISION_MIGRATIONS');
+    expect(f.db).toEqual(empty()); expect(f.calls.at(-1)?.sql).toBe('ROLLBACK');
+    expect(f.calls.some(c => /INSERT INTO|^LOCK TABLE/.test(c.sql))).toBe(false);
+  });
+  it.each([0, 1, 2])('checks each approved checksum in the API profile: %s', async index => {
+    const f = apiCatalog(); f.applied[index].checksum = '0'.repeat(64);
+    await expect(provisionP4(f.client, 'p4-api-comparability-v1')).rejects.toThrow('P4_PROVISION_MIGRATIONS');
+    expect(f.db).toEqual(empty());
+  });
+  it.each(['synthetic_p4_comparability_test', 'production'])('rejects a different API provisioning database: %s', async database => {
+    const f = apiCatalog(); f.who.database = database;
+    await expect(provisionP4(f.client, 'p4-api-comparability-v1')).rejects.toThrow('P4_PROVISION_TARGET');
+    expect(f.db).toEqual(empty());
+  });
+  it.each([...Object.keys(permissions), 'comparability_safe'])('preserves strict API ACL checks: %s', async key => {
+    const f = apiCatalog(); Object.assign(f.grants, { [key]: false });
+    await expect(provisionP4(f.client, 'p4-api-comparability-v1')).rejects.toThrow('P4_PROVISION_PERMISSION');
+    expect(f.db).toEqual(empty()); expect(f.calls.some(c => /INSERT INTO|^LOCK TABLE/.test(c.sql))).toBe(false);
+  });
+  it.each(['p4-v1', 'comparability-v1'] as const)('does not widen the old profile for the API database with three migrations: %s', async profile => {
+    const f = apiCatalog();
+    await expect(provisionP4(f.client, profile)).rejects.toThrow(profile === 'p4-v1' ? 'P4_PROVISION_MIGRATIONS' : 'P4_PROVISION_TARGET');
+    expect(f.db).toEqual(empty());
+  });
+  it('preserves rollback and uncertain commit handling in the API profile', async () => {
+    const failed = apiCatalog(); failed.failures.set('write-department', { code: '23503' });
+    await expect(provisionP4(failed.client, 'p4-api-comparability-v1')).rejects.toThrow('P4_PROVISION_INTEGRITY');
+    expect(failed.db).toEqual(empty()); expect(failed.calls.at(-1)?.sql).toBe('ROLLBACK');
+    const uncertain = apiCatalog(); uncertain.failures.set('COMMIT', new Error('lost connection'));
+    await expect(provisionP4(uncertain.client, 'p4-api-comparability-v1')).rejects.toThrow('P4_PROVISION_COMMIT_UNKNOWN');
+    expect(uncertain.calls.filter(c => c.sql === 'COMMIT')).toHaveLength(1);
+  });
   it('explicitly provisions the 13-table profile without changing the legacy profile', async () => {
     const f = extended();
     const first = await provisionP4(f.client, 'comparability-v1');
