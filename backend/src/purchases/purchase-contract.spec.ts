@@ -200,10 +200,10 @@ describe('P4 manual purchase contract (no persistence or model)', () => {
     const elements = new Map<string, Element>();
     function element(): Element { return { value: '', textContent: '', children: [], appendChild(child) { this.children.push(child); },
       replaceChildren(...children) { this.children = children; }, setAttribute() {}, addEventListener() {} }; }
-    const document = { getElementById(id: string) { if (!elements.has(id)) elements.set(id, element()); return elements.get(id); }, createElement: element };
+    const document = { addEventListener() {}, getElementById(id: string) { if (!elements.has(id)) elements.set(id, element()); return elements.get(id); }, createElement: element };
     const fetch = vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => ({ contract: 'p4-purchase/1.0', currency: 'BRL', catalog: PURCHASE_CATALOG }) });
     runInNewContext(readFileSync(new URL('../demo/public/purchase.js', import.meta.url), 'utf8'), {
-      document, fetch, AbortController, setTimeout, clearTimeout, sessionStorage: { getItem: () => null },
+      window: { addEventListener() {} }, document, fetch, AbortController, setTimeout, clearTimeout, sessionStorage: { getItem: () => null },
     });
     for (let i = 0; i < 12; i++) await Promise.resolve();
     expect(fetch).toHaveBeenCalledOnce(); expect(fetch.mock.calls[0][0]).toBe('/demo/p4/catalog');

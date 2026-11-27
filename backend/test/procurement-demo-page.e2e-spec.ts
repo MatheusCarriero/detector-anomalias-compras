@@ -24,6 +24,16 @@ describe('Procurement V2 page and exact asset whitelist', () => {
     expect(response.text).toContain('Consultar histórico');
     expect(response.text).toContain('Analisar com IA');
     expect(response.text).toContain('/demo/procurement-v2/assets/app.js');
+    expect(response.text).toContain('href="/#invoice"');
+    expect(response.text).toContain('href="/#compras"');
+    expect(response.text).toContain('id="navigation-procurement" href="/demo/procurement-v2" aria-current="page"');
+    expect(response.text).toContain('href="/#visao-geral"');
+    expect(response.text).toContain('href="/#historico"');
+    expect(response.text).toContain('id="menu-toggle"');
+    expect(response.text).toContain('Detalhes técnicos · cinco features');
+    // Shared presentation assets must also be available through the full demo module.
+    await request(app.getHttpServer()).get('/demo/assets/site.css').expect(200);
+    await request(app.getHttpServer()).get('/demo/assets/navigation.js').expect(200);
     expect(response.text).not.toMatch(/<script(?![^>]*\bsrc=)[^>]*>|https?:\/\/|<iframe/i);
     expect(response.headers['content-security-policy']).toContain("connect-src 'self'");
     expect(response.headers['content-security-policy']).not.toMatch(/unsafe-inline|unsafe-eval/);

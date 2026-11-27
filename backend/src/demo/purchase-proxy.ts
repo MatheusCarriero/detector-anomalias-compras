@@ -1,3 +1,4 @@
+import { readPriceReview, readHypotheticalPrice, validCandidatePrice } from '../purchases/purchase-price-review.contract.js';
 import { Injectable } from '@nestjs/common';
 import type { OnModuleDestroy } from '@nestjs/common';
 import type { Request } from 'express';
@@ -57,7 +58,15 @@ function route(request: Request) {
     if (after !== null && id !== null) { params.set('after_recorded_at', after); params.set('after_id', id); }
     return { method: 'GET', path: `/p4/purchases?${params}` };
   }
+  if (path === '/demo/p4/price-analysis/hypothetical') {
+    const price = url.searchParams.get('unit_price');
+    if ([...url.searchParams.keys()].join(',') !== 'unit_price' || !validCandidatePrice(price)) throw invalid();
+    return { method: 'GET', path: `/p4/price-analysis/hypothetical?unit_price=${price}` };
+  }
   if (url.search) throw invalid();
+  if (path === '/demo/p4/price-analysis/simulation') return { method: 'GET', path: '/p4/price-analysis/simulation' };
+  const review = /^\/demo\/p4\/purchases\/([^/]+)\/price-analysis$/.exec(path);
+  if (review && matches(review[1], uuid)) return { method: 'GET', path: `/p4/purchases/${review[1]}/price-analysis` };
   if (path === '/demo/p4/catalog') return { method: 'GET', path: '/p4/catalog' };
   const byKey = /^\/demo\/p4\/purchases\/by-key\/([^/]+)$/.exec(path);
   const byId = /^\/demo\/p4\/purchases\/([^/]+)$/.exec(path);
@@ -86,6 +95,17 @@ function receipt(value: unknown) {
 }
 function responseBody(value: unknown, status: number, target: ReturnType<typeof route>) {
   const data = object(value);
+  if (status === 200 && target.method === 'GET' && target.path.startsWith('/p4/price-analysis/hypothetical?')) {
+    const price = new URL(target.path, 'http://127.0.0.1').searchParams.get('unit_price')!;
+    const result = readHypotheticalPrice(data, price);
+    if (!result) throw unavailable();
+    return result;
+  }
+  if (status === 200 && target.method === 'GET' && (target.path.endsWith('/price-analysis') || target.path === '/p4/price-analysis/simulation')) {
+    const result = readPriceReview(data, target.path === '/p4/price-analysis/simulation' ? 'simulation' : target.path.split('/')[3]);
+    if (!result) throw unavailable();
+    return result;
+  }
   if (data.contract !== PURCHASE_CONTRACT) throw unavailable();
   if (status !== 200 && status !== 201) {
     const code = object(data.error).code;

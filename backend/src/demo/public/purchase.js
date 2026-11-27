@@ -1,4 +1,4 @@
-/* global document, fetch, AbortController, sessionStorage, crypto */
+/* global document, window, fetch, AbortController, sessionStorage, crypto */
 (() => {
   const contract = 'p4-purchase/1.0';
   const storageKey = `${contract}:submission`;
@@ -93,6 +93,140 @@
   const historyStatus = document.getElementById('purchase-history-status');
   let historyBusy = false, cursor = null;
   const historyIds = new Set();
+  const recentLoad = document.getElementById('recent-load');
+  const recentRows = document.getElementById('recent-rows');
+  const recentStatus = document.getElementById('recent-status');
+  const historyDetails = document.getElementById('purchase-history-details');
+  const historyDetailValues = document.getElementById('purchase-history-detail-values');
+  let recentBusy = false, recentRequested = false, detailTrigger = null;
+
+  // Internal screens preserve the DOM. Leaving the document can lose an unsent
+  // draft; unresolved submissions additionally retain their exact key in this tab.
+  window.addEventListener('beforeunload', event => {
+    if (busy || (submission && !confirmed) || (!confirmed && names.some(name => fields[name].value !== ''))) {
+      event.preventDefault(); event.returnValue = '';
+    }
+  });
+
+  const priceContract = 'p4-price-review/1.0';
+  const pricePanel = document.getElementById('purchase-price-panel');
+  const priceLoad = document.getElementById('purchase-price-load');
+  const priceStatus = document.getElementById('purchase-price-status');
+  const priceValues = document.getElementById('purchase-price-values');
+  const priceDetails = document.getElementById('purchase-price-details');
+  const priceEvidence = document.getElementById('purchase-price-evidence');
+  const priceReasons = document.getElementById('purchase-price-reasons');
+  const personalize = document.getElementById('purchase-price-personalize');
+  const simulate = document.getElementById('purchase-price-simulate');
+  const simulationStatus = document.getElementById('purchase-price-simulation-status');
+  const simulationValues = document.getElementById('purchase-price-simulation-values');
+  const simulationDetails = document.getElementById('purchase-price-simulation-details');
+  const simulationEvidence = document.getElementById('purchase-price-simulation-evidence');
+  let priceTarget = null, priceEpoch = 0, priceBusy = false, simulationBusy = false;
+  const fieldLabels = { specification: 'Especificação técnica', unit: 'Unidade de medida', packaging: 'Embalagem',
+    currency: 'Moeda', price_basis: 'Composição do preço', payment_days: 'Prazo de pagamento',
+    delivery: 'Condições de entrega', quantity_pricing: 'Regime de preço por quantidade' };
+  function resetPriceReview(r = null) {
+    priceEpoch++; priceTarget = r ? { id: r.id, unit_price: r.purchase.unit_price } : null;
+    priceBusy = false; simulationBusy = false; pricePanel.hidden = !r;
+    priceLoad.disabled = false; simulate.disabled = false; personalize.disabled = false;
+    priceLoad.setAttribute('aria-busy', 'false'); simulate.setAttribute('aria-busy', 'false'); personalize.setAttribute('aria-busy', 'false');
+    priceValues.replaceChildren(); priceReasons.replaceChildren(); simulationValues.replaceChildren();
+    priceDetails.hidden = true; simulationDetails.hidden = true;
+    priceEvidence.textContent = ''; simulationEvidence.textContent = ''; simulationStatus.textContent = '';
+    priceStatus.removeAttribute('data-state'); simulationStatus.removeAttribute('data-state');
+    priceStatus.textContent = 'Compra confirmada. Consulte os requisitos para uma comparação histórica.';
+  }
+  function priceEntries(target, entries) {
+    target.replaceChildren();
+    for (const [label, text] of entries) {
+      const group = document.createElement('div'); const term = document.createElement('dt'); const value = document.createElement('dd');
+      term.textContent = label; value.textContent = text; group.appendChild(term); group.appendChild(value); target.appendChild(group);
+    }
+  }
+  priceLoad.addEventListener('click', async () => {
+    if (!confirmed || !priceTarget || priceBusy) return;
+    const epoch = priceEpoch; const target = priceTarget;
+    priceBusy = true; priceLoad.disabled = true; priceLoad.setAttribute('aria-busy', 'true');
+    priceStatus.removeAttribute('data-state'); priceStatus.textContent = 'Consultando os requisitos de comparação…';
+    priceValues.replaceChildren(); priceDetails.hidden = true;
+    try {
+      const { data } = await api(`purchases/${target.id}/price-analysis`, undefined, priceContract);
+      if (epoch !== priceEpoch) return;
+      if (data.mode !== 'persisted' || data.status !== 'unavailable' || data.purchase?.id !== target.id ||
+        data.purchase.unit_price !== target.unit_price || data.purchase.currency !== 'BRL' ||
+        !uuid.test(data.purchase.version_id) || !/^[a-f0-9]{64}$/.test(data.purchase.content_sha256) ||
+        data.history !== 'not_assessed' || data.reason !== 'manual_contract_and_historical_evidence_required' ||
+        !['absent', 'incomplete', 'unverified'].includes(data.metadata_status) ||
+        [data.missing_fields, data.unverified_fields].some(list => !Array.isArray(list) || list.length > 8 || list.some(field => !Object.hasOwn(fieldLabels, field)))) throw new Error('P4_RESPONSE');
+      const revision = data.metadata_revision;
+      if ((data.metadata_status === 'absent') !== (revision === null) ||
+        (revision !== null && (!revision || !uuid.test(revision.id) || !Number.isSafeInteger(revision.revision) || revision.revision < 1 || !/^[a-f0-9]{64}$/.test(revision.content_sha256)))) throw new Error('P4_RESPONSE');
+      priceStatus.textContent = 'Análise indisponível. Faltam condições comerciais verificadas e evidência histórica. O histórico comparável não foi avaliado; isso não significa zero compras ou uma contagem comprovada de histórico insuficiente. O cadastro continua confirmado.';
+      priceEntries(priceValues, [['Preço unitário cadastrado (BRL)', `R$ ${target.unit_price.replace('.', ',')}`],
+        ['Metadados', { absent: 'Não cadastrados', incomplete: 'Incompletos / apenas declarados', unverified: 'Declarados, sem verificação comercial' }[data.metadata_status]]]);
+      priceReasons.replaceChildren();
+      for (const [fields, suffix] of [[data.missing_fields, 'não informado nos metadados'], [data.unverified_fields, 'declarado, não verificado']]) {
+        for (const field of fields) { const li = document.createElement('li'); li.textContent = `${fieldLabels[field]}: ${suffix}.`; priceReasons.appendChild(li); }
+      }
+      priceEvidence.textContent = `Compra ${target.id}; versão ${data.purchase.version_id}; SHA-256 ${data.purchase.content_sha256}. ${revision ? `Metadados ${revision.id}, revisão ${revision.revision}, SHA-256 ${revision.content_sha256}.` : 'Sem revisão de metadados.'} O contrato estatístico atual aceita apenas experimentos sintéticos controlados. A cobertura histórica e a disponibilidade temporal das referências ainda precisam de comprovação.`;
+      priceDetails.hidden = false;
+    } catch {
+      if (epoch === priceEpoch) { priceStatus.textContent = 'Falha técnica na consulta de preço. A compra continua cadastrada; esta falha não exige outro cadastro. Tente novamente apenas esta consulta.'; priceStatus.setAttribute('data-state', 'error'); }
+    } finally {
+      if (epoch === priceEpoch) { priceBusy = false; priceLoad.disabled = false; priceLoad.setAttribute('aria-busy', 'false'); }
+    }
+  });
+  let simulationInputEpoch = 0;
+  function invalidateSimulation() {
+    simulationInputEpoch++;
+    simulationValues.replaceChildren(); simulationDetails.hidden = true;
+    simulationStatus.textContent = 'Preço alterado. Execute novamente a simulação para comparar o novo valor.';
+  }
+  fields['unit-price'].addEventListener('input', invalidateSimulation);
+  fields['unit-price'].addEventListener('change', invalidateSimulation);
+  async function runSimulation(personalized) {
+    if (simulationBusy) return;
+    const cents = personalized ? priceInCents(fields['unit-price'].value) : null;
+    if (personalized && cents === null) {
+      simulationStatus.textContent = 'Informe um preço válido entre R$ 0,01 e R$ 1.000.000,00.';
+      simulationValues.replaceChildren(); simulationDetails.hidden = true; return;
+    }
+    const candidate = personalized ? `${Math.floor(cents / 100)}.${String(cents % 100).padStart(2, '0')}` : null;
+    const inputEpoch = simulationInputEpoch;
+    const epoch = priceEpoch;
+    simulationBusy = true; simulate.disabled = true; personalize.disabled = true; simulate.setAttribute('aria-busy', 'true'); personalize.setAttribute('aria-busy', 'true');
+    simulationValues.replaceChildren(); simulationDetails.hidden = true;
+    simulationStatus.removeAttribute('data-state'); simulationStatus.textContent = 'Calculando o cenário experimental independente…';
+    try {
+      const { data: envelope } = await api(personalized ? `price-analysis/hypothetical?unit_price=${candidate}` : 'price-analysis/simulation', undefined,
+        personalized ? 'p4-hypothetical-price/1.0' : priceContract);
+      if (epoch !== priceEpoch || inputEpoch !== simulationInputEpoch) return;
+      const data = personalized ? envelope.result : envelope;
+      if (!data || (personalized && (data.contract !== priceContract || data.unit_price !== candidate))) throw new Error('P4_RESPONSE');
+      if (data.mode !== 'simulation' || data.origin !== 'synthetic-experiment' || data.status !== 'available' ||
+        data.scenario_id !== 'experiment-prod-cimento-candidate' || data.purchase !== undefined ||
+        !/^\d{1,7}\.\d{2}$/.test(data.unit_price) || !/^\d{1,7}\.\d{3}$/.test(data.median_unit_price) ||
+        !/^-?\d{1,12}\.\d{6}$/.test(data.percent_difference) || data.references !== 30 || data.minimum_references !== 20 ||
+        data.window?.startDate !== '2026-01-01' || data.window.endExclusive !== '2026-04-01' || data.window.days !== 90 ||
+        !Array.isArray(data.reference_ids) || data.reference_ids.length !== 30 || data.reference_ids.some((id, i) => id !== `experiment-prod-cimento-reference-${String(i).padStart(2, '0')}`)) throw new Error('P4_RESPONSE');
+      priceEntries(simulationValues, [[personalized ? 'Preço informado (BRL)' : 'Preço do cenário (BRL)', `R$ ${data.unit_price.replace('.', ',')}`],
+        ['Mediana sintética (BRL)', `R$ ${data.median_unit_price.replace(/(\.\d{2})0$/, '$1').replace('.', ',')}`],
+        ['Diferença relativa à mediana', `${data.percent_difference.startsWith('-') ? '' : '+'}${data.percent_difference.replace(/\.?0+$/, '').replace('.', ',')}%`],
+        ['Referências utilizadas / mínimo', `${data.references} referências sintéticas / mínimo ${data.minimum_references}`],
+        ['Janela de 90 dias', '[01/01/2026, 01/04/2026) — sem compras do mesmo dia']]);
+      simulationStatus.textContent = 'Simulação acadêmica disponível. Comparação hipotética no cenário experimental, sem relação com a compra cadastrada. Uma diferença percentual não confirma anomalia, fraude ou risco.';
+      simulationEvidence.textContent = `Cenário ${data.scenario_id}. Referências construídas: ${data.reference_ids.join(', ')}. Comparabilidade e cobertura são premissas do experimento, não evidências comerciais.`;
+      simulationDetails.hidden = false;
+    } catch {
+      if (epoch === priceEpoch && inputEpoch === simulationInputEpoch) { simulationStatus.textContent = 'Não foi possível demonstrar o cenário sintético. O cadastro e seu diagnóstico permanecem inalterados.'; simulationStatus.setAttribute('data-state', 'error'); }
+    } finally {
+      if (epoch === priceEpoch) { simulationBusy = false; simulate.disabled = false; personalize.disabled = false; simulate.setAttribute('aria-busy', 'false'); personalize.setAttribute('aria-busy', 'false'); }
+    }
+  }
+  simulate.addEventListener('click', () => runSimulation(false));
+  personalize.addEventListener('click', () => runSimulation(true));
+
 
   function controls() {
     for (const field of Object.values(fields)) field.disabled = !ready || busy || blocked || !!submission;
@@ -120,7 +254,7 @@
     status.textContent = text;
     status.setAttribute('data-state', error ? 'error' : 'success');
   }
-  async function api(path, request) {
+  async function api(path, request, expectedContract = contract) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 20_000);
     try {
@@ -134,7 +268,7 @@
         const error = new Error('P4_HTTP'); error.status = response.status; throw error;
       }
       const data = await response.json();
-      if (!data || data.contract !== contract) throw new Error('P4_RESPONSE');
+      if (!data || data.contract !== expectedContract) throw new Error('P4_RESPONSE');
       return { data, status: response.status };
     } finally { clearTimeout(timer); }
   }
@@ -165,6 +299,7 @@
     if (r.idempotency_key !== submission.idempotency_key ||
       JSON.stringify(purchaseInput(op)) !== JSON.stringify(submission.purchase)) throw new Error('P4_RECEIPT_MISMATCH');
     confirmed = true;
+    if (priceTarget?.id !== r.id) resetPriceReview(r);
     receipt.textContent = `Compra cadastrada com sucesso. UUID: ${r.id}. Total ${money(op.totalCents)}. Registro em ${new Date(r.recorded_at).toLocaleString('pt-BR')}. Revisão 1. Análise por IA indisponível.`;
     message('Compra cadastrada com sucesso. Para iniciar um novo cadastro, selecione Preparar outra compra. A chave e o recibo desta operação foram preservados.');
   }
@@ -214,6 +349,7 @@
       if (sessionStorage.getItem(storageKey) !== null) throw new Error('P4_STORAGE');
     } catch { message('Não foi possível encerrar a submissão nesta aba. A chave permanece preservada.', true); return; }
     submission = null; confirmed = false; draft = null; receipt.textContent = '';
+    resetPriceReview();
     invalidateSummary(); controls(); fields.supplier.focus();
   });
 
@@ -339,7 +475,10 @@
     } catch {
       if (ready) { blocked = true; message('Não foi possível validar a submissão preservada nesta aba. Nenhum envio será feito; não apague a pendência sem conferência.', true); }
       else catalogStatus.textContent = 'Catálogo indisponível. Verifique se a API local da porta 3002 está iniciada e tente carregar novamente.';
-    } finally { reload.disabled = false; controls(); }
+    } finally {
+      reload.disabled = false; controls();
+      if (recentRequested) void recent();
+    }
   }
   reload.addEventListener('click', loadCatalog);
 
@@ -362,10 +501,16 @@
       data.items.forEach((r, i) => {
         if (historyIds.has(r.id)) return;
         const op = operations[i]; const row = document.createElement('tr');
-        for (const text of [r.id, op.date.split('-').reverse().join('/'), new Date(r.recorded_at).toLocaleString('pt-BR'),
-          op.supplier.name, op.product.name, op.department.name, `${op.quantity} (${op.product.unit})`, money(op.unitPriceCents), money(op.totalCents), 'Indisponível']) {
+        for (const text of [op.date.split('-').reverse().join('/'), op.supplier.name, op.product.name,
+          `${op.quantity} (${op.product.unit})`, money(op.unitPriceCents), money(op.totalCents)]) {
           const cell = document.createElement('td'); cell.textContent = text; row.appendChild(cell);
         }
+        const cell = document.createElement('td');
+        const button = document.createElement('button');
+        button.type = 'button'; button.className = 'purchase-secondary'; button.textContent = 'Ver detalhes';
+        button.setAttribute('aria-label', `Ver detalhes da compra ${r.id}`);
+        button.addEventListener('click', () => showDetails(r, op, button));
+        cell.appendChild(button); row.appendChild(cell);
         historyRows.appendChild(row); historyIds.add(r.id);
       });
       cursor = data.next_cursor;
@@ -373,6 +518,61 @@
     } catch { historyStatus.textContent = 'Não foi possível consultar esta página do histórico. Os registros já exibidos foram preservados. Tente novamente.'; }
     finally { historyBusy = false; historyLoad.disabled = false; historyMore.disabled = !cursor; }
   }
+  function showDetails(r, op, button) {
+    historyDetailValues.replaceChildren();
+    const entries = [
+      ['UUID', r.id], ['Chave de idempotência', r.idempotency_key],
+      ['Revisão', String(r.revision_no)], ['Registro no sistema (horário local)', new Date(r.recorded_at).toLocaleString('pt-BR')],
+      ['Data comercial', op.date.split('-').reverse().join('/')], ['Fornecedor', op.supplier.name],
+      ['Produto', op.product.name], ['Departamento', op.department.name],
+      ['Quantidade e unidade', `${op.quantity} (${op.product.unit})`],
+      ['Preço unitário (BRL)', money(op.unitPriceCents)], ['Valor total (BRL)', money(op.totalCents)],
+      ['Prazo de pagamento', `${op.paymentDays} dias`], ['Análise', 'unavailable · compras manuais incompatíveis com Procurement V2'],
+    ];
+    for (const [label, text] of entries) {
+      const group = document.createElement('div');
+      const term = document.createElement('dt'); const value = document.createElement('dd');
+      term.textContent = label; value.textContent = text;
+      group.appendChild(term); group.appendChild(value); historyDetailValues.appendChild(group);
+    }
+    detailTrigger = button; historyDetails.hidden = false; historyDetails.focus();
+  }
+  document.getElementById('purchase-details-close').addEventListener('click', () => {
+    historyDetails.hidden = true; detailTrigger?.focus();
+  });
+  async function recent() {
+    if (recentBusy) return;
+    recentRequested = true;
+    if (!ready) {
+      recentStatus.textContent = reload.disabled ? 'Aguardando catálogo para conferir os registros…' : 'Catálogo indisponível. Inicie a API local e recarregue o catálogo em Nova compra.';
+      return;
+    }
+    recentBusy = true; recentLoad.disabled = true;
+    recentStatus.textContent = 'Consultando as cinco compras mais recentes…';
+    recentStatus.removeAttribute('data-state');
+    try {
+      const { data } = await api('purchases?limit=5');
+      if (!Array.isArray(data.items) || data.items.length > 5 || new Set(data.items.map(r => r.id)).size !== data.items.length) throw new Error('P4_RESPONSE');
+      const operations = data.items.map(validReceipt);
+      const rows = operations.map(op => {
+        const row = document.createElement('tr');
+        for (const text of [op.date.split('-').reverse().join('/'), op.supplier.name, op.product.name, money(op.totalCents)]) {
+          const cell = document.createElement('td'); cell.textContent = text; row.appendChild(cell);
+        }
+        return row;
+      });
+      // Keep the API's registration order, not the commercial date order.
+      recentRows.replaceChildren(...rows);
+      recentStatus.textContent = rows.length ? `${rows.length} registro(s) recente(s) carregado(s), por data de registro decrescente. Esta página não indica o total cadastrado.` : 'Nenhuma compra cadastrada nesta origem.';
+    } catch {
+      recentStatus.textContent = 'Não foi possível consultar as compras recentes. Verifique a API local e tente atualizar. Registros anteriores, se existentes, foram preservados e podem estar desatualizados.';
+      recentStatus.setAttribute('data-state', 'error');
+    } finally { recentBusy = false; recentLoad.disabled = false; }
+  }
+  recentLoad.addEventListener('click', recent);
+  document.addEventListener('dashboard:view', event => {
+    if (event.detail?.view === 'overview') void recent();
+  });
   historyLoad.addEventListener('click', () => history(false));
   historyMore.addEventListener('click', () => history(true));
   updateTotal();
