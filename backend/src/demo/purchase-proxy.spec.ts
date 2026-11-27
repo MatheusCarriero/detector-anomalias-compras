@@ -125,3 +125,49 @@ it('sanitizes synchronous transport errors and invalid JSON without leaking mess
   await expect(pending).rejects.toMatchObject({ status: 503, response: { error: { code: 'P4_SERVICE_UNAVAILABLE' } } });
   expect(vi.getTimerCount()).toBe(0);
 });
+
+it('proxies the read-only review without relaying extra data or accepting an available manual result', async () => {
+  const id = '22222222-2222-4222-8222-222222222222';
+  const result = { contract: 'p4-price-review/1.0', mode: 'persisted', status: 'unavailable',
+    purchase: { id, version_id: id, content_sha256: 'a'.repeat(64), unit_price: '0.10', currency: 'BRL' },
+    metadata_status: 'absent', metadata_revision: null, missing_fields: ['specification'], unverified_fields: [],
+    history: 'not_assessed', reason: 'manual_contract_and_historical_evidence_required' };
+  const s = setup(); const pending = s.proxy.forward(incoming('GET', `/demo/p4/purchases/${id}/price-analysis`)); s.respond(result);
+  expect(await pending).toEqual({ status: 200, body: result });
+  expect(transport.request.mock.calls[0][0]).toMatchObject({ method: 'GET', path: `/p4/purchases/${id}/price-analysis` });
+  expect(s.req.end).toHaveBeenCalledWith(undefined);
+  const bad = setup(); const rejected = bad.proxy.forward(incoming('GET', `/demo/p4/purchases/${id}/price-analysis`));
+  bad.respond({ ...result, status: 'available', median_unit_price: '99.00' });
+  await expect(rejected).rejects.toMatchObject({ status: 503 });
+});
+it.each([
+  ['POST', '/demo/p4/price-analysis/simulation'], ['GET', '/demo/p4/price-analysis/simulation?price=10'],
+  ['GET', '/demo/p4/purchases/bad/price-analysis'], ['POST', `/demo/p4/purchases/${key}/price-analysis`],
+])('refuses price-review mutation/parameters %s %s', async (method, path) => {
+  const s = setup(); await expect(s.proxy.forward(incoming(method, path))).rejects.toThrow();
+  expect(transport.request).not.toHaveBeenCalled();
+});
+
+it('allows only the fixed simulation via GET and preserves its distinct provenance', async () => {
+  const { PurchasePriceReviewService } = await import('../purchases/purchase-price-review.service.js');
+  const status = vi.fn(() => { throw new Error('Receipt lookup forbidden for simulation'); });
+  const data = await new PurchasePriceReviewService({ status }).simulation();
+  const s = setup(); const pending = s.proxy.forward(incoming('GET', '/demo/p4/price-analysis/simulation'));
+  s.respond(data); expect(await pending).toEqual({ status: 200, body: data });
+  expect(status).not.toHaveBeenCalled();
+  expect(transport.request.mock.calls[0][0].path).toBe('/p4/price-analysis/simulation');
+});
+
+it('forwards a validated hypothetical price only and rejects a mismatched result',async()=>{
+ const {PurchasePriceReviewService}=await import('../purchases/purchase-price-review.service.js');
+ const service=new PurchasePriceReviewService({status:vi.fn()});
+ const s=setup();const pending=s.proxy.forward(incoming('GET','/demo/p4/price-analysis/hypothetical?unit_price=25.00'));
+ s.respond(await service.hypothetical('25.00'));expect((await pending).status).toBe(200);
+ expect(transport.request.mock.calls[0][0]).toMatchObject({method:'GET',hostname:'127.0.0.1',port:3002,path:'/p4/price-analysis/hypothetical?unit_price=25.00'});
+ expect(s.req.end).toHaveBeenCalledWith(undefined);
+ const bad=s.proxy.forward(incoming('GET','/demo/p4/price-analysis/hypothetical?unit_price=25.00'));
+ s.respond(await service.hypothetical('60.00'));await expect(bad).rejects.toThrow();
+});
+it.each(['','?unit_price=0.00','?unit_price=50.00&unit_price=60.00','?unit_price=50.00&url=http://evil','?unit_price=1000000.01'])('blocks hypothetical query %s before transport',async query=>{
+ const s=setup();await expect(s.proxy.forward(incoming('GET','/demo/p4/price-analysis/hypothetical'+query))).rejects.toThrow();expect(transport.request).not.toHaveBeenCalled();
+});

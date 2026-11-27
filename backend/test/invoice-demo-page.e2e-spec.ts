@@ -56,6 +56,25 @@ describe('Invoice demo page (offline E2E)', () => {
     expect(page.text).toContain('source_reconciled=false');
     expect(page.text).toContain('/demo/assets/style.css');
     expect(page.text).toContain('/demo/assets/app.js');
+    expect(page.text).toContain('/demo/assets/site.css');
+    expect(page.text).toContain('/demo/assets/navigation.js');
+    expect(page.text).toContain('href="/#invoice"');
+    expect(page.text).toContain('href="/#compras"');
+    expect(page.text).toContain('href="/demo/procurement-v2"');
+    expect(page.text).toContain('id="invoice"');
+    expect(page.text).toContain('id="compras"');
+    for (const label of ['Visão geral', 'Nova compra', 'Histórico de compras', 'Análise de faturas', 'Análise histórica']) {
+      expect(page.text).toContain(label);
+    }
+    for (const id of ['overview', 'invoice-screen', 'historico', 'recent-status', 'recent-rows', 'menu-toggle', 'sidebar']) {
+      expect(page.text).toContain(`id="${id}"`);
+    }
+    const ids = [...page.text.matchAll(/\bid="([^"]+)"/g)].map(m => m[1]);
+    expect(new Set(ids).size).toBe(ids.length);
+    expect(page.text).toContain('aria-controls="sidebar"');
+    expect(page.text).toContain('href="/#historico"');
+    expect(page.text).toContain('tabindex="0"');
+    expect(page.text).not.toContain('Copper Wire');
     expect(page.text).not.toMatch(/<script(?![^>]*\bsrc=)[^>]*>/i);
     expect(processMock.execFile).not.toHaveBeenCalled();
   });
@@ -73,6 +92,8 @@ describe('Invoice demo page (offline E2E)', () => {
     ['/demo/assets/style.css', /^text\/css/],
     ['/demo/assets/app.js', /^(text|application)\/javascript/],
     ['/demo/assets/purchase.js', /^(text|application)\/javascript/],
+    ['/demo/assets/navigation.js', /^(text|application)\/javascript/],
+    ['/demo/assets/site.css', /^text\/css/],
   ])('serves only the expected local asset %s', async (path, contentType) => {
     const asset = await request(app.getHttpServer()).get(path as string).expect(200);
     expect(asset.headers['content-type']).toMatch(contentType as RegExp);

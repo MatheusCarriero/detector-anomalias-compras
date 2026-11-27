@@ -24,7 +24,7 @@ export function configurePurchaseProxyErrors(app: NestExpressApplication) {
 export class PurchaseProxyController {
   constructor(@Inject(PurchaseProxy) private readonly proxy: PurchaseProxy) {}
 
-  @All(['catalog', 'purchases', 'purchases/by-key/:key', 'purchases/:id'])
+  @All(['catalog', 'purchases', 'purchases/by-key/:key', 'purchases/:id', 'purchases/:id/price-analysis', 'price-analysis/simulation', 'price-analysis/hypothetical'])
   async forward(@Req() request: Request, @Res() response: Response) {
     response.set({ 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' });
     const result = await this.proxy.forward(request);

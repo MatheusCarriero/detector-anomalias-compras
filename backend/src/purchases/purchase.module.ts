@@ -1,3 +1,5 @@
+import { PurchasePriceReviewController } from './purchase-price-review.controller.js';
+import { PurchasePriceReviewService } from './purchase-price-review.service.js';
 import { Module } from '@nestjs/common';
 import { PrismaModule } from '../prisma/prisma.module.js';
 import { PrismaService } from '../prisma/prisma.service.js';
@@ -11,8 +13,11 @@ import { PurchaseComparabilityController } from './purchase-comparability.contro
 
 // Deliberately absent from AppModule and DemoModule. Only p4-main starts this API.
 @Module({
-  imports: [PrismaModule], controllers: [PurchaseController, PurchaseComparabilityController],
+  imports: [PrismaModule], controllers: [PurchaseController, PurchaseComparabilityController, PurchasePriceReviewController],
   providers: [PurchaseLocalGuard, {
+    provide: PurchasePriceReviewService, inject: [PurchaseComparabilityService],
+    useFactory: (comparability: PurchaseComparabilityService) => new PurchasePriceReviewService(comparability),
+  }, {
     provide: PurchaseRepository, inject: [PrismaService],
     useFactory: (prisma: PrismaService) => new PurchaseRepository(prisma, {
       technicalUser: { issuer: 'p4-demo', subject: 'manual-purchase-service' },

@@ -20,6 +20,7 @@ class ElementStub {
   set textContent(value: string) { this.text = value; this.children = []; }
   set innerHTML(_value: string) { throw new Error('Unsafe HTML insertion'); }
   setAttribute(key: string, value: string) { this.attributes.set(key, value); }
+  getAttribute(key: string) { return this.attributes.get(key); }
   removeAttribute(key: string) { this.attributes.delete(key); }
   addEventListener(name: string, listener: Listener) {
     this.listeners.set(name, [...(this.listeners.get(name) ?? []), listener]);
@@ -53,7 +54,19 @@ function setup(storage = new Map<string, string>(), initial: unknown = catalog) 
   const html = readFileSync(new URL('./public/index.html', import.meta.url), 'utf8');
   const ids = [...html.matchAll(/id="([^"]+)"/g)].map(m => m[1]);
   const elements = Object.fromEntries(ids.map((id) => [id, new ElementStub(id)]));
+  const ancestors = new Map<ElementStub, ElementStub[]>();
+  const stack: ElementStub[] = [];
+  for (const tag of html.matchAll(/<([/]?)([a-z][a-z0-9-]*)\b([^>]*)>/gi)) {
+    if (tag[1]) { stack.pop(); continue; }
+    const id = /\bid="([^"]+)"/.exec(tag[3])?.[1];
+    const element = id ? elements[id] : new ElementStub();
+    element.hidden = /(?:^|\s)hidden(?:\s|$)/.test(tag[3]);
+    ancestors.set(element, [...stack]);
+    if (!tag[3].trimEnd().endsWith('/') && !['area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'param', 'source', 'track', 'wbr'].includes(tag[2])) stack.push(element);
+  }
+  const visible = (id: string) => ![elements[id], ...ancestors.get(elements[id])!].some(element => element.hidden);
   elements['purchase-summary'].hidden = true;
+  elements['purchase-price-panel'].hidden = true;
   elements['purchase-prepare'].disabled = true;
   for (const name of ['supplier', 'product', 'department']) {
     const placeholder = new ElementStub();
@@ -64,8 +77,14 @@ function setup(storage = new Map<string, string>(), initial: unknown = catalog) 
   const sessionStorage = { getItem: (k: string) => storage.get(k) ?? null,
     setItem: vi.fn((k: string, v: string) => { storage.set(k, v); }),
     removeItem: vi.fn((k: string) => { storage.delete(k); }) };
+  const events = new Map<string, (e: unknown) => void>();
+  const location = { pathname: '/', hash: '#compras' };
   const context = {
+    CustomEvent: class { constructor(public type: string, public options: { detail: unknown }) {} get detail() { return this.options.detail; } },
+    window: { location, matchMedia: () => ({ matches: false, addEventListener: vi.fn() }), addEventListener: (name: string, fn: (e: unknown) => void) => events.set(name, fn) },
     document: {
+      dispatchEvent: (event: { type: string; detail: unknown }) => events.get(event.type)?.(event),
+      addEventListener: (name: string, fn: (e: unknown) => void) => events.set(name, fn),
       getElementById: (id: string) => {
         if (!Object.hasOwn(elements, id)) throw new Error(`Unexpected DOM access: ${id}`);
         return elements[id];
@@ -94,7 +113,9 @@ function setup(storage = new Map<string, string>(), initial: unknown = catalog) 
     expect(preventDefault).toHaveBeenCalled();
     expect(fetch).toHaveBeenCalledTimes(1); // Catalog only; preparing never writes.
   }
-  return { elements, fetch, edit, fill, submit, storage, sessionStorage,
+  return { elements, fetch, edit, fill, submit, storage, sessionStorage, events, visible,
+    navigation: () => runInNewContext(readFileSync(new URL('./public/navigation.js', import.meta.url), 'utf8'), context),
+    navigate: (hash: string) => { location.hash = hash; events.get('hashchange')?.({}); },
     click: (id: string) => elements[id].emit('click', { target: elements[id], preventDefault: vi.fn() }) };
 }
 
@@ -443,4 +464,273 @@ it('recovers from validation errors and updates product units without submitting
     expect(elements[`purchase-${field}-error`].textContent).toBe('');
   }
   expect(fetch).toHaveBeenCalledOnce();
+});
+
+
+describe('dashboard reads and loaded purchase details', () => {
+  it('requests at most five recent receipts in API order, with no write or model access', async () => {
+    const s = setup(); await flush();
+    const first = savedReceipt();
+    const second = { ...savedReceipt(), id: '33333333-3333-4333-8333-333333333333', purchase: { ...savedReceipt().purchase, purchase_date: '2026-11-17' } };
+    s.fetch.mockResolvedValueOnce(response({ contract: 'p4-purchase/1.0', items: [first, second], next_cursor: null }));
+    s.events.get('dashboard:view')!({ detail: { view: 'overview' } }); await flush();
+    expect(s.fetch.mock.calls[1][0]).toBe('/demo/p4/purchases?limit=5');
+    expect(s.fetch.mock.calls[1][1].method).toBe('GET');
+    expect(s.elements['recent-rows'].children).toHaveLength(2);
+    expect(s.elements['recent-rows'].children[0].textContent).toContain('03/11/2026');
+    expect(s.elements['recent-status'].textContent).toContain('2 registro(s) recente(s)');
+    expect(s.elements['recent-status'].textContent).not.toMatch(/total de compras|operacional|conectado/);
+    expect(s.storage.size).toBe(0);
+  });
+  it.each(['empty', 'network', 'invalid', 'too-many'])('handles recent %s without fabricated rows', async kind => {
+    const s = setup(); await flush();
+    if (kind === 'network') s.fetch.mockRejectedValueOnce(new Error('private URL'));
+    else s.fetch.mockResolvedValueOnce(response({ contract: 'p4-purchase/1.0', items: kind === 'empty' ? [] : kind === 'invalid' ? [{ ...savedReceipt(), purchase: { ...savedReceipt().purchase, total: '99.99' } }] : Array(6).fill(savedReceipt()), next_cursor: null }));
+    await s.click('recent-load');
+    expect(s.elements['recent-rows'].children).toHaveLength(0);
+    expect(s.elements['recent-status'].textContent).toMatch(kind === 'empty' ? /Nenhuma compra/ : /Não foi possível/);
+    expect(s.elements['recent-status'].textContent).not.toContain('private URL');
+  });
+  it('serializes recent requests and retains previous rows on failure', async () => {
+    const s = setup(); await flush();
+    s.fetch.mockResolvedValueOnce(response({ contract: 'p4-purchase/1.0', items: [savedReceipt()], next_cursor: null }));
+    await s.click('recent-load');
+    let fail!: (e: Error) => void;
+    s.fetch.mockImplementationOnce(() => new Promise((_resolve, reject) => { fail = reject; }));
+    const pending = s.click('recent-load'); await s.click('recent-load');
+    expect(s.fetch).toHaveBeenCalledTimes(3);
+    expect(s.elements['recent-load'].disabled).toBe(true);
+    fail(new Error('offline')); await pending;
+    expect(s.elements['recent-rows'].children).toHaveLength(1);
+    expect(s.elements['recent-load'].disabled).toBe(false);
+    expect(s.elements['recent-status'].textContent).toContain('preservados');
+  });
+  it('does not query receipts without a validated catalog', async () => {
+    const s = setup(new Map(), {}); await flush();
+    await s.click('recent-load');
+    expect(s.fetch).toHaveBeenCalledTimes(1);
+    expect(s.elements['recent-status'].textContent).toContain('Catálogo indisponível');
+  });
+  it('shows details from a loaded receipt without an additional request', async () => {
+    const s = setup(); await flush();
+    s.fetch.mockResolvedValueOnce(response({ contract: 'p4-purchase/1.0', items: [savedReceipt()], next_cursor: null }));
+    await s.click('purchase-history-load');
+    const button = s.elements['purchase-history-rows'].children[0].children.at(-1)!.children[0];
+    await button.emit('click', { target: button, preventDefault: vi.fn() });
+    expect(s.elements['purchase-history-details'].hidden).toBe(false);
+    expect(s.elements['purchase-history-detail-values'].textContent).toContain(savedReceipt().id);
+    expect(s.elements['purchase-history-detail-values'].textContent).toContain(key);
+    expect(s.elements['purchase-history-detail-values'].textContent).toContain('0,30');
+    expect(s.fetch).toHaveBeenCalledTimes(2);
+    await s.click('purchase-details-close');
+    expect(s.elements['purchase-history-details'].hidden).toBe(true);
+    expect(button.focused).toBe(true);
+  });
+  it('warns before leaving with a draft or unresolved submission without retrying', async () => {
+    const s = setup(); await flush();
+    const event = { preventDefault: vi.fn(), returnValue: undefined as string | undefined };
+    s.events.get('beforeunload')!(event); expect(event.preventDefault).not.toHaveBeenCalled();
+    s.fill(); s.events.get('beforeunload')!(event); expect(event.preventDefault).toHaveBeenCalledOnce();
+    s.submit(); s.fetch.mockRejectedValueOnce(new Error('offline')); await s.click('purchase-save');
+    const stored = s.storage.get(storageKey);
+    s.events.get('beforeunload')!(event);
+    expect(s.fetch).toHaveBeenCalledTimes(2);
+    expect(s.storage.get(storageKey)).toBe(stored);
+  });
+});
+
+it('keeps the exact form and pending key mounted while navigating the dashboard', async () => {
+  const s = setup(); await flush(); s.navigation(); s.fill(); s.submit();
+  let finish!: (value: unknown) => void;
+  s.fetch.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+  const sending = s.click('purchase-save'); const saved = s.storage.get(storageKey);
+  const form = s.elements['purchase-form'];
+  s.navigate('#historico'); s.navigate('#invoice'); s.navigate('#compras');
+  expect(s.elements['purchase-form']).toBe(form);
+  expect(s.elements['purchase-quantity'].value).toBe('3');
+  expect(s.elements['purchase-save'].disabled).toBe(true);
+  expect(s.storage.get(storageKey)).toBe(saved);
+  expect(s.fetch).toHaveBeenCalledTimes(2);
+  finish(response({ contract: 'p4-purchase/1.0', outcome: 'created', purchase: savedReceipt() }, 201)); await sending;
+  s.navigate('#historico'); s.navigate('#compras');
+  expect(s.elements['purchase-save'].textContent).toBe('Compra cadastrada');
+  expect(s.storage.get(storageKey)).toBe(saved);
+  expect(s.fetch).toHaveBeenCalledTimes(2);
+});
+
+it('waits for catalog validation before the initial overview query', async () => {
+  const s = setup();
+  s.fetch.mockResolvedValueOnce(response({ contract: 'p4-purchase/1.0', items: [], next_cursor: null }));
+  s.events.get('dashboard:view')!({ detail: { view: 'overview' } });
+  expect(s.fetch).toHaveBeenCalledTimes(1);
+  await flush();
+  expect(s.fetch).toHaveBeenCalledTimes(2);
+  expect(s.fetch.mock.calls[1][0]).toBe('/demo/p4/purchases?limit=5');
+  expect(s.elements['recent-status'].textContent).toContain('Nenhuma compra');
+});
+
+function priceReview() {
+  return { contract: 'p4-price-review/1.0', mode: 'persisted', status: 'unavailable',
+    purchase: { id: savedReceipt().id, version_id: key, content_sha256: 'a'.repeat(64), unit_price: '0.10', currency: 'BRL' },
+    metadata_status: 'absent', metadata_revision: null, missing_fields: ['specification', 'price_basis'], unverified_fields: [],
+    history: 'not_assessed', reason: 'manual_contract_and_historical_evidence_required' };
+}
+async function confirmedForm() {
+  const s = setup(); await flush(); s.fill(); s.submit();
+  s.fetch.mockResolvedValueOnce(response({ contract: 'p4-purchase/1.0', outcome: 'created', purchase: savedReceipt() }, 201));
+  await s.click('purchase-save'); return s;
+}
+it('shows a separate price panel after confirmation, without a new POST or automatic query', async () => {
+  const s = await confirmedForm();
+  expect(s.elements['purchase-price-panel'].hidden).toBe(false);
+  expect(s.fetch).toHaveBeenCalledTimes(2);
+  const stored = s.storage.get(storageKey);
+  s.fetch.mockResolvedValueOnce(response(priceReview())); await s.click('purchase-price-load');
+  expect(s.fetch.mock.calls[2][0]).toBe(`/demo/p4/purchases/${savedReceipt().id}/price-analysis`);
+  expect(s.fetch.mock.calls[2][1].method).toBe('GET');
+  expect(s.elements['purchase-price-status'].textContent).toContain('Análise indisponível');
+  expect(s.elements['purchase-price-reasons'].textContent).toContain('Especificação técnica');
+  expect(s.elements['purchase-price-values'].textContent).not.toContain('Mediana');
+  expect(s.elements['purchase-receipt'].textContent).toContain('Compra cadastrada com sucesso');
+  expect(s.storage.get(storageKey)).toBe(stored);
+});
+it.each(['network', 'wrong-purchase', 'forged-available'])('isolates a price review failure %s from confirmed registration', async kind => {
+  const s = await confirmedForm();
+  if (kind === 'network') s.fetch.mockRejectedValueOnce(new Error('SQL secret'));
+  else { const r = priceReview(); if (kind === 'wrong-purchase') r.purchase.id = key; else r.status = 'available'; s.fetch.mockResolvedValueOnce(response(r)); }
+  await s.click('purchase-price-load');
+  expect(s.elements['purchase-price-status'].textContent).toContain('Falha técnica');
+  expect(s.elements['purchase-price-status'].textContent).not.toContain('secret');
+  expect(s.elements['purchase-save'].disabled).toBe(true);
+  expect(s.elements['purchase-new'].disabled).toBe(false);
+  expect(s.storage.get(storageKey)).toContain(key);
+});
+it('ignores an old price response after starting another purchase', async () => {
+  const s = await confirmedForm(); let finish!: (value: unknown) => void;
+  s.fetch.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+  const pending = s.click('purchase-price-load'); await s.click('purchase-price-load');
+  expect(s.fetch).toHaveBeenCalledTimes(3);
+  await s.click('purchase-new'); finish(response(priceReview())); await pending;
+  expect(s.elements['purchase-price-panel'].hidden).toBe(true);
+  expect(s.elements['purchase-price-values'].textContent).toBe('');
+});
+it('presents unverified data as declarations and unknown coverage, not insufficient counted history', async () => {
+  const s = await confirmedForm(); const r = { ...priceReview(), metadata_status: 'incomplete', metadata_revision: { id: key, revision: 1, content_sha256: 'b'.repeat(64) }, unverified_fields: ['currency'] };
+  s.fetch.mockResolvedValueOnce(response(r)); await s.click('purchase-price-load');
+  expect(s.elements['purchase-price-reasons'].textContent).toContain('não verificado');
+  expect(s.elements['purchase-price-status'].textContent).toContain('não foi avaliado');
+  expect(s.elements['purchase-price-status'].textContent).not.toContain('0 referências');
+});
+
+it('renders the independent simulation without attributing its median to the confirmed purchase', async () => {
+  const s = await confirmedForm();
+  const result = simulationResult();
+  s.fetch.mockResolvedValueOnce(response(result)); await s.click('purchase-price-simulate');
+  expect(s.fetch.mock.calls[2][0]).toBe('/demo/p4/price-analysis/simulation');
+  expect(s.fetch.mock.calls[2][1].method).toBe('GET');
+  expect(s.fetch.mock.calls[2][1].body).toBeUndefined();
+  expect(s.elements['purchase-price-simulation-values'].textContent).toContain('R$ 50,00');
+  expect(s.elements['purchase-price-simulation-values'].textContent).toContain('+20%');
+  expect(s.elements['purchase-price-simulation-status'].textContent).toContain('sem relação com a compra cadastrada');
+  expect(s.elements['purchase-price-values'].textContent).toBe('');
+  expect(s.elements['purchase-receipt'].textContent).toContain('0,30');
+  expect(s.storage.get(storageKey)).toContain(key);
+});
+
+function simulationResult() {
+  return { contract: 'p4-price-review/1.0', mode: 'simulation', status: 'available', origin: 'synthetic-experiment',
+    scenario_id: 'experiment-prod-cimento-candidate', unit_price: '60.00', median_unit_price: '50.000', percent_difference: '20.000000',
+    references: 30, minimum_references: 20, window: { startDate: '2026-01-01', endExclusive: '2026-04-01', days: 90 },
+    reference_ids: Array.from({ length: 30 }, (_, i) => `experiment-prod-cimento-reference-${String(i).padStart(2, '0')}`) };
+}
+
+it('exposes the simulation outside the hidden receipt panel on Nova compra', () => {
+  const html = readFileSync(new URL('./public/index.html', import.meta.url), 'utf8');
+  const purchase = html.slice(html.indexOf('<section id="compras"'), html.indexOf('<section id="historico"'));
+  const persisted = purchase.slice(purchase.indexOf('<section id="purchase-price-panel"')).split('</section>')[0];
+  expect(persisted).not.toContain('purchase-price-simulate');
+  expect(purchase).toContain('<section id="purchase-price-simulation-panel" class="panel price-review"');
+  expect(purchase).toContain('Simulação acadêmica de preço');
+  expect(purchase).toContain('30 referências sintéticas');
+  expect(purchase).toContain('não analisa o preço preenchido no formulário');
+});
+it('runs simulation without a purchase and blocks concurrent clicks without automatic requests', async () => {
+  const s = setup(); await flush();
+  expect(s.fetch).toHaveBeenCalledTimes(1);
+  await s.click('purchase-price-load');
+  expect(s.fetch).toHaveBeenCalledTimes(1);
+  let finish!: (value: unknown) => void;
+  s.fetch.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+  const pending = s.click('purchase-price-simulate');
+  await s.click('purchase-price-simulate');
+  expect(s.fetch).toHaveBeenCalledTimes(2);
+  expect(s.fetch.mock.calls[1][0]).toBe('/demo/p4/price-analysis/simulation');
+  expect(s.fetch.mock.calls[1][1].method).toBe('GET');
+  expect(s.fetch.mock.calls[1][1].body).toBeUndefined();
+  expect(s.elements['purchase-price-simulate'].disabled).toBe(true);
+  finish(response(simulationResult())); await pending;
+  expect(s.elements['purchase-price-simulation-values'].textContent).toContain('R$ 50,00');
+  expect(s.elements['purchase-price-panel'].hidden).toBe(true);
+  expect(s.elements['purchase-receipt'].textContent).toBe('');
+  expect(s.elements['purchase-price-simulate'].disabled).toBe(false);
+  expect(s.storage.has(storageKey)).toBe(false);
+});
+it('discards an old simulation response after preparing another purchase', async () => {
+  const s = await confirmedForm(); let finish!: (value: unknown) => void;
+  s.fetch.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+  const pending = s.click('purchase-price-simulate');
+  await s.click('purchase-new');
+  finish(response(simulationResult())); await pending;
+  expect(s.elements['purchase-price-simulation-values'].textContent).toBe('');
+  expect(s.elements['purchase-price-simulation-status'].textContent).toBe('');
+  expect(s.elements['purchase-price-simulate'].disabled).toBe(false);
+  s.fetch.mockResolvedValueOnce(response(simulationResult()));
+  await s.click('purchase-price-simulate');
+  expect(s.elements['purchase-price-simulation-values'].textContent).toContain('R$ 50,00');
+  expect(s.elements['purchase-price-panel'].hidden).toBe(true);
+});
+
+it('keeps the simulation visible through Nova compra navigation with empty fields and hidden receipt ancestors', async () => {
+  const s = setup(); await flush(); s.navigation();
+  expect(s.visible('purchase-price-simulate')).toBe(true);
+  expect(s.visible('purchase-price-load')).toBe(false);
+  expect(s.visible('purchase-summary')).toBe(false);
+  for (const field of fields) expect(s.elements[`purchase-${field}`].value).toBe('');
+  expect(s.fetch).toHaveBeenCalledTimes(1);
+  s.navigate('#invoice'); expect(s.visible('purchase-price-simulate')).toBe(false);
+  s.navigate('#compras'); expect(s.visible('purchase-price-simulate')).toBe(true);
+  s.fetch.mockResolvedValueOnce(response(simulationResult()));
+  await s.click('purchase-price-simulate');
+  expect(s.visible('purchase-price-simulation-values')).toBe(true);
+  expect(s.elements['purchase-price-simulation-values'].textContent).toContain('R$ 60,00');
+  expect(s.elements['purchase-price-simulation-values'].textContent).toContain('R$ 50,00');
+  expect(s.elements['purchase-price-simulation-values'].textContent).toContain('+20%');
+  expect(s.elements['purchase-price-simulation-values'].textContent).toContain('30 referências sintéticas');
+  expect(s.visible('purchase-price-load')).toBe(false);
+  expect(s.storage.has(storageKey)).toBe(false);
+  const html = readFileSync(new URL('./public/index.html', import.meta.url), 'utf8');
+  expect(html.indexOf('id="purchase-price-simulation-panel"')).toBeLessThan(html.indexOf('id="purchase-form"'));
+});
+
+function hypotheticalResult(price='60.00') {return {contract:'p4-hypothetical-price/1.0',result:{...simulationResult(),unit_price:price}};}
+it.each([false,true])('simulates only the price before/after registration: %s',async registered=>{
+ const s=registered?await confirmedForm():setup();await flush();if(!registered)s.edit('unit-price','60,00');
+ const price=registered?'0.10':'60.00';const stored=s.storage.get(storageKey);const count=s.fetch.mock.calls.length;
+ s.fetch.mockResolvedValueOnce(response(hypotheticalResult(price)));await s.click('purchase-price-personalize');
+ expect(s.fetch.mock.calls[count][0]).toBe(`/demo/p4/price-analysis/hypothetical?unit_price=${price}`);
+ expect(s.fetch.mock.calls[count][1].method).toBe('GET');expect(s.fetch.mock.calls[count][1].body).toBeUndefined();
+ expect(s.elements['purchase-price-simulation-status'].textContent).toContain('hipotética');expect(s.storage.get(storageKey)).toBe(stored);
+});
+it.each(['','0','-1','NaN','1000000,01','0,001'])('blocks invalid form price %s without HTTP',async price=>{
+ const s=setup();await flush();s.edit('unit-price',price);await s.click('purchase-price-personalize');expect(s.fetch).toHaveBeenCalledTimes(1);expect(s.elements['purchase-price-simulation-status'].textContent).toContain('preço válido');
+});
+it('discards old personalized responses and permits an explicit new simulation after price edits',async()=>{
+ const s=setup();await flush();s.edit('unit-price','60');let finish!:(r:unknown)=>void;
+ s.fetch.mockImplementationOnce(()=>new Promise(resolve=>{finish=resolve;}));const pending=s.click('purchase-price-personalize');
+ await s.click('purchase-price-simulate');expect(s.fetch).toHaveBeenCalledTimes(2);
+ s.edit('unit-price','50');finish(response(hypotheticalResult()));await pending;
+ expect(s.elements['purchase-price-simulation-values'].textContent).toBe('');
+ s.fetch.mockResolvedValueOnce(response(hypotheticalResult('50.00')));await s.click('purchase-price-personalize');
+ expect(s.elements['purchase-price-simulation-values'].textContent).toContain('R$ 50,00');
+ s.edit('unit-price','25');expect(s.elements['purchase-price-simulation-values'].textContent).toBe('');expect(s.fetch).toHaveBeenCalledTimes(3);
 });

@@ -6,22 +6,29 @@
   <meta name="description" content="Demonstração acadêmica Procurement V2: contexto histórico e análise de atipicidade de operações sintéticas.">
   <title>Procurement V2 · Anomalias em Compras</title>
   <link rel="stylesheet" href="/demo/procurement-v2/assets/style.css">
+  <link rel="stylesheet" href="/demo/assets/site.css">
+  <script src="/demo/assets/navigation.js" defer></script>
   <script src="/demo/procurement-v2/assets/app.js" defer></script>
 </head>
 <body>
   <a class="skip-link" href="#conteudo">Ir para o conteúdo</a>
-  <header class="masthead">
-    <div class="masthead-inner">
-      <a class="brand" href="/" aria-label="Voltar ao demonstrador Invoice e formulário P4">
-        <svg viewBox="0 0 36 36" fill="none" aria-hidden="true"><path d="M5 25 13 16 21 21 31 8" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="13" cy="16" r="3" fill="currentColor"/><circle cx="21" cy="21" r="3" fill="currentColor"/><circle cx="31" cy="8" r="3" fill="currentColor"/></svg>
-        <span>Detector Inteligente de<br><strong>Anomalias em Compras</strong></span>
-      </a>
-      <nav aria-label="Demonstradores"><a href="/">Invoice &amp; preparação P4 <span aria-hidden="true">↗</span></a><span class="local-badge">Ambiente local</span></nav>
-    </div>
-  </header>
-  <main id="conteudo" class="workspace">
+  <aside id="sidebar" class="sidebar" aria-label="Navegação principal">
+      <a class="brand" href="/#visao-geral"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 3h3l3 13h11l3-10H6"/><circle cx="9" cy="21" r="1"/><circle cx="19" cy="21" r="1"/></svg><span><strong>Detector Inteligente de Anomalias em Compras</strong><small>Plataforma de Compras</small></span></a>
+      <nav class="module-nav" aria-label="Módulos do projeto">
+        <a id="navigation-overview" href="/#visao-geral"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m3 10 9-7 9 7v10H4V10m5 10v-7h6v7"/></svg><span>Visão geral</span></a>
+        <p class="nav-group">Gestão de Compras</p>
+        <a id="navigation-purchases" href="/#compras"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M12 7v10M7 12h10"/></svg><span>Nova compra</span></a>
+        <a id="navigation-history" href="/#historico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M8 8h10M8 12h10M8 16h10M6 8h.1M6 12h.1M6 16h.1"/></svg><span>Histórico de compras</span></a>
+        <p class="nav-group">Inteligência Artificial</p>
+        <a id="navigation-invoice" href="/#invoice"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 3H5v18h8M13 3v6h6l-6-6Z"/><circle cx="16" cy="15" r="4"/><path d="m19 18 3 3M8 12h3M8 16h2"/></svg><span>Análise de faturas</span></a>
+        <a id="navigation-procurement" href="/demo/procurement-v2" aria-current="page"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 21V13h4v8M10 21V8h4v13M16 21V3h4v18"/></svg><span>Análise histórica</span></a>
+      </nav>
+      <div class="sidebar-note"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m2 8 10-5 10 5-10 5L2 8Zm4 2v7q6 5 12 0v-7M22 8v8"/></svg><p>Ambiente acadêmico<small>Dados sintéticos · uso local</small></p></div>
+    </aside>
+    <header class="topbar"><button id="menu-toggle" class="menu-toggle" type="button" aria-controls="sidebar" aria-expanded="false">☰ <span>Menu</span></button><p>Plataforma de Compras <span aria-hidden="true">/</span> <strong id="screen-title">Análise histórica</strong></p><span class="academic-badge"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m2 8 10-5 10 5-10 5L2 8Zm4 2v7q6 5 12 0v-7M22 8v8"/></svg>Demo acadêmica</span></header>
+  <main id="conteudo" class="workspace procurement-workspace" tabindex="-1">
     <section class="intro" aria-labelledby="page-title">
-      <div><p class="eyebrow">Procurement Analytics <span>/</span> V2</p><h1 id="page-title">Uma compra, em contexto.</h1><p class="lead">Explore o histórico de uma operação e sua atipicidade segundo o Isolation Forest. Uma demonstração acadêmica, com dados sintéticos.</p></div>
+      <div><p class="eyebrow">Procurement V2 <span>/</span> Análise histórica com IA</p><h1 id="page-title">Análise histórica</h1><p class="lead">Explore o histórico de uma operação e sua atipicidade segundo o Isolation Forest. Uma demonstração acadêmica, com dados sintéticos.</p><div class="module-caption"><span>7 operações autorizadas</span><span>5 features temporais</span><span>Somente leitura</span></div></div>
       <div class="method-note"><span class="method-mark" aria-hidden="true">IF</span><div><strong>Isolation Forest</strong><span>Baseline experimental · 5 features</span></div></div>
     </section>
     <ol class="journey" aria-label="Etapas da análise"><li><span>01</span> Selecione uma operação</li><li><span>02</span> Consulte o histórico</li><li><span>03</span> Analise com IA</li></ol>
@@ -52,7 +59,7 @@
             <p id="history-window" class="window-note"></p>
             <dl id="history-support" class="support-grid"></dl>
             <div id="unavailable-note" class="notice" hidden><h3>Análise indisponível</h3><p>Não há referências históricas suficientes ou utilizáveis para todas as cinco features. Nenhum score foi calculado.</p><ul id="unavailable-reasons"></ul></div>
-            <div class="table-wrap"><table><caption>Cinco features do modelo · valores preparados pelo Python</caption><thead><tr><th scope="col">Variável</th><th scope="col">Valor</th></tr></thead><tbody id="feature-rows"></tbody></table></div>
+            <details class="technical-details"><summary>Detalhes técnicos · cinco features</summary><div class="table-wrap"><table><caption>Cinco features do modelo · valores preparados pelo Python</caption><thead><tr><th scope="col">Variável</th><th scope="col">Valor</th></tr></thead><tbody id="feature-rows"></tbody></table></div></details>
             <details class="references"><summary>Referências históricas comparáveis</summary><p class="small-copy">Contexto descritivo do material. Estas referências não explicam causalmente o score.</p><div class="table-wrap"><table><caption>Distribuições do material na janela histórica</caption><thead><tr><th scope="col">Referência</th><th scope="col">Mediana</th><th scope="col">IQR</th><th scope="col">MAD</th></tr></thead><tbody id="reference-rows"></tbody></table></div></details>
           </div>
         </section>
@@ -71,7 +78,7 @@
       </div>
     </div>
     <noscript><p class="notice">Ative o JavaScript para consultar o catálogo e utilizar a demonstração.</p></noscript>
-    <footer><span>Projeto acadêmico individual · Procurement V2</span><span>Fonte sintética · moeda não identificada · revisão humana</span></footer>
+    <footer><span>Projeto acadêmico individual · ambiente local</span><span>Fonte sintética · moeda não identificada · revisão humana</span></footer>
   </main>
 </body>
 </html>

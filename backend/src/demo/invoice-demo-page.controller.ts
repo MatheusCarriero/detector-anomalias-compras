@@ -2,7 +2,7 @@ import { Controller, Get, Res } from '@nestjs/common';
 import type { Response } from 'express';
 import { fileURLToPath } from 'node:url';
 
-function sendAsset(response: Response, name: 'index.html' | 'style.css' | 'app.js' | 'purchase.js') {
+function sendAsset(response: Response, name: 'index.html' | 'style.css' | 'app.js' | 'purchase.js' | 'site.css' | 'navigation.js') {
   response.set({
     'Cache-Control': 'no-store',
     'X-Content-Type-Options': 'nosniff',
@@ -33,5 +33,15 @@ export class InvoiceDemoPageController {
   @Get('/demo/assets/purchase.js')
   purchaseScript(@Res() response: Response) {
     sendAsset(response, 'purchase.js');
+  }
+
+  @Get('/demo/assets/site.css')
+  sharedStyles(@Res() response: Response) {
+    sendAsset(response, 'site.css');
+  }
+
+  @Get('/demo/assets/navigation.js')
+  navigationScript(@Res() response: Response) {
+    sendAsset(response, 'navigation.js');
   }
 }

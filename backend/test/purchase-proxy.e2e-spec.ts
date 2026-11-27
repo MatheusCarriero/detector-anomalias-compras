@@ -87,7 +87,7 @@ describe('P4 same-origin proxy and page (offline HTTP; upstream API simulated)',
         : await get(url);
       return { status: r.status, ok: r.status >= 200 && r.status < 300, json: async () => r.body as unknown };
     });
-    runInNewContext(script.text, { document: { getElementById: (name: string) => elements[name], createElement: () => new Element() },
+    runInNewContext(script.text, { window: { addEventListener() {} }, document: { addEventListener() {}, getElementById: (name: string) => elements[name], createElement: () => new Element() },
       fetch, Date, Intl, URLSearchParams, AbortController, setTimeout, clearTimeout,
       crypto: { randomUUID: () => key }, sessionStorage: { getItem: (k: string) => storage.get(k) ?? null,
         setItem: (k: string, v: string) => storage.set(k, v), removeItem: (k: string) => storage.delete(k) } });
@@ -103,8 +103,24 @@ describe('P4 same-origin proxy and page (offline HTTP; upstream API simulated)',
     reply = { status: 200, body: { contract: payload.contract, items: [receipt], next_cursor: null } };
     await elements['purchase-history-load'].emit('click');
     expect(elements['purchase-history-rows'].children).toHaveLength(1);
-    expect(elements['purchase-history-rows'].textContent).toContain(id);
+    expect(elements['purchase-history-rows'].textContent).toContain(PURCHASE_CATALOG.products[0].name);
+    await elements['purchase-history-rows'].children[0].children.at(-1)!.children[0].emit('click');
+    expect(elements['purchase-history-detail-values'].textContent).toContain(id);
+    await elements['recent-load'].emit('click');
+    expect(calls.at(-1)?.path).toBe('/p4/purchases?limit=5');
+    expect(elements['recent-rows'].children).toHaveLength(1);
     expect(calls.filter(c => c.body !== undefined)).toHaveLength(1); // Simulated POST only.
+  });
+  it('exposes price-review GET through the restricted same-origin proxy', async () => {
+    reply = { status: 200, body: { contract: 'p4-price-review/1.0', mode: 'persisted', status: 'unavailable',
+      purchase: { id, version_id: id, content_sha256: 'a'.repeat(64), unit_price: '0.10', currency: 'BRL' },
+      metadata_status: 'absent', metadata_revision: null, missing_fields: ['specification'], unverified_fields: [],
+      history: 'not_assessed', reason: 'manual_contract_and_historical_evidence_required' } };
+    const r = await get(`/demo/p4/purchases/${id}/price-analysis`).expect(200);
+    expect(r.body.status).toBe('unavailable'); expect(calls[0].body).toBeUndefined();
+    expect(calls[0].path).toBe(`/p4/purchases/${id}/price-analysis`);
+    await request(app.getHttpServer()).post(`/demo/p4/purchases/${id}/price-analysis`).set(local).send(payload).expect(400);
+    expect(calls).toHaveLength(1);
   });
   it('forwards catalog without enabling CORS or relaying cookies', async () => {
     const r = await get('/demo/p4/catalog').set('Cookie', 'private=secret').expect(200);
