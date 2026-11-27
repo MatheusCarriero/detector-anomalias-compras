@@ -15,7 +15,7 @@ export const P4_MIGRATIONS = Object.freeze([
 export const P4_COMPARABILITY_MIGRATIONS = Object.freeze([...P4_MIGRATIONS,
   { name: '20261119000100_p4_comparability', hash: '35955a7de1374ba2971ff55f2082ddd6923d3fa9f2b6690ca220b03cb4eae95d' },
 ]);
-export type ProvisionProfile = 'p4-v1' | 'comparability-v1';
+export type ProvisionProfile = 'p4-v1' | 'comparability-v1' | 'p4-api-comparability-v1';
 const namespace = PURCHASE_CATALOG.version;
 const contract = 'p4-provision/1.0';
 const actorState = { display_name: 'Serviço técnico P4 — catálogo sintético', email: null,
@@ -47,7 +47,7 @@ function original(kind: string, sourceId: string, state: object, databaseId?: st
 function hash(value: object) { return createHash('sha256').update(JSON.stringify(value), 'utf8').digest('hex'); }
 
 async function preflight(client: ProvisionClient, profile: ProvisionProfile) {
-  const extended = profile === 'comparability-v1';
+  const extended = profile !== 'p4-v1';
   const expectedMigrations = extended ? P4_COMPARABILITY_MIGRATIONS : P4_MIGRATIONS;
   const who = single((await client.query(`/* p4:identity */ SELECT session_user::text AS session_user,
     current_user::text AS current_user, pg_catalog.current_database() AS database,
@@ -59,7 +59,7 @@ async function preflight(client: ProvisionClient, profile: ProvisionProfile) {
     NOT EXISTS (SELECT 1 FROM pg_catalog.pg_stat_ssl WHERE pid=pg_catalog.pg_backend_pid() AND ssl) AS plaintext
     FROM pg_catalog.pg_namespace n JOIN pg_catalog.pg_roles r ON r.rolname=current_user WHERE n.nspname='app'`)).rows);
   requireValue(who.session_user === 'detector_migrator' && who.current_user === 'detector_migrator'
-    && who.database === (extended ? 'synthetic_p4_comparability_test' : 'synthetic_detector_anomalias_compras_test') && who.host === '127.0.0.1'
+    && who.database === (profile === 'comparability-v1' ? 'synthetic_p4_comparability_test' : 'synthetic_detector_anomalias_compras_test') && who.host === '127.0.0.1'
     && who.port === 5432 && typeof who.version === 'number' && who.version >= 180000 && who.version < 190000
     && who.owner === 'detector_migrator' && who.restricted === true && who.plaintext === true
     && who.read_only === 'off', 'TARGET');
@@ -218,7 +218,7 @@ async function entity(client: ProvisionClient, kind: Kind, entry: { id: string; 
 }
 
 export async function provisionP4(client: ProvisionClient, profile: ProvisionProfile = 'p4-v1') {
-  requireValue(profile === 'p4-v1' || profile === 'comparability-v1', 'TARGET');
+  requireValue(profile === 'p4-v1' || profile === 'comparability-v1' || profile === 'p4-api-comparability-v1', 'TARGET');
   let begun = false; let committing = false;
   try {
     await client.query('BEGIN ISOLATION LEVEL READ COMMITTED'); begun = true;

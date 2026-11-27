@@ -794,7 +794,7 @@ inválida 415, falha interna/integridade 500 e indisponibilidade 503. Nenhum err
 retorna SQL, mensagens do driver, caminhos, senhas ou stacks. Falha/timeout de POST
 não comprova ausência de commit: consultar a **mesma chave** antes de repetir.
 
-**Antes da primeira execução conectada:** confirmar as duas migrations,
+**Antes da primeira execução conectada da API atual:** confirmar as três migrations,
 provisionamento P4.6, identidade/permissões runtime e ausência de outro processo
 ocupando `3002`. A inicialização conecta ao banco; não faz migrations, seed nem
 cadastro automático. Após autorização, em sessão PowerShell limpa, fornecer
@@ -863,17 +863,63 @@ página/proxy usam dados e API simulados, sem acessar PostgreSQL ou executar Pyt
 Pré-requisitos: Node 24/npm 11, dependências dos dois lockfiles, PostgreSQL 18
 local e banco sintético `synthetic_detector_anomalias_compras_test` em
 `127.0.0.1:5432`, schema `app`. Em clone limpo, instalar na raiz e em `backend/`
-com `npm.cmd ci --ignore-scripts --no-fund --no-audit`; executar o build no backend.
+com `npm.cmd ci --ignore-scripts --no-fund --no-audit`.
 O P4 não depende de Python, CSV ou artefatos ML para cadastrar/consultar compras.
 Os demonstradores de inferência continuam exigindo seus artefatos próprios.
 
-As duas migrations e o provisionamento P4.6 precisam estar concluídos: BRL,
+As três migrations e o provisionamento explícito do catálogo precisam estar concluídos: BRL,
 usuário técnico, três fornecedores, três departamentos e seis mapeamentos
 canônicos. Reutilizar os procedimentos revisados deste guia e do [banco](../prisma/README.md),
 com autorização própria; iniciar a aplicação nunca aplica migration ou provisiona.
 O responsável informou a validação real de P4.7/P4.8, inclusive 201/200/409 e
 cadastro pelo navegador. A revisão P4.9A executa somente verificações offline;
 não certifica novamente permissões efetivas ou o estado de outra instância.
+
+**Instalação nova — ordem obrigatória (P4.15):**
+
+1. Instalar dependências dos lockfiles, sem credenciais: na raiz, executar
+   `npm.cmd ci --ignore-scripts --no-fund --no-audit`; em `backend/`, repetir.
+2. Ainda em `backend/`, executar `npm.cmd run build`. O comando prepara o Prisma
+   Client e compila o NestJS offline; não conecta, aplica migrations ou provisiona.
+3. Em etapa administrativa autorizada, preparar o banco exclusivo
+   `synthetic_detector_anomalias_compras_test` em `127.0.0.1:5432`, PostgreSQL 18,
+   e os papéis `detector_migrator` e `detector_runtime`. Conferir ownership,
+   privilégios padrão e grants mínimos conforme o [guia SQL](../prisma/README.md#antes-de-qualquer-conexão).
+   Não recriar bancos existentes nem conceder SELECT direto ou EXECUTE global.
+4. Na raiz, em sessão dedicada e após autorização para migrations, fornecer
+   `DATABASE_URL` de `detector_migrator` por meio seguro, com o banco acima e
+   `?schema=app`. Executar `npm.cmd exec -- prisma migrate status`, conferir o alvo,
+   e então `npm.cmd exec -- prisma migrate deploy`. Interromper em erro; conferir
+   novamente o status, checksums, 13 tabelas de domínio e permissões. As três são
+   `20261020000100_first_increment`, `20261116000100_p4_read_interfaces` e
+   `20261119000100_p4_comparability`. Não usar `db push` ou `migrate reset`.
+5. Em outra sessão limpa, após autorização específica, fornecer
+   `P4_PROVISION_URL` do migrador para o mesmo banco, **sem query string**.
+   Em `backend/`, usar o novo perfil explícito:
+
+   ```powershell
+   $env:P4_PROVISION_PROFILE = 'p4-api-comparability-v1'
+   $env:P4_PROVISION_CONFIRM = 'synthetic-p4-api-comparability-catalog/1.0'
+   $env:P4_PROVISION_TLS = 'local-plaintext'
+   node dist/purchases/purchase-provision-cli.js --execute-synthetic-p4
+   if ($LASTEXITCODE -ne 0) { throw 'Provisionamento não confirmado; inspecione antes de repetir.' }
+   ```
+
+   Esse perfil exige as três migrations, 13 tabelas, 41 funções e a allowlist
+   exata de 14 interfaces runtime. Não aplica migrations, modifica permissões
+   ou cria compras. Conferir o resultado e os mapeamentos; remover as quatro
+   variáveis `P4_PROVISION_*` ao encerrar. Não repetir automaticamente em falha
+   ou resultado incerto. Os perfis antigos continuam restritos aos seus alvos;
+   `p4-v1` não serve para uma instalação atual com três migrations.
+6. Iniciar a API em uma sessão exclusiva, usando `DATABASE_URL` de
+   `detector_runtime` para o mesmo banco, sem query string, e
+   `P4_API_CONFIRM=local-synthetic-p4/1.0`, `P4_API_TLS=local-plaintext`;
+   em `backend/`, executar `npm.cmd run start:p4` (porta 3002). Em outro terminal,
+   sem credenciais, executar `npm.cmd run start:demo` (porta 3001).
+   A aplicação não aplica migrations nem altera automaticamente o schema.
+
+Nunca compartilhar URLs com senha, colocar credenciais nos exemplos publicados
+ou iniciar a aplicação com o papel migrador. Para operação e recuperação:
 
 1. Identificar os listeners de 3001/3002 (`Get-NetTCPConnection -State Listen`)
    e seus processos (`Get-Process -Id <PID>`), sem exibir argumentos/credenciais.

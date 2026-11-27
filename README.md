@@ -14,7 +14,7 @@
 
 O projeto estuda três domínios independentes de compras. Invoice Anomaly prioriza faturas incomuns com Isolation Forest. Supplier Risk avalia a classificação fornecida pelo dataset com modelos supervisionados. Purchase Risk permanece em definição metodológica, sem modelo implementado.
 
-A infraestrutura NestJS + Prisma + PostgreSQL já existe. Há demonstradores locais de inferência Invoice V1 e Procurement V2, separados do banco. O formulário P4 cadastra compras manuais sintéticas em BRL e consulta seu histórico persistente por uma API local independente; sua análise por IA permanece indisponível. **Essas demonstrações não possuem uso operacional validado.**
+A infraestrutura NestJS + Prisma + PostgreSQL já existe. O dashboard integra os demonstradores locais de inferência Invoice V1 e Procurement V2, separados do banco, e a Gestão de Compras P4. O P4 cadastra compras manuais sintéticas em BRL e consulta seu histórico persistente por uma API local independente. A comparação estatística de preço é uma simulação experimental separada do scoring dos modelos; não existe integração científica validada entre compras manuais e ML, e sua análise por IA permanece indisponível. **Essas demonstrações não possuem uso operacional validado.**
 
 ## Estado atual
 
@@ -24,7 +24,7 @@ A infraestrutura NestJS + Prisma + PostgreSQL já existe. Há demonstradores loc
 | Supplier Risk | Preparação, EDA TRAIN, baselines/ablações, CV exploratória, configuração LR/C congelada e avaliação final única documentada | Procedência da label/índice, validade externa e eventual uso operacional; não reabrir TEST |
 | Purchase Risk | Dataset auditado; unidade em linha de pedido confirmada; decisão C de não implementação registrada | Esclarecer disponibilidade pré-aprovação, semântica e procedência dos campos; feature engineering e modelagem bloqueados pelo gate metodológico |
 
-O backend utiliza TypeScript/ESM, Node 24, NestJS 12 e Prisma 7.10.0. O primeiro incremento PostgreSQL 18 contém 11 tabelas de domínio no schema `app`, com histórico, snapshots e auditoria. A CI offline verifica geração do client, build e testes isolados. As validações conectadas usam um banco sintético e têm execução separada e controlada.
+O backend utiliza TypeScript/ESM, Node 24, NestJS 12 e Prisma 7.10.0. O banco P4 atual utiliza três migrations e 13 tabelas de domínio no schema `app` do PostgreSQL 18, com histórico, snapshots, auditoria e metadados de comparabilidade. A tabela técnica `_prisma_migrations` não entra nessa contagem. A CI offline verifica geração do client, build e testes isolados. As validações conectadas usam um banco sintético e têm execução separada e controlada.
 
 As interfaces HTML/CSS/JavaScript são servidas pelo demonstrador NestJS. Após o build, execute `npm.cmd run start:demo` em `backend/`: Invoice V1 e P4 ficam em `http://127.0.0.1:3001/`; a Procurement V2, em `http://127.0.0.1:3001/demo/procurement-v2`. O cadastro P4 depende da API separada em `127.0.0.1:3002`, iniciada com `npm.cmd run start:p4` após configurar o banco sintético; consulte a [operação local do P4](backend/README.md#p49a--reprodução-e-recuperação-local). A V2 usa cinco features temporais próprias e um modelo persistido independente; não substitui as 19 features Invoice nem a decisão histórica C sobre a outra fonte Purchase. Consulte o [provisionamento da V2](backend/README.md#procurement-v2--demonstração-local) antes de usar a análise real.
 
@@ -81,7 +81,7 @@ Não há target nem conjunto de features aprovados para esse uso. Detecção de 
 
 ### Diagrama de tecnologias
 
-As fontes acadêmicas representam populações diferentes e não têm chaves reais comuns para integração. O diagrama separa os estudos de ML da infraestrutura operacional; não existe fluxo de scoring entre essas camadas nesta entrega.
+As fontes acadêmicas representam populações diferentes e não têm chaves reais comuns para integração. O dashboard oferece inferência demonstrativa Invoice V1 e Procurement V2 via executores Python, além do cadastro e histórico P4. As compras manuais em BRL não são enviadas aos modelos; a simulação estatística P4 usa referências experimentais próprias.
 
 ```mermaid
 flowchart TB
@@ -94,18 +94,21 @@ flowchart TB
         analise -.-> cls
     end
     subgraph infraestrutura["INFRAESTRUTURA IMPLEMENTADA — validação sintética"]
-        nest["NestJS 12 / TypeScript ESM / Node 24"] --> client["Prisma Client + adapter PostgreSQL"]
-        client --> banco["PostgreSQL 18 / schema app / 11 tabelas"]
+        nest["API P4 NestJS / porta 3002"] --> client["Prisma Client + adapter PostgreSQL"]
+        client --> banco["PostgreSQL 18 / schema app / 13 tabelas / 3 migrations"]
         banco --> historico["Versões · snapshots · auditoria"]
+        interface["Dashboard HTML/CSS/JavaScript"] --> demo["NestJS demonstrador / porta 3001"]
+        demo -->|"Proxy local P4"| nest
+        demo --> runners["Executores Python / Invoice V1 e Procurement V2"]
+        nest --> simulacao["Comparação estatística P4 / simulação acadêmica"]
     end
     subgraph futuro["PENDENTE — sem implementação"]
         purchase["Purchase: decisão metodológica"]
-        interface["Frontend"]
-        integracao["Contratos de inferência e uso operacional dos modelos"]
+        integracao["Integração científica de compras manuais com ML e uso operacional validado"]
     end
 ```
 
-A CLI, o schema e a migration Prisma ficam na raiz. O backend consome o client compilado para ESM:
+A CLI, o schema e as migrations Prisma ficam na raiz. O backend consome o client compilado para ESM:
 
 ```text
 prisma/schema.prisma → generated/prisma/ → backend/generated/prisma/ → NestJS
@@ -120,7 +123,7 @@ Os diretórios gerados não são versionados. O banco utiliza funções SQL tran
 .
 ├── .github/workflows/          # CI Python e backend offline
 ├── backend/                    # NestJS, Prisma runtime e testes isolados/conectados
-├── prisma/                     # Schema e migration do banco operacional
+├── prisma/                     # Schema e migrations do banco operacional
 ├── ml/
 │   ├── scripts/                # Invoice e ferramentas de preparação/inspeção histórica
 │   ├── notebooks/              # EDA Invoice
@@ -134,7 +137,7 @@ Os diretórios gerados não são versionados. O banco utiliza funções SQL tran
 └── requirements*.txt           # Dependências Python fixadas
 ```
 
-Purchase e frontend são descritos na documentação; diretórios vazios não representam implementações.
+O frontend implementado está em `backend/src/demo/public/`, com cinco telas: visão geral, nova compra, histórico, Invoice V1 e Procurement V2. O domínio histórico Purchase Risk permanece separado da Procurement V2 e sem modelo implementado.
 
 <a id="instalação"></a>
 
@@ -230,9 +233,9 @@ Protocolos, relatórios e JSONs científicos são mantidos separadamente. Os reg
 
 ## Próximas etapas
 
-- Prosseguir com a validação controlada das funções SQL pelo backend e da concorrência, em etapas próprias com dados sintéticos.
-- Definir contratos de inferência e requisitos de uso antes de integrar modelos à aplicação.
+- Conferir instalação nova e realizar o ensaio final do dashboard no computador da apresentação, com operações conectadas autorizadas separadamente.
+- Preservar os contratos de inferência demonstrativa existentes; qualquer uso comercial exige dados compatíveis, evidências e avaliação próprios.
 - Resolver as pendências metodológicas Purchase antes de qualquer feature engineering ou treinamento.
-- Implementar interfaces de negócio e frontend somente após definir esses contratos.
+- Manter a separação entre as demonstrações ML, a simulação estatística e o cadastro persistente P4.
 
 A conclusão das avaliações acadêmicas e das verificações sintéticas não equivale a uma implantação de IA em produção.
