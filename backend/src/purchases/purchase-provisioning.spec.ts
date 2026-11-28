@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 import { provisionP4, P4_COMPARABILITY_MIGRATIONS, type ProvisionClient } from './purchase-provisioning.js';
 
 // This fake models returned rows and transaction rollback, not PostgreSQL SQL
@@ -10,6 +12,11 @@ const permissions = { runtime_restricted: true, runtime_schema_safe: true, schem
 const migrations = [
   { migration_name: '20261020000100_first_increment', checksum: '4bc2d19996d1adc10ab05a68eeb17b78153e3725c8d0bcb1c6781fc88848311f', complete: true, rolled_back: false },
   { migration_name: '20261116000100_p4_read_interfaces', checksum: 'c63333bbd5a025c64b51ab60fb2ac02b4c8c5df90dd7843c54361f48ad6291aa', complete: true, rolled_back: false },
+];
+const crlfChecksums = [
+  'ebfcc92cf1258415e73cd797849a79639e94db08fbbe155c578788421021db81',
+  '0efa7e202c95866b47ee017a009e4285c22df8f54a4c7b51abe25e8659a486a3',
+  '83afd98b5d3f109839a1a65a95db0860fad25b7f0f1b4aaf59302f49e391bd71',
 ];
 const empty = () => ({ user: null as Record<string, any> | null, currency: null as Record<string, any> | null,
   sources: [] as Record<string, any>[], entities: [] as Record<string, any>[], identities: [] as Record<string, any>[] });
@@ -91,6 +98,45 @@ describe('P4 administrative provisioning (offline)', () => {
   function apiCatalog() {
     const f = extended(); f.who.database = 'synthetic_detector_anomalias_compras_test'; return f;
   }
+  it.each([0, 1, 2])('pins only the LF and full CRLF representations of approved migration %s', index => {
+    const migration = P4_COMPARABILITY_MIGRATIONS[index];
+    // Read SQL as bytes only; never execute it or consult the database.
+    const canonical = readFileSync(new URL(`../../../prisma/migrations/${migration.name}/migration.sql`, import.meta.url), 'utf8').replaceAll('\r\n', '\n');
+    expect(canonical).not.toContain('\r');
+    expect(createHash('sha256').update(canonical).digest('hex')).toBe(migration.hash);
+    expect(createHash('sha256').update(canonical.replaceAll('\n', '\r\n')).digest('hex')).toBe(crlfChecksums[index]);
+    expect(migration.crlfHash).toBe(crlfChecksums[index]);
+  });
+  describe.each(['p4-v1', 'comparability-v1', 'p4-api-comparability-v1'] as const)('checksum compatibility in %s', profile => {
+    it.each(['LF', 'CRLF'])('accepts %s, preserves a rolled-back attempt and remains idempotent', async eol => {
+        const f = profile === 'p4-v1' ? fixture() : profile === 'comparability-v1' ? extended() : apiCatalog();
+        if (eol === 'CRLF') f.applied.forEach((row, i) => { row.checksum = crlfChecksums[i]; });
+        f.applied.unshift({ ...f.applied[0], checksum: 'b050777' + '0'.repeat(57), complete: false, rolled_back: true });
+        const first = await provisionP4(f.client, profile); const state = structuredClone(f.db); f.calls.length = 0;
+        const repeated = await provisionP4(f.client, profile);
+        expect(repeated.user).toEqual({ id: first.user.id, created: false });
+        expect(repeated.currency).toEqual({ id: first.currency.id, created: false });
+        expect(f.db).toEqual(state);
+        expect(f.calls.some(c => /INSERT INTO|\/\* p4:(observe|register|resolve|write-)/.test(c.sql))).toBe(false);
+    });
+  });
+  it.each(['missing', 'unfinished', 'unresolved', 'unknown', 'mixed-eol', 'changed-sql'])
+  ('still rejects invalid database history with CRLF checksums: %s', async scenario => {
+    const f = apiCatalog(); f.applied.forEach((row, i) => { row.checksum = crlfChecksums[i]; });
+    f.applied.unshift({ ...f.applied[0], checksum: 'b050777' + '0'.repeat(57), complete: false, rolled_back: true });
+    if (scenario === 'missing') f.applied.pop();
+    if (scenario === 'unfinished') f.applied[3].complete = false;
+    if (scenario === 'unresolved') f.applied[0].rolled_back = false;
+    if (scenario === 'unknown') f.applied[3].checksum = 'f'.repeat(64);
+    if (scenario === 'mixed-eol' || scenario === 'changed-sql') {
+      const body = readFileSync(new URL('../../../prisma/migrations/20261119000100_p4_comparability/migration.sql', import.meta.url), 'utf8').replaceAll('\r\n', '\n');
+      const changed = scenario === 'mixed-eol' ? body.replace('\n', '\r\n') : body + '\nSELECT 1;\n';
+      f.applied[3].checksum = createHash('sha256').update(changed).digest('hex');
+    }
+    await expect(provisionP4(f.client, 'p4-api-comparability-v1')).rejects.toThrow('P4_PROVISION_MIGRATIONS');
+    expect(f.db).toEqual(empty()); expect(f.calls.at(-1)?.sql).toBe('ROLLBACK');
+    expect(f.calls.some(c => /INSERT INTO|^LOCK TABLE/.test(c.sql))).toBe(false);
+  });
   it('provisions the API database with three migrations and reuses the same catalog on replay', async () => {
     const f = apiCatalog(); const first = await provisionP4(f.client, 'p4-api-comparability-v1');
     expect(first.user.created && first.currency.created).toBe(true);

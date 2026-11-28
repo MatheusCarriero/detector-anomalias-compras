@@ -8,12 +8,17 @@ export interface ProvisionClient {
   query(text: string, values?: unknown[]): Promise<{ rows: Record<string, unknown>[] }>;
 }
 
+// hash remains the canonical LF authority. crlfHash pins only its complete
+// CRLF encoding, independently checked against the approved SQL in offline tests.
 export const P4_MIGRATIONS = Object.freeze([
-  { name: '20261020000100_first_increment', hash: '4bc2d19996d1adc10ab05a68eeb17b78153e3725c8d0bcb1c6781fc88848311f' },
-  { name: '20261116000100_p4_read_interfaces', hash: 'c63333bbd5a025c64b51ab60fb2ac02b4c8c5df90dd7843c54361f48ad6291aa' },
+  { name: '20261020000100_first_increment', hash: '4bc2d19996d1adc10ab05a68eeb17b78153e3725c8d0bcb1c6781fc88848311f',
+    crlfHash: 'ebfcc92cf1258415e73cd797849a79639e94db08fbbe155c578788421021db81' },
+  { name: '20261116000100_p4_read_interfaces', hash: 'c63333bbd5a025c64b51ab60fb2ac02b4c8c5df90dd7843c54361f48ad6291aa',
+    crlfHash: '0efa7e202c95866b47ee017a009e4285c22df8f54a4c7b51abe25e8659a486a3' },
 ]);
 export const P4_COMPARABILITY_MIGRATIONS = Object.freeze([...P4_MIGRATIONS,
-  { name: '20261119000100_p4_comparability', hash: '35955a7de1374ba2971ff55f2082ddd6923d3fa9f2b6690ca220b03cb4eae95d' },
+  { name: '20261119000100_p4_comparability', hash: '35955a7de1374ba2971ff55f2082ddd6923d3fa9f2b6690ca220b03cb4eae95d',
+    crlfHash: '83afd98b5d3f109839a1a65a95db0860fad25b7f0f1b4aaf59302f49e391bd71' },
 ]);
 export type ProvisionProfile = 'p4-v1' | 'comparability-v1' | 'p4-api-comparability-v1';
 const namespace = PURCHASE_CATALOG.version;
@@ -76,7 +81,8 @@ async function preflight(client: ProvisionClient, profile: ProvisionProfile) {
   const applied = migrations.filter(row => row.rolled_back === false);
   requireValue(applied.length === expectedMigrations.length && expectedMigrations.every(m => {
     const matches = applied.filter(row => row.migration_name === m.name);
-    return matches.length === 1 && matches[0].checksum === m.hash && matches[0].complete === true;
+    return matches.length === 1 && (matches[0].checksum === m.hash || matches[0].checksum === m.crlfHash)
+      && matches[0].complete === true;
   }), 'MIGRATIONS');
   const permission = single((await client.query(`/* p4:permissions */ SELECT
     NOT (r.rolsuper OR r.rolcreaterole OR r.rolcreatedb OR r.rolbypassrls OR r.rolreplication)
