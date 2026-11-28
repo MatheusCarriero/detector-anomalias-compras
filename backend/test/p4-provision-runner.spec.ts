@@ -134,15 +134,32 @@ describe('P4 provisioning CLI guards (offline)', () => {
     expect(await runProvision(args, env, d)).toEqual({ ok: false, code: 'LOCAL_ARTIFACT' });
     expect(d.createClient).not.toHaveBeenCalled();
   });
-  it('accepts only the same migration content across LF and CRLF checkouts', async () => {
+  it.each(['LF', 'CRLF'])('accepts only the same migration content in a full %s checkout', async eol => {
     const d = dependencies(); const body = 'synthetic\nmigration\n';
     d.loadCore.mockResolvedValue({ provisionP4: d.provisionP4,
       P4_MIGRATIONS: [{ name: 'fixture', hash: createHash('sha256').update(body).digest('hex') }] });
-    d.readMigration.mockResolvedValue(Buffer.from(body.replaceAll('\n', '\r\n')));
+    d.readMigration.mockResolvedValue(Buffer.from(eol === 'LF' ? body : body.replaceAll('\n', '\r\n')));
     expect((await runProvision(args, env, d)).ok).toBe(true);
     d.readMigration.mockResolvedValue(Buffer.from(body + '-- changed'));
     expect(await runProvision(args, env, d)).toEqual({ ok: false, code: 'LOCAL_ARTIFACT' });
     expect(d.client.connect).toHaveBeenCalledTimes(1);
+  });
+  it.each(['mixed-eol', 'bare-cr', 'bom', 'changed-sql', 'invalid-utf8', 'missing'])
+  ('rejects noncanonical local SQL before constructing a client: %s', async scenario => {
+    const d = dependencies(); const body = 'SELECT 1;\nSELECT 2;\n';
+    d.loadCore.mockResolvedValue({ provisionP4: d.provisionP4,
+      P4_MIGRATIONS: [{ name: 'fixture', hash: createHash('sha256').update(body).digest('hex') }] });
+    const variants: Record<string, Buffer> = {
+      'mixed-eol': Buffer.from(body.replace('\n', '\r\n')),
+      'bare-cr': Buffer.from(body.replaceAll('\n', '\r')),
+      bom: Buffer.from('\uFEFF' + body), 'changed-sql': Buffer.from(body.replace('SELECT 2', 'SELECT 3')),
+      'invalid-utf8': Buffer.concat([Buffer.from(body), Buffer.from([0xff])]),
+    };
+    if (scenario === 'missing') d.readMigration.mockRejectedValue(new Error('private filesystem path'));
+    else d.readMigration.mockResolvedValue(variants[scenario]);
+    expect(await runProvision(args, env, d)).toEqual({ ok: false, code: 'LOCAL_ARTIFACT' });
+    expect(d.createClient).not.toHaveBeenCalled(); expect(d.client.connect).not.toHaveBeenCalled();
+    expect(d.provisionP4).not.toHaveBeenCalled();
   });
   it('refuses missing build artifacts and sanitizes their filesystem errors', async () => {
     const d = dependencies(); d.loadCore.mockRejectedValue(new Error('secret local path'));

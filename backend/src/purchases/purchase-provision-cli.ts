@@ -76,9 +76,13 @@ export async function runProvision(args: string[], env: NodeJS.ProcessEnv, {
     if (!migrations || (extended && migrations.length !== 3)) fail('LOCAL_ARTIFACT');
     for (const migration of migrations) {
       const bytes = await readMigration(migration.name);
-      // Same canonical LF policy as the existing SQL catalog contract; a Git
-      // checkout's CRLF conversion is not a change to the reviewed migration.
-      if (createHash('sha256').update(bytes.toString('utf8').replaceAll('\r\n', '\n')).digest('hex') !== migration.hash) fail('LOCAL_ARTIFACT');
+      const canonical = bytes.toString('utf8').replaceAll('\r\n', '\n');
+      const lf = Buffer.from(canonical, 'utf8');
+      const crlf = Buffer.from(canonical.replaceAll('\n', '\r\n'), 'utf8');
+      // Authenticate the canonical content first, then admit exactly its two
+      // uniform encodings. No mixed EOLs, lossy decoding or other normalization.
+      if (createHash('sha256').update(lf).digest('hex') !== migration.hash
+        || (!bytes.equals(lf) && !bytes.equals(crlf))) fail('LOCAL_ARTIFACT');
     }
     phase = 'CONNECT'; client = await createClient(config);
     client.on('error', () => { asynchronousError = true; }); // No raw driver output.
